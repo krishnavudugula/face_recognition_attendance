@@ -17,13 +17,13 @@ const getBaseURL = () => {
         return `${protocol}//${hostname}`;
     }
     
-    // On Capacitor/Android - use ngrok tunnel (works for emulator and real devices)
+    // On Capacitor/Android - use deployed Render backend (always available)
     if (isCapacitor) {
         console.log('[Config] Running on Capacitor/Android');
-        // Use ngrok URL for stable remote tunneling
-        const ngrokUrl = 'https://thymic-chu-pressuringly.ngrok-free.dev';
-        console.log('[Config] Using ngrok tunnel:', ngrokUrl);
-        return ngrokUrl;
+        // Use deployed Render backend - always available, no ngrok needed
+        const renderUrl = 'https://face-attendance-api-ogih.onrender.com';
+        console.log('[Config] Using Render backend:', renderUrl);
+        return renderUrl;
     }
     
     // If on localhost (browser development), use HTTP on port 5000
@@ -37,8 +37,8 @@ const getBaseURL = () => {
     return `${protocol}//${hostname}${port ? ':' + port : ''}`;
 };
 
-window.API_BASE_URL = getBaseURL();
-const API_BASE_URL = window.API_BASE_URL;
+const API_BASE_URL = getBaseURL();
+window.API_BASE_URL = API_BASE_URL;
 
 console.log('[Config] API_BASE_URL set to:', API_BASE_URL);
 
