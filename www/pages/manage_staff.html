@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Manage Staff - FaceAttend</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="../js/back-button-native.js"></script>
+    <script src="../js/route-persistence.js"></script>
+    <script src="../js/background-tracking.js"></script>
+    <script src="../js/config.js"></script>
+    <script src="../js/main.js" defer></script>
+    <script src="../js/manage_staff.js" defer></script>
+</head>
+<body class="dashboard-body">
+    
+    <nav class="navbar">
+        <a href="admin_dashboard.html" class="navbar-brand">
+            <div class="logo-icon">
+                <img src="../assets/Bits-logo.png" alt="BITS Logo">
+            </div>
+            <span>Staff Directory</span>
+        </a>
+        
+        <button class="menu-toggle" aria-label="Toggle navigation"><i class="fa-solid fa-bars"></i></button>
+        
+        <div class="nav-menu">
+            <ul class="navbar-nav">
+                <li><a href="admin_dashboard.html" class="nav-link">Dashboard</a></li>
+            </ul>
+            <div class="nav-actions">
+                <a href="../index.html" class="action-btn-danger" onclick="localStorage.removeItem('user'); localStorage.removeItem('user_role'); localStorage.removeItem('user_id'); localStorage.removeItem('user_name');">
+                    <i class="fa-solid fa-right-from-bracket"></i> Logout
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        
+        <div class="dashboard-header" style="flex-direction: column; align-items: flex-start; gap: 1.5rem;">
+            <div>
+                <h2 style="font-size: 2rem; color: #0f172a; margin: 0 0 0.25rem 0; letter-spacing: -0.02em;">Staff Directory</h2>
+                <p style="color: #64748b; margin: 0; font-size: 0.95rem;">Manage personnel records, attendance status, and quick actions</p>
+            </div>
+            
+            <div style="position: relative; width: 100%; max-width: 340px;">
+                <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.9rem;"></i>
+                <input type="text" id="searchStaff" class="modern-input" placeholder="Search by name or ID..." style="padding-left: 2.5rem; border-radius: 50px;">
+            </div>
+        </div>
+
+        <div class="glass-card" style="padding: 0; overflow: hidden; border: 1.5px solid #e2e8f0;">
+            <div style="padding: 1.5rem; background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%); border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h3 style="margin: 0; font-size: 1.1rem; color: #0f172a; font-weight: 700;">Staff Directory</h3>
+                    <p style="margin: 0.35rem 0 0 0; color: #64748b; font-size: 0.85rem;">View, manage, and control staff records</p>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="premium-table">
+                    <thead>
+                        <tr style="background: linear-gradient(135deg, #f8fafc 0%, #f3f4f6 100%); border-bottom: 2px solid #e2e8f0;">
+                            <th style="width: 50px; text-align: center; padding: 1rem 0.5rem; font-size: 0.85rem;">Avatar</th>
+                            <th style="text-align: left; padding: 1rem 0.75rem; font-size: 0.85rem; min-width: 80px;">Staff ID</th>
+                            <th style="text-align: left; padding: 1rem 0.75rem; font-size: 0.85rem; min-width: 120px;">Name</th>
+                            <th style="text-align: left; padding: 1rem 0.75rem; font-size: 0.85rem; min-width: 100px; display: none;" class="desktop-col">Designation</th>
+                            <th style="text-align: center; padding: 1rem 0.5rem; font-size: 0.85rem; min-width: 70px;">Status</th>
+                            <th style="text-align: center; padding: 1rem 0.5rem; font-size: 0.85rem; min-width: 60px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="staffTableBody">
+                        <tr style="border-bottom: 1px solid #e2e8f0; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#f9fafb'" onmouseout="this.style.backgroundColor='white'">
+                            <td style="text-align: center; padding: 0.75rem 0.25rem;">
+                                <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);">AG</div>
+                            </td>
+                            <td style="font-weight: 650; color: #334155; font-size: 0.9rem; padding: 0.75rem 0.5rem;">EMP001</td>
+                            <td style="font-weight: 650; color: #0f172a; font-size: 0.9rem; padding: 0.75rem 0.5rem;">Dr. Alan Grant</td>
+                            <td style="color: #64748b; font-size: 0.85rem; padding: 0.75rem 0.5rem; display: none;" class="desktop-col">
+                                <span style="background: #eff6ff; color: #1e40af; padding: 0.25rem 0.6rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600;">HOD</span>
+                            </td>
+                            <td style="text-align: center; padding: 0.75rem 0.25rem;"><span class="status-pill status-present" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">✓ Present</span></td>
+                            <td style="text-align: center; padding: 0.75rem 0.25rem;">
+                                <button class="icon-btn" onclick="alert('View Profile')" title="View" style="background: #eff6ff; color: #3b82f6; border: none; cursor: pointer; width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#3b82f6'; this.style.color='white'" onmouseout="this.style.backgroundColor='#eff6ff'; this.style.color='#3b82f6'">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                                <button class="icon-btn" onclick="confirm('Mark PRESENT?')" title="Present" style="background: #ecfdf5; color: #10b981; border: none; cursor: pointer; width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; margin: 0 0.25rem; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#10b981'; this.style.color='white'" onmouseout="this.style.backgroundColor='#ecfdf5'; this.style.color='#10b981'">
+                                    <i class="fa-solid fa-check"></i>
+                                </button>
+                                <button class="icon-btn" onclick="confirm('Delete staff?')" title="Delete" style="background: #fef2f2; color: #ef4444; border: none; cursor: pointer; width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#ef4444'; this.style.color='white'" onmouseout="this.style.backgroundColor='#fef2f2'; this.style.color='#ef4444'">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #e2e8f0; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#f9fafb'" onmouseout="this.style.backgroundColor='white'">
+                            <td style="text-align: center; padding: 0.75rem 0.25rem;">
+                                <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #10b981, #059669); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);">ES</div>
+                            </td>
+                            <td style="font-weight: 650; color: #334155; font-size: 0.9rem; padding: 0.75rem 0.5rem;">EMP002</td>
+                            <td style="font-weight: 650; color: #0f172a; font-size: 0.9rem; padding: 0.75rem 0.5rem;">Dr. Ellie Sattler</td>
+                            <td style="color: #64748b; font-size: 0.85rem; padding: 0.75rem 0.5rem; display: none;" class="desktop-col">
+                                <span style="background: #fefce8; color: #92400e; padding: 0.25rem 0.6rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600;">Lecturer</span>
+                            </td>
+                            <td style="text-align: center; padding: 0.75rem 0.25rem;"><span class="status-pill status-absent" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">✗ Absent</span></td>
+                            <td style="text-align: center; padding: 0.75rem 0.25rem;">
+                                <button class="icon-btn" onclick="alert('View Profile')" title="View" style="background: #eff6ff; color: #3b82f6; border: none; cursor: pointer; width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#3b82f6'; this.style.color='white'" onmouseout="this.style.backgroundColor='#eff6ff'; this.style.color='#3b82f6'">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                                <button class="icon-btn" onclick="confirm('Mark PRESENT?')" title="Present" style="background: #ecfdf5; color: #10b981; border: none; cursor: pointer; width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; margin: 0 0.25rem; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#10b981'; this.style.color='white'" onmouseout="this.style.backgroundColor='#ecfdf5'; this.style.color='#10b981'">
+                                    <i class="fa-solid fa-check"></i>
+                                </button>
+                                <button class="icon-btn" onclick="confirm('Delete staff?')" title="Delete" style="background: #fef2f2; color: #ef4444; border: none; cursor: pointer; width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#ef4444'; this.style.color='white'" onmouseout="this.style.backgroundColor='#fef2f2'; this.style.color='#ef4444'">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #e2e8f0; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#f9fafb'" onmouseout="this.style.backgroundColor='white'">
+                            <td style="text-align: center; padding: 0.75rem 0.25rem;">
+                                <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #f59e0b, #d97706); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);">IM</div>
+                            </td>
+                            <td style="font-weight: 650; color: #334155; font-size: 0.9rem; padding: 0.75rem 0.5rem;">EMP003</td>
+                            <td style="font-weight: 650; color: #0f172a; font-size: 0.9rem; padding: 0.75rem 0.5rem;">Ian Malcolm</td>
+                            <td style="color: #64748b; font-size: 0.85rem; padding: 0.75rem 0.5rem; display: none;" class="desktop-col">
+                                <span style="background: #fef3c7; color: #92400e; padding: 0.25rem 0.6rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600;">Guest</span>
+                            </td>
+                            <td style="text-align: center; padding: 0.75rem 0.25rem;"><span class="status-pill status-late" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">⏰ Late</span></td>
+                            <td style="text-align: center; padding: 0.75rem 0.25rem;">
+                                <button class="icon-btn" title="View" style="background: #eff6ff; color: #3b82f6; border: none; cursor: pointer; width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#3b82f6'; this.style.color='white'" onmouseout="this.style.backgroundColor='#eff6ff'; this.style.color='#3b82f6'">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                                <button class="icon-btn" onclick="confirm('Mark PRESENT?')" title="Present" style="background: #ecfdf5; color: #10b981; border: none; cursor: pointer; width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; margin: 0 0.25rem; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#10b981'; this.style.color='white'" onmouseout="this.style.backgroundColor='#ecfdf5'; this.style.color='#10b981'">
+                                    <i class="fa-solid fa-check"></i>
+                                </button>
+                                <button class="icon-btn" onclick="confirm('Delete staff?')" title="Delete" style="background: #fef2f2; color: #ef4444; border: none; cursor: pointer; width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; transition: all 0.2s;" onmouseover="this.style.backgroundColor='#ef4444'; this.style.color='white'" onmouseout="this.style.backgroundColor='#fef2f2'; this.style.color='#ef4444'">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div style="text-align: center; padding: 1.25rem; border-top: 1px solid #e2e8f0; background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);">
+                <button class="action-btn-secondary" style="border-radius: 50px; padding: 0.6rem 1.5rem; font-size: 0.9rem; border: 2px solid #e2e8f0; transition: all 0.2s;" onmouseover="this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc'" onmouseout="this.style.borderColor='#e2e8f0'; this.style.background='white'">
+                    <i class="fa-solid fa-chevron-down" style="margin-right: 0.5rem; font-size: 0.8rem;"></i> Load More Records
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const menuToggle = document.querySelector('.menu-toggle');
+        const navMenu = document.querySelector('.nav-menu');
+        
+        if (menuToggle && navMenu) {
+            menuToggle.addEventListener('click', () => {
+                navMenu.classList.toggle('active');
+                const icon = menuToggle.querySelector('i');
+                if (navMenu.classList.contains('active')) {
+                    icon.classList.remove('fa-bars');
+                    icon.classList.add('fa-times');
+                } else {
+                    icon.classList.remove('fa-times');
+                    icon.classList.add('fa-bars');
+                }
+            });
+        }
+    </script>
+</body>
+</html>

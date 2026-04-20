@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Complete Face Registration - FaceAttend</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="../js/back-button-native.js"></script>
+    <script src="../js/route-persistence.js"></script>
+    <script src="../js/background-tracking.js"></script>
+    <script src="../js/config.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', 'Manrope', sans-serif;
+            background: linear-gradient(135deg, #f8f9fb 0%, #f0f4fa 100%);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .registration-wrapper {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            height: 100vh;
+            gap: 0;
+        }
+
+        .camera-main {
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+            border-right: 1px solid rgba(203, 213, 225, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .top-bar {
+            padding: 1rem 1.5rem;
+            background: rgba(255, 255, 255, 0.9);
+            border-bottom: 1px solid rgba(203, 213, 225, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .back-btn {
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #1a202c;
+            font-size: 1.2rem;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .back-btn:hover {
+            background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+            transform: translateX(-2px);
+        }
+
+        .back-btn:active {
+            transform: translateX(-1px);
+        }
+
+        .top-bar-content {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .top-bar-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #1a202c;
+        }
+
+        .progress-compact {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #64748b;
+        }
+
+        .progress-compact .current {
+            color: #3b82f6;
+            font-weight: 800;
+        }
+
+        .camera-section {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+            overflow: hidden;
+        }
+
+        #videoContainer {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        .face-guide {
+            position: absolute;
+            width: 220px;
+            height: 300px;
+            border: 3px solid rgba(59, 130, 246, 0.5);
+            border-radius: 24px;
+            pointer-events: none;
+            background: transparent;
+            box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.3);
+        }
+
+        .guidance-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 10;
+        }
+
+        .guidance-emoji {
+            font-size: 3.5rem;
+            margin-bottom: 0.5rem;
+            animation: guidanceFloat 2s ease-in-out infinite;
+        }
+
+        @keyframes guidanceFloat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .guidance-text {
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+            margin-bottom: 0.25rem;
+        }
+
+        .guidance-subtitle {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.85rem;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+            margin-bottom: 1rem;
+        }
+
+        .countdown-timer {
+            font-size: 3rem;
+            font-weight: 900;
+            color: #3b82f6;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+            font-family: 'Courier New', monospace;
+            display: none;
+        }
+
+        .camera-footer {
+            padding: 1rem 1.5rem;
+            background: rgba(255, 255, 255, 0.95);
+            border-top: 1px solid rgba(203, 213, 225, 0.2);
+            display: flex;
+            gap: 0.8rem;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            letter-spacing: -0.3px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.2);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 24px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(239, 68, 68, 0.08);
+            color: #dc2626;
+            border: 1.5px solid rgba(220, 38, 38, 0.2);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: rgba(239, 68, 68, 0.14);
+            border-color: rgba(220, 38, 38, 0.35);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .sidebar-panel {
+            background: linear-gradient(180deg, #f8f9fb 0%, #f3f4f6 100%);
+            border-left: 1px solid rgba(203, 213, 225, 0.3);
+            padding: 1rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            min-width: 300px;
+        }
+
+        .panel-section {
+            background: white;
+            border-radius: 14px;
+            padding: 1rem;
+            border: 1px solid rgba(203, 213, 225, 0.2);
+        }
+
+        .panel-title {
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid rgba(203, 213, 225, 0.2);
+        }
+
+        .angle-indicators {
+            display: flex;
+            flex-direction: column;
+            gap: 0.6rem;
+        }
+
+        .angle-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.6rem 0.75rem;
+            border-radius: 10px;
+            background: rgba(203, 213, 225, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .angle-item.active {
+            background: rgba(59, 130, 246, 0.1);
+            border-left: 3px solid #3b82f6;
+            padding-left: 0.5rem;
+        }
+
+        .angle-item.completed {
+            background: rgba(16, 185, 129, 0.1);
+            border-left: 3px solid #10b981;
+            padding-left: 0.5rem;
+        }
+
+        .angle-icon {
+            font-size: 1.2rem;
+            width: 28px;
+            text-align: center;
+            color: #94a3b8;
+        }
+
+        .angle-item.active .angle-icon {
+            color: #3b82f6;
+            font-weight: 700;
+        }
+
+        .angle-item.completed .angle-icon {
+            color: #10b981;
+        }
+
+        .angle-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #64748b;
+            flex: 1;
+        }
+
+        .angle-item.active .angle-label {
+            color: #3b82f6;
+        }
+
+        .angle-item.completed .angle-label {
+            color: #10b981;
+        }
+
+        .angle-status {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            font-weight: 700;
+        }
+
+        .angle-item.completed .angle-status {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+
+        .photos-preview {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.6rem;
+        }
+
+        .photo-thumb {
+            position: relative;
+            aspect-ratio: 1;
+            background: rgba(203, 213, 225, 0.2);
+            border: 1.5px solid rgba(203, 213, 225, 0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            transition: all 0.3s ease;
+        }
+
+        .photo-thumb.captured {
+            border-color: #10b981;
+            background: transparent;
+        }
+
+        .photo-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        .photo-check {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 20px;
+            height: 20px;
+            background: #10b981;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+
+        .tips-section {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(37, 99, 235, 0.03) 100%);
+            border: 1.5px solid rgba(59, 130, 246, 0.1);
+            border-radius: 12px;
+            padding: 0.8rem;
+        }
+
+        .tips-section .panel-title {
+            margin-bottom: 0.5rem;
+            padding-bottom: 0.5rem;
+            border: none;
+            color: #1e40af;
+        }
+
+        .tip-item {
+            font-size: 0.8rem;
+            color: #1e40af;
+            margin-bottom: 0.35rem;
+            display: flex;
+            gap: 0.4rem;
+            line-height: 1.3;
+        }
+
+        .tip-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .status-box {
+            padding: 0.75rem;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 0.85rem;
+            font-weight: 600;
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+            border: 1.5px solid rgba(16, 185, 129, 0.2);
+            display: none;
+        }
+
+        .status-box.visible {
+            display: block;
+        }
+
+        @media (max-width: 1024px) {
+            .registration-wrapper {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr auto;
+            }
+
+            .sidebar-panel {
+                border-left: none;
+                border-top: 1px solid rgba(203, 213, 225, 0.3);
+                min-width: auto;
+                padding: 1rem;
+                overflow-y: auto;
+                max-height: 320px;
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 1rem;
+            }
+
+            .panel-section {
+                min-width: 0;
+            }
+
+            .angle-indicators {
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .registration-wrapper {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr auto;
+            }
+
+            .sidebar-panel {
+                max-height: 280px;
+                grid-template-columns: repeat(2, 1fr);
+                padding: 0.8rem;
+                gap: 0.8rem;
+            }
+
+            .panel-section {
+                padding: 0.75rem;
+            }
+
+            .top-bar {
+                padding: 0.75rem 1rem;
+            }
+
+            .camera-footer {
+                padding: 0.8rem 1rem;
+                gap: 0.6rem;
+            }
+
+            .btn {
+                padding: 0.65rem 1.2rem;
+                font-size: 0.9rem;
+            }
+
+            .guidance-emoji {
+                font-size: 2.8rem;
+            }
+
+            .countdown-timer {
+                font-size: 2.5rem;
+            }
+
+            .face-guide {
+                width: 180px;
+                height: 240px;
+            }
+
+            .panel-title {
+                font-size: 0.8rem;
+                margin-bottom: 0.5rem;
+            }
+
+            .photos-preview {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 0.5rem;
+            }
+
+            .angle-item {
+                padding: 0.5rem 0.6rem;
+                font-size: 0.85rem;
+            }
+
+            .tip-item {
+                font-size: 0.8rem;
+                margin-bottom: 0.3rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .registration-wrapper {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr auto auto;
+                height: 100vh;
+            }
+
+            body {
+                height: 100vh;
+                overflow: hidden;
+            }
+
+            .top-bar {
+                padding: 0.6rem 0.8rem;
+                gap: 0.5rem;
+            }
+
+            .top-bar-title {
+                font-size: 0.95rem;
+            }
+
+            .progress-compact {
+                font-size: 0.85rem;
+            }
+
+            .camera-section {
+                flex: 1;
+                min-height: 280px;
+            }
+
+            .camera-footer {
+                padding: 0.7rem 0.8rem;
+                gap: 0.5rem;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .btn {
+                padding: 0.6rem 1rem;
+                font-size: 0.8rem;
+                flex: 1;
+                min-width: 80px;
+            }
+
+            .guidance-emoji {
+                font-size: 2.2rem;
+                margin-bottom: 0.25rem;
+            }
+
+            .guidance-text {
+                font-size: 1rem;
+            }
+
+            .guidance-subtitle {
+                font-size: 0.75rem;
+            }
+
+            .countdown-timer {
+                font-size: 2rem;
+            }
+
+            .face-guide {
+                width: 140px;
+                height: 190px;
+                border-width: 2px;
+            }
+
+            .sidebar-panel {
+                border-top: 1px solid rgba(203, 213, 225, 0.3);
+                border-left: none;
+                padding: 0.6rem;
+                max-height: auto;
+                overflow: visible;
+                display: flex;
+                flex-direction: column;
+                gap: 0.6rem;
+                grid-template-columns: none;
+                min-height: 160px;
+            }
+
+            .panel-section {
+                padding: 0.6rem;
+            }
+
+            .panel-title {
+                font-size: 0.75rem;
+                margin-bottom: 0.4rem;
+                padding-bottom: 0.4rem;
+            }
+
+            .angle-indicators {
+                gap: 0.4rem;
+            }
+
+            .angle-item {
+                padding: 0.4rem 0.5rem;
+                font-size: 0.8rem;
+                gap: 0.5rem;
+            }
+
+            .angle-icon {
+                font-size: 1rem;
+            }
+
+            .angle-label {
+                font-size: 0.8rem;
+            }
+
+            .photos-preview {
+                grid-template-columns: repeat(5, 1fr);
+                gap: 0.4rem;
+            }
+
+            .photo-thumb {
+                font-size: 1.2rem;
+                border-radius: 8px;
+            }
+
+            .photo-check {
+                width: 16px;
+                height: 16px;
+                font-size: 0.6rem;
+            }
+
+            .tip-item {
+                font-size: 0.75rem;
+                margin-bottom: 0.2rem;
+                line-height: 1.2;
+            }
+
+            .tips-section {
+                padding: 0.6rem;
+            }
+
+            .status-box {
+                padding: 0.6rem;
+                font-size: 0.8rem;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .registration-wrapper {
+                height: 100vh;
+            }
+
+            .btn {
+                padding: 0.55rem 0.8rem;
+                font-size: 0.75rem;
+                min-width: 70px;
+            }
+
+            .top-bar-title {
+                font-size: 0.9rem;
+            }
+
+            .guidance-emoji {
+                font-size: 2rem;
+            }
+
+            .guidance-text {
+                font-size: 0.95rem;
+            }
+
+            .face-guide {
+                width: 120px;
+                height: 160px;
+            }
+
+            .sidebar-panel {
+                min-height: 140px;
+            }
+
+            .panel-section {
+                padding: 0.5rem;
+            }
+
+            .angle-item {
+                padding: 0.35rem 0.4rem;
+                font-size: 0.75rem;
+            }
+
+            .photos-preview {
+                grid-template-columns: repeat(5, 1fr);
+                gap: 0.3rem;
+            }
+
+            .photo-thumb {
+                font-size: 1rem;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.2);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 116, 139, 0.35);
+        }
+    </style>
+</head>
+<body>
+    <div class="registration-wrapper">
+        <!-- LEFT: Camera Main -->
+        <div class="camera-main">
+            <!-- Top Bar -->
+            <div class="top-bar">
+                <button class="back-btn" id="backBtn" title="Go Back"><i class="fas fa-arrow-left"></i></button>
+                <div class="top-bar-content">
+                    <div class="top-bar-title">Face Registration</div>
+                </div>
+                <div class="progress-compact">
+                    <span class="current" id="progressCurrent">1</span>/<span>5</span>
+                </div>
+            </div>
+
+            <!-- Camera Section -->
+            <div class="camera-section">
+                <div id="videoContainer">
+                    <video id="video" autoplay playsinline muted></video>
+                    <canvas id="canvas" style="display: none;"></canvas>
+                    <div class="face-guide"></div>
+                </div>
+
+                <!-- Guidance Overlay -->
+                <div class="guidance-overlay" id="guidanceOverlay">
+                    <div class="guidance-emoji" id="guidanceEmoji">👀</div>
+                    <div class="guidance-text" id="guidanceText">Look Straight at Camera</div>
+                    <div class="guidance-subtitle" id="guidanceSubtitle">Keep face centered in frame</div>
+                    <div class="countdown-timer" id="countdown"></div>
+                </div>
+            </div>
+
+            <!-- Footer Controls -->
+            <div class="camera-footer">
+                <button id="startBtn" class="btn btn-primary">
+                    <i class="fas fa-play"></i> Start
+                </button>
+                <button id="retryBtn" class="btn btn-secondary" style="display: none;">
+                    <i class="fas fa-redo"></i> Retry
+                </button>
+                <button id="submitBtn" class="btn btn-primary" style="display: none;">
+                    <i class="fas fa-check"></i> Complete
+                </button>
+            </div>
+        </div>
+
+        <!-- RIGHT: Sidebar Panel -->
+        <div class="sidebar-panel">
+            <!-- Angle Steps -->
+            <div class="panel-section">
+                <div class="panel-title">Capture Angles</div>
+                <div class="angle-indicators" id="angleIndicators"></div>
+            </div>
+
+            <!-- Photos Preview -->
+            <div class="panel-section">
+                <div class="panel-title">Photos Captured</div>
+                <div class="photos-preview" id="photosPreview"></div>
+            </div>
+
+            <!-- Tips -->
+            <div class="panel-section tips-section">
+                <div class="panel-title">Quick Tips</div>
+                <div class="tip-item"><span>✓</span> Good lighting</div>
+                <div class="tip-item"><span>✓</span> Face centered</div>
+                <div class="tip-item"><span>✓</span> Neutral look</div>
+                <div class="tip-item"><span>✓</span> No accessories</div>
+            </div>
+
+            <!-- Status -->
+            <div class="status-box" id="statusBox"></div>
+        </div>
+    </div>
+
+    <script>
+        const angles = ['front', 'left', 'right', 'down', 'up'];
+        const angleText = {
+            front: { text: 'Look Straight at Camera', subtitle: 'Keep your face centered', emoji: '👀' },
+            left: { text: 'Turn Head Left', subtitle: 'Rotate about 45 degrees', emoji: '←' },
+            right: { text: 'Turn Head Right', subtitle: 'Rotate about 45 degrees', emoji: '→' },
+            down: { text: 'Look Down Slightly', subtitle: 'Lower your chin', emoji: '↓' },
+            up: { text: 'Look Up Slightly', subtitle: 'Raise your chin', emoji: '↑' }
+        };
+
+        let currentAngleIndex = 0;
+        let capturedImages = {};
+        let userData = null;
+        let isCapturing = false;
+        let video, canvas, ctx;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('Page loaded - initializing...');
+            
+            userData = JSON.parse(sessionStorage.getItem('user_for_face_registration') || localStorage.getItem('pending_face_user') || 'null');
+            
+            if (!userData) {
+                alert('Session expired. Please login again.');
+                window.location.href = 'login.html';
+                return;
+            }
+
+            video = document.getElementById('video');
+            canvas = document.getElementById('canvas');
+            ctx = canvas.getContext('2d');
+
+            console.log('Elements found - video:', !!video, 'canvas:', !!canvas);
+
+            initializeCamera();
+            renderAngleIndicators();
+            renderPhotoPlaceholders();
+
+            // Attach event listeners
+            const startBtn = document.getElementById('startBtn');
+            const retryBtn = document.getElementById('retryBtn');
+            const submitBtn = document.getElementById('submitBtn');
+            const backBtn = document.getElementById('backBtn');
+
+            if (startBtn) startBtn.onclick = (e) => { e.preventDefault(); startCapture(); };
+            if (retryBtn) retryBtn.onclick = (e) => { e.preventDefault(); retryAngle(); };
+            if (submitBtn) submitBtn.onclick = (e) => { e.preventDefault(); submitAllFaces(); };
+            if (backBtn) backBtn.onclick = (e) => { 
+                e.preventDefault(); 
+                if (confirm('Are you sure? Any unsaved progress will be lost.')) {
+                    window.history.back();
+                }
+            };
+
+            console.log('Initialization complete');
+        });
+
+        async function initializeCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: false 
+                });
+                
+                video.srcObject = stream;
+                
+                video.onloadedmetadata = async () => {
+                    console.log('Camera loaded - dimensions:', video.videoWidth, 'x', video.videoHeight);
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    await video.play().catch(err => console.error('Play error:', err));
+                };
+                
+                setTimeout(async () => {
+                    if (video.readyState >= 2) {
+                        try {
+                            await video.play();
+                            console.log('Video playing');
+                        } catch (e) {
+                            console.error('Timeout play error:', e);
+                        }
+                    }
+                }, 1000);
+                
+            } catch (err) {
+                console.error('Camera Error:', err);
+                alert('Camera access denied. Please enable camera permissions and refresh the page.');
+                document.getElementById('startBtn').disabled = true;
+            }
+        }
+
+        function renderAngleIndicators() {
+            const container = document.getElementById('angleIndicators');
+            container.innerHTML = '';
+            angles.forEach((angle, index) => {
+                const item = document.createElement('div');
+                item.className = `angle-item ${index === 0 ? 'active' : ''}`;
+                item.id = `angle-${angle}`;
+                item.innerHTML = `
+                    <div class="angle-icon">${angleText[angle].emoji}</div>
+                    <div class="angle-label">${angle.charAt(0).toUpperCase() + angle.slice(1)}</div>
+                    <div class="angle-status"></div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function renderPhotoPlaceholders() {
+            const container = document.getElementById('photosPreview');
+            container.innerHTML = '';
+            angles.forEach(angle => {
+                const div = document.createElement('div');
+                div.className = 'photo-thumb';
+                div.id = `photo-${angle}`;
+                div.innerHTML = `${angleText[angle].emoji}`;
+                container.appendChild(div);
+            });
+        }
+
+        function updateAngleIndicators() {
+            angles.forEach((angle, index) => {
+                const item = document.getElementById(`angle-${angle}`);
+                item.classList.remove('active', 'completed');
+                
+                if (index < currentAngleIndex) {
+                    item.classList.add('completed');
+                    item.querySelector('.angle-status').textContent = '✓';
+                } else if (index === currentAngleIndex) {
+                    item.classList.add('active');
+                }
+            });
+        }
+
+        async function startCapture() {
+            console.log('Start capture - isCapturing:', isCapturing, 'currentAngleIndex:', currentAngleIndex);
+            if (isCapturing || currentAngleIndex >= angles.length) return;
+
+            isCapturing = true;
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('retryBtn').style.display = 'none';
+
+            updateAngleIndicators();
+            updateGuidance();
+            await countdownAndCapture();
+        }
+
+        async function countdownAndCapture() {
+            const countdownEl = document.getElementById('countdown');
+            countdownEl.style.display = 'block';
+
+            for (let i = 3; i > 0; i--) {
+                countdownEl.textContent = i;
+                console.log('Countdown:', i);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            console.log('Capturing frame...');
+            captureCurrentAngle();
+            countdownEl.style.display = 'none';
+        }
+
+        function captureCurrentAngle() {
+            if (currentAngleIndex >= angles.length) return;
+
+            console.log('Capturing angle:', angles[currentAngleIndex], 'index:', currentAngleIndex);
+            
+            try {
+                if (canvas.width === 0 || canvas.height === 0) {
+                    canvas.width = video.videoWidth || 640;
+                    canvas.height = video.videoHeight || 480;
+                    console.log('Canvas dimensions set to:', canvas.width, 'x', canvas.height);
+                }
+                
+                if (!ctx) ctx = canvas.getContext('2d');
+
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = canvas.toDataURL('image/jpeg', 0.9);
+                
+                if (!imageData || imageData === 'data:image/jpeg;base64,') {
+                    console.error('Failed to capture image data');
+                    alert('Failed to capture frame. Please try again.');
+                    isCapturing = false;
+                    return;
+                }
+                
+                const angle = angles[currentAngleIndex];
+                capturedImages[angle] = imageData;
+                console.log('Image captured for:', angle, 'Data length:', imageData.length);
+
+                const photoEl = document.getElementById(`photo-${angle}`);
+                if (photoEl) {
+                    photoEl.classList.add('captured');
+                    photoEl.innerHTML = `<img src="${imageData}" /><div class="photo-check">✓</div>`;
+                }
+
+                currentAngleIndex++;
+                document.getElementById('progressCurrent').textContent = currentAngleIndex;
+
+                if (currentAngleIndex < angles.length) {
+                    console.log('Moving to next angle...');
+                    updateGuidance();
+                    updateAngleIndicators();
+                    setTimeout(() => countdownAndCapture(), 1500);
+                } else {
+                    console.log('All angles captured!');
+                    completeCapture();
+                }
+            } catch (err) {
+                console.error('Capture error:', err);
+                alert('Error capturing frame: ' + err.message);
+                isCapturing = false;
+            }
+        }
+
+        function updateGuidance() {
+            if (currentAngleIndex >= angles.length) return;
+
+            const angle = angles[currentAngleIndex];
+            const guidance = angleText[angle];
+
+            document.getElementById('guidanceEmoji').textContent = guidance.emoji;
+            document.getElementById('guidanceText').textContent = guidance.text;
+            document.getElementById('guidanceSubtitle').textContent = guidance.subtitle;
+        }
+
+        function completeCapture() {
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('retryBtn').style.display = 'none';
+            document.getElementById('submitBtn').style.display = 'inline-flex';
+            document.getElementById('statusBox').textContent = '✓ All angles captured! Ready to submit.';
+            document.getElementById('statusBox').classList.add('visible');
+        }
+
+        function retryAngle() {
+            if (currentAngleIndex === 0) return;
+
+            currentAngleIndex--;
+            const angle = angles[currentAngleIndex];
+
+            const photoEl = document.getElementById(`photo-${angle}`);
+            photoEl.classList.remove('captured');
+            photoEl.innerHTML = `${angleText[angle].emoji}`;
+
+            delete capturedImages[angle];
+            document.getElementById('progressCurrent').textContent = currentAngleIndex;
+            updateGuidance();
+            updateAngleIndicators();
+
+            document.getElementById('startBtn').style.display = 'inline-flex';
+            document.getElementById('submitBtn').style.display = 'none';
+            document.getElementById('statusBox').classList.remove('visible');
+
+            isCapturing = false;
+        }
+
+        async function submitAllFaces() {
+            if (Object.keys(capturedImages).length < 5) {
+                alert('Please capture all 5 angles before submitting.');
+                return;
+            }
+
+            document.getElementById('submitBtn').disabled = true;
+
+            try {
+                const response = await fetch('/api/register_face_multi_angle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userData.user_id,
+                        face_images: capturedImages
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    sessionStorage.removeItem('user_for_face_registration');
+                    localStorage.removeItem('pending_face_user');
+                    localStorage.removeItem('pending_face_registration');
+                    localStorage.setItem('user', JSON.stringify(userData));
+                    localStorage.setItem('user_role', userData.role);
+                    localStorage.setItem('user_id', userData.user_id);
+                    localStorage.setItem('user_name', userData.name);
+                    
+                    window.location.href = 'faculty_dashboard.html';
+                } else {
+                    alert(data.message || 'Face registration failed. Please try again.');
+                    document.getElementById('submitBtn').disabled = false;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Network error. Please check your connection.');
+                document.getElementById('submitBtn').disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

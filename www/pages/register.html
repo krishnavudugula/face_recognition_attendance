@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Registration - FaceAttend</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="../js/back-button-native.js"></script>
+    <script src="../js/route-persistence.js"></script>
+    <script src="../js/background-tracking.js"></script>
+    <script src="../js/config.js"></script>
+    <script src="../js/main.js" defer></script>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center;">
+    
+    <div style="width: 100%; max-width: 600px; background: white; border-radius: 20px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); padding: 3rem 2rem; text-align: center;">
+        
+        <div style="margin-bottom: 2rem;">
+            <div style="width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; color: white; font-size: 2rem;">
+                <i class="fa-solid fa-lock"></i>
+            </div>
+            <h1 style="margin: 0 0 0.5rem 0; font-size: 2rem; color: #0f172a;">Faculty Registration</h1>
+            <p style="margin: 0; color: #64748b; font-size: 1.1rem; line-height: 1.6;">
+                Faculty member registration is managed by administrators only. This ensures secure access and proper verification of staff credentials.
+            </p>
+        </div>
+
+        <div style="background: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; text-align: left;">
+            <h3 style="margin: 0 0 1rem 0; color: #0369a1; font-weight: 700; font-size: 1.1rem;">
+                <i class="fa-solid fa-info-circle" style="margin-right: 0.5rem;"></i> How It Works
+            </h3>
+            <ul style="margin: 0; padding-left: 1.5rem; color: #0369a1; font-size: 0.95rem; line-height: 1.8;">
+                <li style="margin-bottom: 0.75rem;">
+                    <strong>Admin Registration:</strong> Department administrators register new faculty members with a unique ID and temporary password.
+                </li>
+                <li style="margin-bottom: 0.75rem;">
+                    <strong>First Login:</strong> Faculty members log in with their credentials and capture their face biometric during first access.
+                </li>
+                <li>
+                    <strong>Dashboard Access:</strong> Once face registration is complete, faculty can access the attendance portal.
+                </li>
+            </ul>
+        </div>
+
+        <div style="margin-bottom: 2rem;">
+            <p style="margin: 0 0 1rem 0; color: #64748b; font-size: 0.95rem;">
+                If you are a faculty member, please contact your department administrator to be registered in the system.
+            </p>
+            <p style="margin: 0; color: #94a3b8; font-size: 0.9rem;">
+                <strong>Admin Contact:</strong> Contact your IT/HR department for assistance.
+            </p>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+            <a href="login.html" style="display: inline-flex; align-items: center; justify-content: center; padding: 1rem 2rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 12px; font-weight: 700; font-size: 1rem; transition: all 0.3s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 15px 35px -10px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 10px 25px -5px rgba(102, 126, 234, 0.3)'">
+                <i class="fa-solid fa-arrow-left" style="margin-right: 0.75rem;"></i> Back to Login
+            </a>
+            <a href="../index.html" style="display: inline-flex; align-items: center; justify-content: center; padding: 1rem 2rem; background: #e2e8f0; color: #0f172a; text-decoration: none; border-radius: 12px; font-weight: 700; font-size: 1rem; transition: all 0.3s;">
+                <i class="fa-solid fa-home" style="margin-right: 0.75rem;"></i> Go to Home
+            </a>
+        </div>
+
+        <div style="margin-top: 2rem; padding-top: 2rem; border-top: 1px solid #e2e8f0;">
+            <p style="margin: 0; color: #94a3b8; font-size: 0.85rem;">
+                FaceAttend © 2026. All rights reserved. | <a href="#" style="color: #667eea; text-decoration: none;">Privacy Policy</a> | <a href="#" style="color: #667eea; text-decoration: none;">Terms of Service</a>
+            </p>
+        </div>
+    </div>
+
+</body>
+</html>
+                        </div>
+                    </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+        body { background-color: #ffffff; }
+
+        .auth-layout { display: flex; min-height: 100vh; }
+
+        /* Left Hero (Identical for consistency) */
+        .auth-hero { flex: 1; background: linear-gradient(135deg, rgba(30, 58, 138, 0.95) 0%, rgba(30, 58, 138, 0.85) 100%), url('https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=1000&auto=format&fit=crop') center/cover; padding: 3.5rem; color: white; display: flex; flex-direction: column; justify-content: flex-end; }
+        .hero-content { height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
+        .brand-logo { font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; letter-spacing: -0.5px; }
+        .hero-text h1 { font-size: 3.5rem; line-height: 1.1; margin-bottom: 1.5rem; font-weight: 800; letter-spacing: -1px; }
+        .hero-text p { font-size: 1.1rem; line-height: 1.6; color: rgba(255, 255, 255, 0.85); max-width: 480px; font-weight: 400; }
+        .stats-card { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); padding: 1.5rem; border-radius: 12px; max-width: 320px; border: 1px solid rgba(255, 255, 255, 0.15); }
+        .stats-card h2 { font-size: 1.5rem; margin-bottom: 0.25rem; font-weight: 700; }
+        .stats-card p { font-size: 0.85rem; color: rgba(255, 255, 255, 0.8); line-height: 1.4; }
+
+        /* Right Side Form */
+        .auth-form-area { flex: 1; display: flex; align-items: center; justify-content: center; padding: 2rem; background: #ffffff; }
+        .form-wrapper { width: 100%; max-width: 400px; }
+        .form-header { text-align: center; margin-bottom: 2rem; }
+        .form-header h2 { font-size: 1.75rem; color: #0f172a; margin-bottom: 0.5rem; font-weight: 800; letter-spacing: -0.5px; }
+        .form-header p { color: #64748b; font-size: 0.95rem; }
+
+        .toggle-container { display: flex; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 0.25rem; margin-bottom: 1.5rem; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+        .toggle-btn { flex: 1; text-align: center; padding: 0.75rem; border-radius: 8px; font-size: 0.9rem; font-weight: 600; color: #64748b; text-decoration: none; transition: all 0.2s; }
+        .toggle-btn:hover { color: #0f172a; }
+        .toggle-btn.active { color: #2563eb; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+
+        /* Inputs */
+        .input-group { margin-bottom: 1.25rem; }
+        .input-group label { display: block; font-size: 0.85rem; font-weight: 600; color: #0f172a; margin-bottom: 0.5rem; }
+        .input-relative { position: relative; display: flex; align-items: center; }
+        .input-icon { position: absolute; left: 1rem; color: #94a3b8; font-size: 0.9rem; z-index: 2; pointer-events: none; }
+        .select-arrow { position: absolute; right: 1rem; color: #94a3b8; font-size: 0.8rem; pointer-events: none; }
+        
+        .input-relative input, .input-relative select { width: 100%; padding: 0.85rem 1rem 0.85rem 2.5rem; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; color: #0f172a; outline: none; transition: border 0.2s; appearance: none; background: #ffffff; }
+        .input-relative input::placeholder { color: #94a3b8; }
+        .input-relative input:focus, .input-relative select:focus { border-color: #2563eb; }
+
+        /* Password Eye Toggle */
+        .password-toggle { position: absolute; right: 1rem; color: #94a3b8; font-size: 1rem; cursor: pointer; padding: 0.5rem; transition: color 0.2s; z-index: 10; }
+        .password-toggle:hover { color: #0f172a; }
+
+        /* Biometric Trigger Area */
+        .biometric-trigger-container { margin-bottom: 2rem; }
+        .capture-preview { width: 48px; height: 48px; border-radius: 50%; border: 2px solid #e2e8f0; background: #ffffff; display: flex; align-items: center; justify-content: center; overflow: hidden; transition: border-color 0.3s; }
+        .capture-preview img { width: 100%; height: 100%; object-fit: cover; }
+        .btn-outline-small { padding: 0.6rem 1rem; background: #ffffff; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; }
+        .btn-outline-small:hover { background: #f1f5f9; border-color: #94a3b8; }
+
+        .btn-primary { width: 100%; padding: 0.85rem; background: #2563eb; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: background 0.2s; }
+        .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .terms-text { text-align: center; margin-top: 1.5rem; font-size: 0.75rem; color: #94a3b8; }
+        .terms-text a { color: #0f172a; text-decoration: underline; }
+
+        /* Full Screen Modal Styles */
+        .fullscreen-modal {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px);
+            z-index: 9999; display: none; align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 0.3s ease;
+        }
+        .fullscreen-modal.active { opacity: 1; }
+
+        .modal-card {
+            background: white; padding: 3rem; border-radius: 24px; width: 100%; max-width: 500px;
+            position: relative; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transform: scale(0.95); transition: transform 0.3s ease;
+        }
+        .fullscreen-modal.active .modal-card { transform: scale(1); }
+
+        .close-modal {
+            position: absolute; top: 1.5rem; right: 1.5rem; background: #f1f5f9; border: none;
+            width: 36px; height: 36px; border-radius: 50%; font-size: 1.2rem; color: #64748b;
+            cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+        }
+        .close-modal:hover { background: #e2e8f0; color: #0f172a; }
+
+        /* The Large Circular Scanner */
+        .large-camera-feed {
+            width: 320px; height: 320px; margin: 0 auto; background: #f8fafc; border-radius: 50%;
+            overflow: hidden; position: relative; box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
+            border: 4px solid #e2e8f0;
+        }
+        .large-camera-feed video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        
+        .radar-sweep {
+            position: absolute; top: 0; left: 0; width: 100%; height: 50%;
+            background: linear-gradient(to bottom, transparent, rgba(37, 99, 235, 0.3));
+            border-bottom: 2px solid #2563eb;
+            animation: sweep 2.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes sweep {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(200%); }
+        }
+
+        @media (max-width: 900px) {
+            .auth-layout { flex-direction: column; }
+            .auth-hero { padding: 2rem; min-height: 250px; }
+            .hero-text h1 { font-size: 2.5rem; }
+            .modal-card { padding: 2rem; border-radius: 16px; margin: 1rem; }
+            .large-camera-feed { width: 250px; height: 250px; }
+        }
+    </style>
+    <script src="../js/mobile-fixes.js" defer></script>
+</body>
+</html>

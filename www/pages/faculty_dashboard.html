@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Complete Face Registration - FaceAttend</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="../js/back-button-native.js"></script>
+    <script src="../js/route-persistence.js"></script>
+    <script src="../js/background-tracking.js"></script>
+    <script src="../js/config.js"></script>
+    <!-- 📍 Persistent Location Tracking Plugin Bridge -->
+    <script src="../js/location-tracking-plugin.js" defer></script>
+    <!-- Notification System -->
+    <script src="../js/notifications.js" defer></script>
+    <script src="../js/notification-integration.js" defer></script>
+    <script src="../js/main.js" defer></script>
+    <script src = "../js/dashboard.js" defer></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', 'Manrope', sans-serif;
+            background: linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%);
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(203, 213, 225, 0.2);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            font-weight: 800;
+            font-size: 1.3rem;
+            color: #0f172a;
+        }
+
+        .navbar-brand span {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .logo-icon img {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+        }
+
+        .nav-menu {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 2rem;
+        }
+
+        .navbar-nav {
+            display: flex;
+            list-style: none;
+            gap: 0.5rem;
+        }
+
+        .nav-link {
+            padding: 0.75rem 1.5rem;
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 600;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-link:hover {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+        }
+
+        .nav-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .tracking-status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.7rem 1.2rem;
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(34, 197, 94, 0.05) 100%);
+            border: 1.5px solid rgba(34, 197, 94, 0.4);
+            border-radius: 12px;
+            color: #22c55e;
+            font-weight: 700;
+            font-size: 0.95rem;
+            animation: trackingGlow 2s ease-in-out infinite;
+        }
+
+        .tracking-dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: trackingPulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes trackingPulse {
+            0%, 100% { 
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% { 
+                opacity: 0.5;
+                transform: scale(1.2);
+            }
+        }
+
+        @keyframes trackingGlow {
+            0%, 100% { 
+                box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.2);
+            }
+            50% { 
+                box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+            }
+        }
+
+        .tracking-label {
+            font-size: 0.9rem;
+        }
+
+        /* Hide by default - shown when tracking starts */
+        #trackingStatusBadge {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .tracking-status-badge {
+                padding: 0.6rem 1rem;
+                font-size: 0.85rem;
+            }
+
+            .tracking-label {
+                display: none;
+            }
+
+            /* Show only dot on mobile */
+            .tracking-dot {
+                width: 10px;
+                height: 10px;
+            }
+        }
+
+        .menu-toggle {
+            display: none;
+            width: 42px;
+            height: 42px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            background: #ffffff;
+            color: #0f172a;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.1rem;
+        }
+
+        .action-btn-danger {
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+        }
+
+        .action-btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
+        }
+
+        main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .profile-section {
+            background: white;
+            border-radius: 20px;
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+            border: 1px solid rgba(226, 232, 240, 0.5);
+            backdrop-filter: blur(10px);
+        }
+
+        .profile-content {
+            display: flex;
+            align-items: center;
+            gap: 2.5rem;
+        }
+
+        .profile-avatar {
+            width: 140px;
+            height: 140px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 3.5rem;
+            box-shadow: 0 20px 40px rgba(59, 130, 246, 0.3);
+            flex-shrink: 0;
+            animation: avatarGlow 3s ease-in-out infinite;
+        }
+
+        @keyframes avatarGlow {
+            0%, 100% { box-shadow: 0 20px 40px rgba(59, 130, 246, 0.3); }
+            50% { box-shadow: 0 20px 50px rgba(139, 92, 246, 0.4); }
+        }
+
+        .profile-info {
+            flex: 1;
+        }
+
+        .profile-name {
+            font-size: 2rem;
+            font-weight: 900;
+            color: #0f172a;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.5px;
+        }
+
+        .profile-role {
+            font-size: 1.1rem;
+            color: #64748b;
+            margin-bottom: 1.2rem;
+            font-weight: 600;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.7rem 1.2rem;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+            border: 1.5px solid rgba(16, 185, 129, 0.3);
+            border-radius: 12px;
+            color: #059669;
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: statusPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes statusPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .action-section {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            border-radius: 20px;
+            padding: 3rem 2.5rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(59, 130, 246, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .action-section::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .action-section h3 {
+            margin: 0 0 1rem 0;
+            font-size: 1.8rem;
+            color: white;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .action-section p {
+            margin: 0 0 2.5rem 0;
+            font-size: 1.05rem;
+            color: rgba(255, 255, 255, 0.85);
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .scan-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1.3rem 3.5rem;
+            background: white;
+            color: #3b82f6;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            font-weight: 800;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            text-decoration: none;
+            position: relative;
+            z-index: 2;
+        }
+
+        .scan-btn:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .scan-btn i {
+            font-size: 1.3rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 1.8rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+            border: 1px solid rgba(226, 232, 240, 0.5);
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08);
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: #64748b;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 900;
+            color: #0f172a;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-sublabel {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+        }
+
+        .stat-icon.blue { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+        .stat-icon.green { background: rgba(16, 185, 129, 0.1); color: #10b981; }
+        .stat-icon.amber { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+        .stat-icon.sky { background: rgba(14, 165, 233, 0.1); color: #0ea5e9; }
+
+        .history-section {
+            background: white;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+            border: 1px solid rgba(226, 232, 240, 0.5);
+        }
+
+        .history-title {
+            font-size: 1.4rem;
+            color: #0f172a;
+            font-weight: 800;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .history-title i {
+            color: #8b5cf6;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+        }
+
+        thead tr {
+            background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%);
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        th {
+            padding: 1.2rem;
+            text-align: left;
+            color: #475569;
+            font-weight: 800;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        td {
+            padding: 1rem 1.2rem;
+            border-bottom: 1px solid #f1f5f9;
+            color: #0f172a;
+        }
+
+        tbody tr {
+            transition: all 0.3s ease;
+        }
+
+        tbody tr:hover {
+            background: rgba(59, 130, 246, 0.03);
+        }
+
+        .status-chip {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 0.8rem;
+        }
+
+        .status-chip.on-time {
+            background: rgba(16, 185, 129, 0.1);
+            color: #047857;
+        }
+
+        .status-chip.late {
+            background: rgba(245, 158, 11, 0.1);
+            color: #92400e;
+        }
+
+        .status-chip.absent {
+            background: rgba(239, 68, 68, 0.1);
+            color: #991b1b;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #policyAlert {
+            position: fixed;
+            left: 50%;
+            top: 12px;
+            transform: translateX(-50%);
+            z-index: 9999;
+            max-width: 92%;
+            width: 720px;
+            background: #0f172a;
+            color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 12px 30px rgba(2, 6, 23, 0.35);
+            padding: 0.9rem 1rem;
+            font-size: 0.9rem;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateX(-50%) translateY(-100px); opacity: 0; }
+            to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
+
+        @media (max-width: 768px) {
+            main {
+                padding: 1rem;
+            }
+
+            .menu-toggle {
+                display: inline-flex;
+            }
+
+            .profile-content {
+                flex-direction: column;
+                text-align: center;
+                gap: 1.5rem;
+            }
+
+            .profile-avatar {
+                width: 100px;
+                height: 100px;
+                font-size: 2.5rem;
+            }
+
+            .profile-name {
+                font-size: 1.5rem;
+            }
+
+            .action-section {
+                padding: 2rem 1.5rem;
+            }
+
+            .action-section h3 {
+                font-size: 1.3rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .nav-menu {
+                position: absolute;
+                top: calc(100% + 8px);
+                left: 1rem;
+                right: 1rem;
+                display: none;
+                flex-direction: column;
+                gap: 0.85rem;
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 0.9rem;
+                box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+                z-index: 120;
+            }
+
+            .nav-menu.active {
+                display: flex;
+            }
+
+            .navbar-nav {
+                width: 100%;
+            }
+
+            .navbar {
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+                gap: 0.75rem;
+                position: sticky;
+            }
+
+            .nav-actions,
+            .action-btn-danger {
+                width: 100%;
+            }
+
+            .action-btn-danger {
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .navbar {
+                padding: 1rem;
+            }
+
+            .navbar-brand {
+                font-size: 1.05rem;
+            }
+
+            .logo-icon img {
+                width: 34px;
+                height: 34px;
+            }
+
+            .nav-menu {
+                left: 0.75rem;
+                right: 0.75rem;
+            }
+
+            main {
+                padding: 0.75rem;
+            }
+
+            .profile-section {
+                padding: 1.5rem;
+            }
+
+            .profile-name {
+                font-size: 1.25rem;
+            }
+
+            .profile-avatar {
+                width: 80px;
+                height: 80px;
+                font-size: 2rem;
+            }
+
+            .action-section {
+                padding: 1.5rem 1rem;
+            }
+
+            .action-section h3 {
+                font-size: 1.1rem;
+            }
+
+            .action-section p {
+                font-size: 0.9rem;
+            }
+
+            .scan-btn {
+                padding: 1rem 2rem;
+                font-size: 0.95rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .stat-card {
+                padding: 1.2rem;
+            }
+
+            table {
+                font-size: 0.85rem;
+            }
+
+            th, td {
+                padding: 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="faculty_dashboard.html" class="navbar-brand">
+            <div class="logo-icon">
+                <img src="../assets/Bits-logo.png" alt="BITS Logo">
+            </div>
+            <span>Faculty Portal</span>
+        </a>
+
+        <button class="menu-toggle" id="facultyMenuToggle" aria-label="Toggle navigation menu" aria-expanded="false">
+            <i class="fa-solid fa-bars"></i>
+        </button>
+
+        <div class="nav-menu">
+            <ul class="navbar-nav">
+                <li><a href="scan.html" class="nav-link"><i class="fas fa-camera"></i> Mark Attendance</a></li>
+            </ul>
+            <div class="nav-actions">
+                <!-- Tracking Status Badge -->
+                <div id="trackingStatusBadge" class="tracking-status-badge" title="Location tracking active - notification is persistent">
+                    <span class="tracking-dot"></span>
+                    <span class="tracking-label">📍 Tracking On</span>
+                </div>
+                
+                <a href="../index.html" class="action-btn-danger" onclick="handleLogout(); return false;">
+                    <i class="fa-solid fa-right-from-bracket"></i> Logout
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div id="policyAlert" style="display: none;"></div>
+
+    <main>
+        <!-- Profile Card Section -->
+        <section class="profile-section">
+            <div class="profile-content">
+                <div class="profile-avatar">
+                    <i class="fa-solid fa-user"></i>
+                </div>
+                <div class="profile-info">
+                    <h2 class="profile-name" id="profileName">—</h2>
+                    <p class="profile-role" id="profileRole">Faculty Member</p>
+                    <div class="status-badge">
+                        <div class="status-dot"></div>
+                        Status: Active
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Action Section -->
+        <section class="action-section">
+            <h3>Mark Your Attendance</h3>
+            <p>Use advanced face recognition to mark your check-in and check-out</p>
+            <a href="scan.html" class="scan-btn">
+                <i class="fa-solid fa-face-smile-wink"></i> Scan Face Now
+            </a>
+        </section>
+
+        <!-- Statistics Grid -->
+        <section class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">
+                    <div class="stat-icon blue"><i class="fa-solid fa-calendar-check"></i></div>
+                    Today's Date
+                </div>
+                <div class="stat-value" id="statusDate">--</div>
+                <div class="stat-sublabel">Current Date</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">
+                    <div class="stat-icon green"><i class="fa-solid fa-arrow-right-to-bracket"></i></div>
+                    Check-In Time
+                </div>
+                <div class="stat-value" id="statusCheckIn">--:--</div>
+                <div class="stat-sublabel">Morning Entry</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">
+                    <div class="stat-icon amber"><i class="fa-solid fa-arrow-right-from-bracket"></i></div>
+                    Check-Out Time
+                </div>
+                <div class="stat-value" id="statusCheckOut">--:--</div>
+                <div class="stat-sublabel">Evening Exit</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">
+                    <div class="stat-icon sky"><i class="fa-solid fa-circle-info"></i></div>
+                    Current Status
+                </div>
+                <div class="stat-value" id="statusOverall" style="font-size: 1.3rem;">Not Marked</div>
+                <div class="stat-sublabel">Today's Status</div>
+            </div>
+        </section>
+
+        <!-- Attendance History -->
+        <section class="history-section">
+            <h3 class="history-title">
+                <i class="fa-solid fa-history"></i> Attendance History (Last 10 Days)
+            </h3>
+            
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Check-In</th>
+                            <th>Check-Out</th>
+                            <th>Duration</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <tr>
+                            <td colspan="5" style="text-align: center; padding: 2rem;">
+                                <i class="fa-solid fa-circle-notch fa-spin loading-spinner" style="margin-right: 0.5rem;"></i> Loading history...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let heartbeatInterval = null;
+
+        function getTodayKey() {
+            return new Date().toISOString().slice(0, 10);
+        }
+
+        function hasShownReminderToday(userId, reminderCode) {
+            const key = `faculty_alert_once_${userId}_${reminderCode}_${getTodayKey()}`;
+            return localStorage.getItem(key) === '1';
+        }
+
+        function markReminderShownToday(userId, reminderCode) {
+            const key = `faculty_alert_once_${userId}_${reminderCode}_${getTodayKey()}`;
+            localStorage.setItem(key, '1');
+        }
+
+        function showPolicyAlert(message, isError = false) {
+            const el = document.getElementById('policyAlert');
+            if (!el) return;
+            el.textContent = message;
+            el.style.display = 'block';
+            el.style.background = isError ? '#991b1b' : '#0f172a';
+        }
+
+        function clearPolicyAlert() {
+            const el = document.getElementById('policyAlert');
+            if (!el) return;
+            el.style.display = 'none';
+            el.textContent = '';
+        }
+
+        async function runPolicyHeartbeat(user) {
+            if (!navigator.onLine) {
+                showPolicyAlert('Internet is OFF. Turn on mobile data or Wi-Fi to continue attendance tracking.', true);
+                return;
+            }
+
+            if (!navigator.geolocation) {
+                showPolicyAlert('Location services are not supported on this device/browser.', true);
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(async (position) => {
+                try {
+                    const response = await fetch('/api/location_heartbeat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_id: user.user_id || user.id,
+                            device_status: {
+                                network_on: navigator.onLine,
+                                location_on: true
+                            },
+                            location: {
+                                latitude: position.coords.latitude,
+                                longitude: position.coords.longitude
+                            }
+                        })
+                    });
+
+                    const result = await response.json();
+                    if (!result.success) {
+                        showPolicyAlert(result.message || 'Heartbeat failed.', true);
+                        if (window.NotificationIntegration) {
+                            window.NotificationIntegration.onError('Heartbeat Error', result.message || 'Heartbeat failed.');
+                        }
+                        return;
+                    }
+
+                    // Use new notification system if available
+                    if (window.NotificationIntegration) {
+                        window.NotificationIntegration.onHeartbeatResponse(result);
+                    }
+
+                    const facultyId = user.user_id || user.id;
+
+                    if (result.alert_code === 'LUNCH_START_REMINDER' && !hasShownReminderToday(facultyId, 'LUNCH_START_REMINDER')) {
+                        showPolicyAlert(result.alert || 'Lunch free-exit starts at 1:00 PM and ends at 1:40 PM.');
+                        markReminderShownToday(facultyId, 'LUNCH_START_REMINDER');
+                        return;
+                    }
+
+                    if (result.alert_code === 'LUNCH_END_REMINDER' && !hasShownReminderToday(facultyId, 'LUNCH_END_REMINDER')) {
+                        showPolicyAlert(result.alert || '10-minute reminder: Lunch free-exit ends at 1:40 PM. Please return now.');
+                        markReminderShownToday(facultyId, 'LUNCH_END_REMINDER');
+                        return;
+                    }
+
+                    if (!result.in_bounds && result.time_flags && result.time_flags.is_post_lunch_enforcement) {
+                        showPolicyAlert(result.alert || 'You are outside campus after lunch window. You may be marked absent.', true);
+                        return;
+                    }
+
+                    if (result.alert) {
+                        showPolicyAlert(result.alert, !!result.marked_absent);
+                        return;
+                    }
+
+                    clearPolicyAlert();
+                } catch (err) {
+                    showPolicyAlert('Network/server issue while validating attendance policy.', true);
+                }
+            }, async () => {
+                showPolicyAlert('Location is OFF or denied. Please enable location access.', true);
+                try {
+                    await fetch('/api/location_heartbeat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_id: user.user_id || user.id,
+                            device_status: {
+                                network_on: navigator.onLine,
+                                location_on: false
+                            }
+                        })
+                    });
+                } catch (err) {}
+            }, {
+                enableHighAccuracy: false,
+                timeout: 12000,
+                maximumAge: 15000
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const menuToggle = document.getElementById('facultyMenuToggle');
+            const navMenu = document.querySelector('.nav-menu');
+            if (menuToggle && navMenu) {
+                menuToggle.addEventListener('click', () => {
+                    const opened = navMenu.classList.toggle('active');
+                    menuToggle.setAttribute('aria-expanded', String(opened));
+                    const icon = menuToggle.querySelector('i');
+                    if (icon) {
+                        icon.classList.toggle('fa-bars', !opened);
+                        icon.classList.toggle('fa-xmark', opened);
+                    }
+                });
+            }
+
+            const user = JSON.parse(localStorage.getItem('user'));
+            const pendingFace = JSON.parse(localStorage.getItem('pending_face_user') || 'null');
+
+            if (pendingFace) {
+                window.location.href = 'capture_face.html';
+                return;
+            }
+            
+            if (!user) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            // Check if viewing another user's profile (admin/staff directory view)
+            const params = new URLSearchParams(window.location.search);
+            const viewUserId = params.get('view_user');
+            
+            const displayUserId = viewUserId || (user.user_id || user.id);
+
+            // Fetch the user data to display
+            if (viewUserId) {
+                fetchAndDisplayUserProfile(viewUserId);
+            } else {
+                document.getElementById('profileName').textContent = user.name || 'Faculty Member';
+                document.getElementById('profileRole').textContent = user.role === 'faculty' ? 'Faculty Member' : 'Staff Member';
+
+                const today = new Date();
+                const dateStr = today.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+                document.getElementById('statusDate').textContent = dateStr;
+
+                loadDashboardData(user.user_id || user.id);
+
+            runPolicyHeartbeat(user);
+            heartbeatInterval = setInterval(() => runPolicyHeartbeat(user), 15000);
+
+            window.addEventListener('online', () => runPolicyHeartbeat(user));
+            window.addEventListener('pageshow', () => runPolicyHeartbeat(user));
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                    runPolicyHeartbeat(user);
+                }
+            });
+            window.addEventListener('offline', () => {
+                showPolicyAlert('Internet is OFF. Turn on mobile data or Wi-Fi to continue attendance tracking.', true);
+            });
+            }
+        });
+
+        async function loadDashboardData(userId) {
+            try {
+                const response = await fetch(`/api/dashboard/faculty/${userId}`);
+                const data = await response.json();
+                const currentStatus = normalizeFacultyStatus(data.current_status || 'Not Marked');
+
+                if (data.current_status) {
+                    document.getElementById('statusCheckIn').textContent = data.last_check_in || '--:--';
+                    document.getElementById('statusCheckOut').textContent = data.last_check_out || '--:--';
+                    document.getElementById('statusOverall').textContent = currentStatus;
+                }
+
+                if (data.logs && data.logs.length > 0) {
+                    const tbody = document.getElementById('historyTableBody');
+                    tbody.innerHTML = '';
+
+                    data.logs.forEach(log => {
+                        const normalizedStatus = normalizeFacultyStatus(log.status || 'Not Marked');
+                        const statusClass = getFacultyStatusClass(normalizedStatus);
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${log.date}</td>
+                            <td>${log.time_in || '--:--'}</td>
+                            <td>${log.time_out || '--:--'}</td>
+                            <td>${log.duration}</td>
+                            <td><span class="status-chip ${statusClass}">${normalizedStatus}</span></td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                }
+            } catch (err) {
+                console.error('Error loading dashboard:', err);
+            }
+        }
+
+        function normalizeFacultyStatus(status) {
+            const value = String(status || '').trim();
+            const normalized = value.toLowerCase().replace(/[_-]+/g, ' ');
+            const mapping = {
+                'on time': 'On Time',
+                'on-time': 'On Time',
+                'late permission': 'Late Permission',
+                'early departure': 'Early Departure',
+                "didn't mark": "Didn't Mark",
+                'not marked': 'Not Marked',
+                'checked in': 'Checked In',
+                'checked out': 'Checked Out',
+                'present': 'Present',
+                'late': 'Late',
+                'absent': 'Absent'
+            };
+
+            return mapping[normalized] || value || '-';
+        }
+
+        function getFacultyStatusClass(statusLabel) {
+            const s = String(statusLabel || '').toLowerCase();
+            if (s.includes('present') || s.includes('on time') || s.includes('checked in') || s.includes('checked out')) {
+                return 'on-time';
+            }
+            if (s.includes('late') || s.includes('early')) {
+                return 'late';
+            }
+            return 'absent';
+        }
+
+        async function fetchAndDisplayUserProfile(userId) {
+            try {
+                // Fetch user details
+                const usersResponse = await fetch('/api/users');
+                const allUsers = await usersResponse.json();
+                const targetUser = allUsers.find(u => u.id === userId);
+
+                if (!targetUser) {
+                    console.error('User not found:', userId);
+                    alert('User profile not found.');
+                    window.history.back();
+                    return;
+                }
+
+                // Update profile display
+                document.getElementById('profileName').textContent = targetUser.name || 'Faculty Member';
+                document.getElementById('profileRole').textContent = targetUser.role === 'faculty' ? 'Faculty Member' : 'Staff Member';
+
+                const today = new Date();
+                const dateStr = today.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+                document.getElementById('statusDate').textContent = dateStr;
+
+                // Add back button
+                const navbar = document.querySelector('.navbar');
+                if (navbar) {
+                    const backBtn = document.createElement('button');
+                    backBtn.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Back to Directory';
+                    backBtn.style.cssText = 'padding: 0.6rem 1.2rem; background: #e2e8f0; color: #0f172a; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-right: auto; font-size: 0.9rem;';
+                    backBtn.onclick = () => window.history.back();
+                    navbar.insertBefore(backBtn, navbar.querySelector('.nav-menu'));
+                }
+
+                // Load this user's dashboard data
+                loadDashboardData(userId);
+
+            } catch (err) {
+                console.error('Error fetching user profile:', err);
+                alert('Failed to load user profile.');
+            }
+        }
+
+        function handleLogout() {
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = null;
+            }
+            
+            // Get user_id before clearing localStorage
+            const userId = localStorage.getItem('user_id');
+            
+            // Call backend to clear LivePresence record
+            if (userId) {
+                fetch('/api/logout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId })
+                }).then(res => res.json()).then(data => {
+                    console.log('✅ Logout API called:', data.message);
+                }).catch(err => console.error('Logout API error:', err));
+            }
+            
+            // Clear all session data
+            localStorage.removeItem('user');
+            localStorage.removeItem('user_role');
+            localStorage.removeItem('user_id');
+            localStorage.removeItem('user_name');
+            localStorage.removeItem('pending_face_user');
+            localStorage.removeItem('pending_face_registration');
+            sessionStorage.removeItem('user_for_face_registration');
+            window.location.href = '../index.html';
+        }
+    </script>
+</body>
+</html>

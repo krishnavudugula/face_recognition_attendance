@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Admin Dashboard - FaceAttend</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="../js/back-button-native.js"></script>
+    <script src="../js/route-persistence.js"></script>
+    <script src="../js/background-tracking.js"></script>
+    <script src="../js/config.js"></script>
+    <script src="../js/main.js" defer></script>
+    <script src="../js/dashboard.js" defer></script>
+    <style>
+        #permissionSection {
+            border: 1px solid #dbeafe !important;
+            border-radius: 22px !important;
+            overflow: hidden;
+            background: #ffffff;
+            box-shadow: 0 22px 42px rgba(15, 23, 42, 0.08);
+        }
+
+        #permissionSection > div:first-child {
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #1d4ed8 100%) !important;
+            border-bottom: 0 !important;
+            color: #f8fafc;
+        }
+
+        #permissionSection > div:first-child h3,
+        #permissionSection > div:first-child p {
+            color: #f8fafc !important;
+        }
+
+        #permissionSection > div:first-child p {
+            opacity: 0.9;
+        }
+
+        #permissionSection .permission-form-toggle {
+            border: 1px solid rgba(255, 255, 255, 0.4) !important;
+            background: rgba(255, 255, 255, 0.14) !important;
+            color: #ffffff !important;
+            border-radius: 999px !important;
+            padding: 0.55rem 1rem !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.01em;
+        }
+
+        #permissionSection .permission-form-toggle:hover {
+            background: rgba(255, 255, 255, 0.24) !important;
+            transform: translateY(-1px);
+        }
+
+        #permFlash {
+            background: rgba(248, 250, 252, 0.2);
+            color: #f8fafc;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            backdrop-filter: blur(5px);
+        }
+
+        #permissionSection > div:nth-child(2) {
+            background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%) !important;
+        }
+
+        #permissionSection > div:nth-child(2) > div > div {
+            border: 0 !important;
+            border-radius: 14px !important;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        #permissionSection > div:nth-child(2) > div > div:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+        }
+
+        #permissionSection .permission-create-collapsible {
+            background: linear-gradient(165deg, #f8fafc 0%, #eef2ff 46%, #f8fafc 100%) !important;
+            padding: 1.35rem 1.5rem !important;
+        }
+
+        #permissionSection h4 {
+            font-size: 1.03rem !important;
+            letter-spacing: -0.01em;
+        }
+
+        #permissionSection form {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1rem;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+        }
+
+        #permissionSection label {
+            margin-bottom: 0.42rem !important;
+            color: #1e293b !important;
+            font-size: 0.78rem !important;
+            font-weight: 800 !important;
+            letter-spacing: 0.035em;
+            text-transform: uppercase;
+        }
+
+        #permissionSection input,
+        #permissionSection select,
+        #permissionSection textarea {
+            border: 1.5px solid #cbd5e1 !important;
+            border-radius: 10px !important;
+            font-size: 0.92rem !important;
+            line-height: 1.2;
+            background: #ffffff;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        #permissionSection textarea {
+            min-height: 52px;
+        }
+
+        #permissionSection input:focus,
+        #permissionSection select:focus,
+        #permissionSection textarea:focus {
+            border-color: #1d4ed8 !important;
+            box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.12);
+            outline: none;
+            transform: translateY(-1px);
+        }
+
+        #permissionSection > div:nth-child(4) {
+            background: #ffffff !important;
+            border-top: 1px solid #e2e8f0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        #permissionSection .permission-table {
+            border-top: 1px solid #e2e8f0;
+        }
+
+        #permissionSection .permission-table thead th {
+            background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+            color: #475569;
+            font-size: 0.76rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid #dbeafe;
+        }
+
+        #permissionSection .permission-table tbody td {
+            border-bottom: 1px solid #eef2f7;
+        }
+
+        #permissionSection .permission-table tbody tr:hover {
+            background: #f8fbff;
+        }
+
+        .permission-type-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.34rem 0.62rem;
+            border-radius: 999px;
+            border: 1px solid #cbd5e1;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #334155;
+            background: #f8fafc;
+            white-space: nowrap;
+        }
+
+        .permission-type-chip.lp {
+            background: #fff7ed;
+            border-color: #fed7aa;
+            color: #9a3412;
+        }
+
+        .permission-type-chip.ep {
+            background: #eef2ff;
+            border-color: #c7d2fe;
+            color: #3730a3;
+        }
+
+        @media (max-width: 900px) {
+            #permissionSection form {
+                padding: 0.8rem;
+            }
+
+            #permissionSection > div:first-child {
+                padding: 1rem !important;
+            }
+        }
+    </style>
+</head>
+<body class="dashboard-body">
+    
+    <nav class="navbar">
+        <a href="admin_dashboard.html" class="navbar-brand">
+            <div class="logo-icon">
+                <img src="../assets/Bits-logo.png" alt="BITS Logo">
+            </div>
+            <span>Admin Portal</span>
+        </a>
+
+        <button class="menu-toggle" aria-label="Toggle navigation">
+            <i class="fa-solid fa-bars"></i>
+        </button>
+        
+        <div class="nav-menu">
+            <ul class="navbar-nav">
+                <li><a href="admin_dashboard.html" class="nav-link active">Dashboard</a></li>
+                <li><a href="admin_management.html" class="nav-link">Admin Control</a></li>
+                <li><a href="manage_staff.html" class="nav-link">Staff Directory</a></li>
+                <li><a href="scan.html" class="nav-link">Live Attendance</a></li>
+                <li><a href="reports.html" class="nav-link">Reports</a></li>
+            </ul>
+
+            <div class="nav-actions">
+                 <a href="#" class="action-btn-danger" onclick="appLogout(); return false;">
+                    <i class="fa-solid fa-right-from-bracket"></i> Logout
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        
+        <header class="dashboard-header">
+            <div>
+                <h2 style="font-size: 2rem; color: #0f172a; margin: 0 0 0.25rem 0; letter-spacing: -0.02em;">Welcome, <span id="adminNameDisplay">Admin</span>.</h2>
+                <p style="color: #64748b; margin: 0; font-size: 1rem;">Overview of today's attendance and staff performance.</p>
+            </div>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <button onclick="openFacultyRegistrationModal()" class="action-btn-primary">
+                    <i class="fa-solid fa-user-plus" style="margin-right: 0.5rem;"></i> Register Faculty
+                </button>
+                <a href="reports.html" class="action-btn-secondary">
+                    <i class="fa-solid fa-download" style="margin-right: 0.5rem;"></i> Export Report
+                </a>
+            </div>
+        </header>
+
+        <div class="mobile-section-nav" aria-label="Quick section navigation">
+            <a href="#statsOverview" class="mobile-section-link">Overview</a>
+            <a href="#activitySection" class="mobile-section-link">Activity</a>
+            <a href="#permissionSection" class="mobile-section-link">Permissions</a>
+        </div>
+
+        <div id="statsOverview" class="stats-grid">
+            
+            <div class="glass-card stat-card">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <p style="margin: 0; font-size: 0.8rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Total Staff</p>
+                        <h3 id="statTotalStaff" style="margin: 0.5rem 0 0 0; font-size: 2.5rem; color: #0f172a;">0</h3>
+                    </div>
+                    <div style="width: 48px; height: 48px; border-radius: 12px; background: #eff6ff; color: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+                        <i class="fa-solid fa-users"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="glass-card stat-card">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <p style="margin: 0; font-size: 0.8rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Present Today</p>
+                        <h3 id="statPresent" style="margin: 0.5rem 0 0 0; font-size: 2.5rem; color: #10b981;">0</h3>
+                    </div>
+                    <div style="width: 48px; height: 48px; border-radius: 12px; background: #ecfdf5; color: #10b981; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+                        <i class="fa-solid fa-check-circle"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card stat-card">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <p style="margin: 0; font-size: 0.8rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Late Arrivals</p>
+                        <h3 id="statLate" style="margin: 0.5rem 0 0 0; font-size: 2.5rem; color: #f59e0b;">0</h3>
+                    </div>
+                    <div style="width: 48px; height: 48px; border-radius: 12px; background: #fffbeb; color: #f59e0b; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+                        <i class="fa-solid fa-clock"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card stat-card">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <p style="margin: 0; font-size: 0.8rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Didn't Mark</p>
+                        <h3 id="statAbsent" style="margin: 0.5rem 0 0 0; font-size: 2.5rem; color: #ef4444;">0</h3>
+                    </div>
+                    <div style="width: 48px; height: 48px; border-radius: 12px; background: #fef2f2; color: #ef4444; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+                        <i class="fa-solid fa-user-slash"></i>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div id="activitySection" class="glass-card section-card" style="padding: 0; overflow: hidden;">
+            
+            <div style="padding: 1.5rem; border-bottom: 1px solid #e2e8f0; background: #ffffff; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <h3 style="margin: 0; font-size: 1.15rem; color: #0f172a;">Recent Attendance Activity</h3>
+                
+                <div style="position: relative; width: 100%; max-width: 300px;">
+                    <i class="fa-solid fa-search" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.9rem;"></i>
+                    <input type="text" placeholder="Search by name or ID..." style="width: 100%; padding: 0.6rem 1rem 0.6rem 2.5rem; border: 1px solid #cbd5e1; border-radius: 50px; font-size: 0.9rem; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#cbd5e1'">
+                </div>
+            </div>
+            
+            <div class="table-responsive compact-mobile">
+                <table class="premium-table activity-table">
+                    <thead>
+                        <tr>
+                            <th>User ID</th>
+                            <th>Full Name</th>
+                            <th>Role</th>
+                            <th>Date</th>
+                            <th>Check-In</th>
+                            <th>Check-Out</th>
+                            <th>Status</th>
+                            <th style="text-align: right; padding-right: 3rem;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendanceTableBody">
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 3rem !important; color: #64748b;">
+                                <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 1.5rem; color: #3b82f6; margin-bottom: 0.75rem;"></i><br>
+                                Syncing live data...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="permissionSection" class="glass-card section-card permission-section" style="margin-top: 1.5rem; padding: 0; overflow: hidden; border: 1px solid #dbeafe;">
+            <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e2e8f0; background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+                <div>
+                    <h3 style="margin: 0; color: #0f172a; font-size: 1.15rem; letter-spacing: -0.01em;">Permission Control Center</h3>
+                    <p style="margin: 0.35rem 0 0 0; color: #475569; font-size: 0.9rem;">Admins can register, approve, or reject late and early permissions after direct faculty discussion.</p>
+                </div>
+                <button type="button" id="permissionFormToggle" class="permission-form-toggle" aria-expanded="false">
+                    <i class="fa-solid fa-pen-to-square"></i> Add Permission
+                </button>
+                <div id="permFlash" style="display: none; padding: 0.55rem 0.9rem; border-radius: 8px; font-weight: 700; font-size: 0.82rem;"></div>
+            </div>
+
+            <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e2e8f0; background: #ffffff;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.85rem;">
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.9rem;">
+                        <p style="margin: 0; color: #64748b; font-weight: 700; font-size: 0.75rem; text-transform: uppercase;">Total</p>
+                        <div id="permStatTotal" style="margin-top: 0.35rem; color: #0f172a; font-weight: 800; font-size: 1.3rem;">0</div>
+                    </div>
+                    <div style="background: #fefce8; border: 1px solid #fde68a; border-radius: 10px; padding: 0.9rem;">
+                        <p style="margin: 0; color: #92400e; font-weight: 700; font-size: 0.75rem; text-transform: uppercase;">Pending</p>
+                        <div id="permStatPending" style="margin-top: 0.35rem; color: #78350f; font-weight: 800; font-size: 1.3rem;">0</div>
+                    </div>
+                    <div style="background: #ecfdf5; border: 1px solid #86efac; border-radius: 10px; padding: 0.9rem;">
+                        <p style="margin: 0; color: #166534; font-weight: 700; font-size: 0.75rem; text-transform: uppercase;">Approved</p>
+                        <div id="permStatApproved" style="margin-top: 0.35rem; color: #166534; font-weight: 800; font-size: 1.3rem;">0</div>
+                    </div>
+                    <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px; padding: 0.9rem;">
+                        <p style="margin: 0; color: #991b1b; font-weight: 700; font-size: 0.75rem; text-transform: uppercase;">Rejected</p>
+                        <div id="permStatRejected" style="margin-top: 0.35rem; color: #991b1b; font-weight: 800; font-size: 1.3rem;">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="permission-create-collapsible" style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; margin-bottom:0.85rem; flex-wrap:wrap;">
+                    <h4 style="margin: 0; color: #0f172a; font-size: 0.96rem;">Create Permission (Admin Entry)</h4>
+                    <span style="font-size:0.78rem; color:#64748b; font-weight:600;">Use this form to create late or early permissions with clear window rules.</span>
+                </div>
+                <form id="permissionCreateForm" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; align-items: end;">
+                    <div>
+                        <label for="permUserId" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">Faculty ID</label>
+                        <input id="permUserId" type="text" placeholder="FAC001" required style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
+                    </div>
+                    <div>
+                        <label for="permType" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">Permission Type</label>
+                        <select id="permType" required style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
+                            <option value="LP">LP - Late Arrival Permission</option>
+                            <option value="EP">EP - Early Exit Permission</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="permDate" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">Date</label>
+                        <input id="permDate" type="date" required style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
+                    </div>
+                    <div>
+                        <label for="permDefaultStatus" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">Initial Status</label>
+                        <select id="permDefaultStatus" style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
+                            <option value="Pending">Pending</option>
+                            <option value="Approved">Approved</option>
+                            <option value="Rejected">Rejected</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="permWindowMode" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">Permission Window</label>
+                        <select id="permWindowMode" style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
+                            <option value="TIME_RANGE">Time Range</option>
+                            <option value="FULL_DAY">Full Day</option>
+                            <option value="CUSTOM_DAYS">Custom Days</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="permStartTime" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">Start Time</label>
+                        <input id="permStartTime" type="time" style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
+                    </div>
+                    <div>
+                        <label for="permEndTime" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">End Time</label>
+                        <input id="permEndTime" type="time" style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
+                    </div>
+                    <div id="permCustomDaysWrap" style="grid-column: 1 / -1; display: none;">
+                        <label for="permCustomDays" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">Custom Days (comma-separated dates)</label>
+                        <input id="permCustomDays" type="text" placeholder="2026-04-03, 2026-04-05, 2026-04-10" style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
+                    </div>
+                    <div style="grid-column: 1 / -1;">
+                        <label for="permReason" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">Reason from Faculty</label>
+                        <textarea id="permReason" placeholder="Example: Health issue, family emergency, transport delay." rows="2" style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; resize: vertical;"></textarea>
+                    </div>
+                    <div style="grid-column: 1 / -1; display: flex; justify-content: flex-end;">
+                        <button type="submit" class="action-btn-primary" style="padding: 0.62rem 1rem;">
+                            <i class="fa-solid fa-shield-check" style="margin-right: 0.45rem;"></i>
+                            Save Permission
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div style="padding: 1rem 1.5rem; border-bottom: 1px solid #e2e8f0; background: #ffffff;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.65rem;">
+                    <div>
+                        <label for="permFilterStatus" style="display: block; margin-bottom: 0.3rem; color: #475569; font-size: 0.75rem; font-weight: 700;">Filter by Status</label>
+                        <select id="permFilterStatus" style="width: 100%; padding: 0.55rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem;">
+                            <option value="">All</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Approved">Approved</option>
+                            <option value="Rejected">Rejected</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="permFilterType" style="display: block; margin-bottom: 0.3rem; color: #475569; font-size: 0.75rem; font-weight: 700;">Filter by Type</label>
+                        <select id="permFilterType" style="width: 100%; padding: 0.55rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem;">
+                            <option value="">All</option>
+                            <option value="LP">Late Arrival Permission</option>
+                            <option value="EP">Early Exit Permission</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="permFilterUserId" style="display: block; margin-bottom: 0.3rem; color: #475569; font-size: 0.75rem; font-weight: 700;">Filter by Faculty ID</label>
+                        <input id="permFilterUserId" type="text" placeholder="FAC001" style="width: 100%; padding: 0.55rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem;">
+                    </div>
+                    <div>
+                        <label for="permFilterDate" style="display: block; margin-bottom: 0.3rem; color: #475569; font-size: 0.75rem; font-weight: 700;">Filter by Date</label>
+                        <input id="permFilterDate" type="date" style="width: 100%; padding: 0.55rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem;">
+                    </div>
+                    <div>
+                        <label for="permFilterWindow" style="display: block; margin-bottom: 0.3rem; color: #475569; font-size: 0.75rem; font-weight: 700;">Filter by Window</label>
+                        <select id="permFilterWindow" style="width: 100%; padding: 0.55rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem;">
+                            <option value="">All</option>
+                            <option value="TIME_RANGE">Time Range</option>
+                            <option value="FULL_DAY">Full Day</option>
+                            <option value="CUSTOM_DAYS">Custom Days</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive compact-mobile">
+                <table class="premium-table permission-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Faculty</th>
+                            <th>Type</th>
+                            <th>Date</th>
+                            <th>Window</th>
+                            <th>Reason</th>
+                            <th>Status</th>
+                            <th style="text-align: right; padding-right: 2.6rem;">Admin Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="permissionTableBody">
+                        <tr>
+                            <td colspan="8" style="text-align: center; padding: 1.8rem !important; color: #64748b;">No permission records yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const menuToggle = document.querySelector('.menu-toggle');
+        const navMenu = document.querySelector('.nav-menu');
+        
+        if (menuToggle && navMenu) {
+            menuToggle.addEventListener('click', () => {
+                navMenu.classList.toggle('active');
+                const icon = menuToggle.querySelector('i');
+                if (navMenu.classList.contains('active')) {
+                    icon.classList.remove('fa-bars');
+                    icon.classList.add('fa-times');
+                } else {
+                    icon.classList.remove('fa-times');
+                    icon.classList.add('fa-bars');
+                }
+            });
+        }
+
+        // Faculty Registration Modal Functions
+        function openFacultyRegistrationModal() {
+            document.getElementById('facultyRegistrationModal').style.display = 'flex';
+        }
+
+        function closeFacultyRegistrationModal() {
+            document.getElementById('facultyRegistrationModal').style.display = 'none';
+            document.getElementById('facultyRegForm').reset();
+        }
+
+        async function handleFacultyRegistration(e) {
+            e.preventDefault();
+            const user_id = document.getElementById('facultyUserId').value;
+            const name = document.getElementById('facultyName').value;
+            const password = document.getElementById('facultyPassword').value;
+            const confirmPassword = document.getElementById('facultyConfirmPassword').value;
+
+            const validatePasswordPolicy = (pwd) => {
+                if (pwd.length < 8 || pwd.length > 64) return 'Password must be 8-64 characters.';
+                if (/\s/.test(pwd)) return 'Password cannot contain spaces.';
+                if (!/[A-Z]/.test(pwd)) return 'Password must include at least one uppercase letter.';
+                if (!/[a-z]/.test(pwd)) return 'Password must include at least one lowercase letter.';
+                if (!/[0-9]/.test(pwd)) return 'Password must include at least one number.';
+                if (!/[^A-Za-z0-9]/.test(pwd)) return 'Password must include at least one special symbol.';
+                if (String(user_id || '').trim().length >= 3 && pwd.toLowerCase().includes(String(user_id).trim().toLowerCase())) {
+                    return 'Password cannot contain Faculty ID text.';
+                }
+                return null;
+            };
+
+            if (password !== confirmPassword) {
+                alert('Passwords do not match!');
+                return;
+            }
+
+            const passwordError = validatePasswordPolicy(password);
+            if (passwordError) {
+                alert(passwordError);
+                return;
+            }
+
+            try {
+                const adminUser = JSON.parse(localStorage.getItem('user'));
+                const response = await fetch('/api/register_faculty', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        admin_id: adminUser.id,
+                        user_id: user_id,
+                        name: name,
+                        password: password
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert('Faculty registered successfully! They must capture face on first login.');
+                    closeFacultyRegistrationModal();
+                    // Optionally reload dashboard or show the new faculty in a list
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (err) {
+                console.error('Faculty Registration Error:', err);
+                alert('Server error. Ensure backend is running.');
+            }
+        }
+
+        // Close modal when clicking outside
+        document.addEventListener('DOMContentLoaded', () => {
+            const modal = document.getElementById('facultyRegistrationModal');
+            window.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    closeFacultyRegistrationModal();
+                }
+            });
+
+            const permissionSection = document.getElementById('permissionSection');
+            const permissionFormToggle = document.getElementById('permissionFormToggle');
+            if (permissionSection && permissionFormToggle) {
+                permissionFormToggle.addEventListener('click', () => {
+                    const isOpen = permissionSection.classList.toggle('permission-open');
+                    permissionFormToggle.setAttribute('aria-expanded', String(isOpen));
+                    permissionFormToggle.innerHTML = isOpen
+                        ? '<i class="fa-solid fa-chevron-up"></i> Hide Form'
+                        : '<i class="fa-solid fa-pen-to-square"></i> Add Permission';
+                });
+            }
+
+            // Display logged-in admin's name
+            const adminName = localStorage.getItem('user_name') || 'Admin';
+            document.getElementById('adminNameDisplay').textContent = adminName;
+
+            const facultyPwd = document.getElementById('facultyPassword');
+            const toggleFacultyPwd = document.getElementById('toggleFacultyPassword');
+            const facultyPwdStrength = document.getElementById('facultyPasswordStrength');
+
+            const scorePassword = (pwd) => {
+                let score = 0;
+                if (pwd.length >= 8) score += 1;
+                if (/[A-Z]/.test(pwd)) score += 1;
+                if (/[a-z]/.test(pwd)) score += 1;
+                if (/[0-9]/.test(pwd)) score += 1;
+                if (/[^A-Za-z0-9]/.test(pwd)) score += 1;
+                return score;
+            };
+
+            const renderStrength = (pwd) => {
+                if (!facultyPwdStrength) return;
+                const score = scorePassword(String(pwd || ''));
+                const label = score >= 5 ? 'Strong' : score >= 3 ? 'Medium' : score > 0 ? 'Weak' : 'Not set';
+                const color = score >= 5 ? '#15803d' : score >= 3 ? '#b45309' : score > 0 ? '#b91c1c' : '#64748b';
+                facultyPwdStrength.textContent = `Strength: ${label}`;
+                facultyPwdStrength.style.color = color;
+            };
+
+            if (facultyPwd) {
+                facultyPwd.addEventListener('input', (e) => renderStrength(e.target.value));
+                renderStrength(facultyPwd.value || '');
+            }
+
+            if (toggleFacultyPwd && facultyPwd) {
+                toggleFacultyPwd.addEventListener('click', () => {
+                    const isPwd = facultyPwd.type === 'password';
+                    facultyPwd.type = isPwd ? 'text' : 'password';
+                    toggleFacultyPwd.innerHTML = isPwd
+                        ? '<i class="fa-regular fa-eye-slash"></i>'
+                        : '<i class="fa-regular fa-eye"></i>';
+                });
+            }
+        });
+    </script>
+
+    <!-- Faculty Registration Modal -->
+    <div id="facultyRegistrationModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 9999; justify-content: center; align-items: center;">
+        <div style="background: white; border-radius: 20px; padding: 2rem; width: 90%; max-width: 500px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 style="margin: 0; font-size: 1.5rem; color: #0f172a;">Register New Faculty</h3>
+                <button onclick="closeFacultyRegistrationModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #94a3b8;">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+
+            <form id="facultyRegForm" onsubmit="handleFacultyRegistration(event)">
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; color: #0f172a; font-weight: 600;">Faculty ID</label>
+                    <input type="text" id="facultyUserId" placeholder="e.g., FAC001" required style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; color: #0f172a; font-weight: 600;">Full Name</label>
+                    <input type="text" id="facultyName" placeholder="e.g., Dr. John Smith" required style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                </div>
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; color: #0f172a; font-weight: 600;">Password</label>
+                    <div style="display:flex; gap:0.5rem;">
+                        <input type="password" id="facultyPassword" placeholder="••••••••" minlength="8" maxlength="64" required style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                        <button type="button" id="toggleFacultyPassword" style="background:#fff; border:2px solid #e2e8f0; border-radius:8px; padding:0.75rem 0.95rem; cursor:pointer; color:#334155;">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                    <small id="facultyPasswordStrength" style="display:block; margin-top:0.35rem; color:#64748b; font-size:0.78rem;">Strength: Not set</small>
+                    <small style="display:block; margin-top:0.25rem; color:#64748b; font-size:0.78rem;">8-64 chars with uppercase, lowercase, number, and special symbol.</small>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; color: #0f172a; font-weight: 600;">Confirm Password</label>
+                    <input type="password" id="facultyConfirmPassword" placeholder="••••••••" required style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                </div>
+
+                <div style="display: flex; gap: 1rem;">
+                    <button type="submit" style="flex: 1; padding: 0.75rem 1.5rem; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 1rem; transition: background-color 0.2s;">
+                        Register
+                    </button>
+                    <button type="button" onclick="closeFacultyRegistrationModal()" style="flex: 1; padding: 0.75rem 1.5rem; background: #e2e8f0; color: #0f172a; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 1rem; transition: background-color 0.2s;">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

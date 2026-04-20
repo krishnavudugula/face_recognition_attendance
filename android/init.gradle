@@ -1,0 +1,12 @@
+// Configure Java toolchain to download Java 21
+allprojects {
+    plugins.withId('java') {
+        java {
+            toolchain {
+                languageVersion = JavaLanguageVersion.of(21)
+                vendor = JvmVendorSpec.ADOPTOPENJDK
+                implementation = JvmImplementation.VENDOR_SPECIFIC
+            }
+        }
+    }
+}

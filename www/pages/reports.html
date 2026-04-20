@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Reports - FaceAttend</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="../js/config.js"></script>
+    <script src="../js/back-button-native.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="../js/main.js" defer></script>
+    <script src="../js/reports.js" defer></script>
+    <style>
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            50% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 1; }
+            100% { transform: scale(2); opacity: 0; }
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        @keyframes slide-in { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slide-in-right { from { transform: translateX(600px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes count-up { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes shimmer { 0% { background-position: -1000px 0; } 100% { background-position: 1000px 0; } }
+        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-8px); } }
+        @keyframes glow-border { 0% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.5); } 50% { box-shadow: 0 0 20px rgba(59, 130, 246, 1); } 100% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.5); } }
+        
+        .live-indicator { 
+            width: 10px; height: 10px; background: #10b981; border-radius: 50%; 
+            animation: pulse-glow 2s infinite; display: inline-block; margin-right: 6px;
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border: 1.5px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            position: relative;
+            overflow: hidden;
+            animation: fade-in 0.6s ease-out;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .metric-card:hover {
+            border-color: #cbd5e1;
+            box-shadow: 0 15px 40px rgba(15, 23, 42, 0.12);
+            transform: translateY(-4px);
+        }
+        
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0; right: 0;
+            width: 120px; height: 120px;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), transparent);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        
+        .metric-value {
+            font-size: 2.2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+        }
+        
+        .metric-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #64748b;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+        }
+        
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            width: fit-content;
+        }
+        
+        .status-badge.ok { background: #d1fae5; color: #065f46; }
+        .status-badge.warning { background: #fef3c7; color: #78350f; }
+        .status-badge.critical { background: #fee2e2; color: #7f1d1d; }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: saturate(200%);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.08);
+        }
+        
+        .glass-card:hover {
+            box-shadow: 0 12px 40px rgba(31, 38, 135, 0.12);
+            transition: all 0.3s ease;
+        }
+        
+        .violation-card {
+            background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+            border-left: 4px solid #ef4444;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            animation: slide-in 0.4s ease-out;
+        }
+        
+        .violation-card.active { 
+            box-shadow: 0 10px 25px rgba(239, 68, 68, 0.15);
+            border-left-color: #dc2626;
+        }
+        
+        /* Enhanced button styles */
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        /* Table enhancement */
+        .premium-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        
+        .premium-table thead {
+            background: linear-gradient(135deg, #1e293b, #334155);
+            color: white;
+        }
+        
+        .premium-table th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 700;
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
+        }
+        
+        .premium-table tbody tr:hover {
+            background: #f0f9ff;
+        }
+        
+        .premium-table td {
+            padding: 1rem;
+            border-bottom: 1px solid #e2e8f0;
+            color: #334155;
+        }
+        
+        /* Advanced Status Animations */
+        @keyframes pulse-dot {
+            0% { 
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+                background: #10b981;
+            }
+            50% {
+                box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+                background: #10b981;
+            }
+        }
+        
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); }
+            14% { transform: scale(1.1); }
+            28% { transform: scale(1); }
+            42% { transform: scale(1.1); }
+            70% { transform: scale(1); }
+        }
+        
+        @keyframes gauge-fill {
+            from { width: 0%; }
+            to { width: var(--fill-width, 100%); }
+        }
+        
+        @keyframes status-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        
+        @keyframes glow-status {
+            0% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.3); }
+            50% { box-shadow: 0 0 15px rgba(59, 130, 246, 0.6); }
+            100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.3); }
+        }
+        
+        @keyframes number-change {
+            0% { opacity: 0.5; transform: translateY(4px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Status card enhancement */
+        .status-box {
+            padding: 1rem;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .status-box.warning {
+            animation: status-pulse 2s infinite;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-container {
+                padding: 1rem 0.75rem 1.25rem;
+            }
+
+            .dashboard-header {
+                flex-direction: column;
+                align-items: flex-start !important;
+                gap: 1rem !important;
+                margin-bottom: 1.5rem !important;
+                padding-bottom: 1rem !important;
+            }
+
+            .dashboard-header h1 {
+                font-size: 1.9rem !important;
+                line-height: 1.15;
+            }
+
+            .metric-card {
+                padding: 1.1rem;
+            }
+
+            .metric-value {
+                font-size: 1.8rem;
+            }
+
+            .glass-card {
+                padding: 1.25rem;
+            }
+
+            .premium-table th,
+            .premium-table td {
+                padding: 0.7rem 0.8rem;
+                font-size: 0.82rem;
+            }
+
+            #adminLiveMapCanvas {
+                height: 320px !important;
+            }
+
+            #modalTabs {
+                gap: 0.5rem !important;
+                flex-wrap: wrap;
+            }
+
+            #modalTabs button {
+                flex: 1 1 140px;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .dashboard-header h1 {
+                font-size: 1.6rem !important;
+            }
+
+            #adminLiveAlertStack {
+                top: 76px !important;
+                right: 12px !important;
+                left: 12px !important;
+                width: auto !important;
+            }
+
+            #adminLiveMapCanvas {
+                height: 260px !important;
+            }
+        }
+
+        #adminLiveAlertStack {
+            display: none !important;
+        }
+
+        .mobile-daily-list {
+            display: none;
+            padding: 1rem;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .mobile-day-item {
+            border: 1px solid #dbeafe;
+            border-radius: 12px;
+            background: #ffffff;
+            margin-bottom: 0.8rem;
+            overflow: hidden;
+        }
+
+        .mobile-day-summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 0.85rem 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            font-weight: 700;
+            color: #0f172a;
+            background: linear-gradient(135deg, #f8fbff 0%, #eef4ff 100%);
+        }
+
+        .mobile-day-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .mobile-day-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.55rem;
+            padding: 0.8rem;
+        }
+
+        .mobile-day-chip {
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 0.55rem 0.65rem;
+            background: #ffffff;
+        }
+
+        .mobile-day-chip .k {
+            display: block;
+            font-size: 0.7rem;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+        }
+
+        .mobile-day-chip .v {
+            display: block;
+            margin-top: 0.2rem;
+            font-size: 1rem;
+            color: #0f172a;
+            font-weight: 800;
+        }
+
+        @media (max-width: 768px) {
+            .table-desktop-wrap {
+                display: none;
+            }
+
+            .mobile-daily-list {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body class="dashboard-body">
+    
+    <nav class="navbar">
+        <a href="admin_dashboard.html" class="navbar-brand">
+            <div class="logo-icon">
+                <img src="../assets/Bits-logo.png" alt="BITS Logo">
+            </div>
+            <span>Analytics Center</span>
+        </a>
+        
+        <button class="menu-toggle" aria-label="Toggle navigation"><i class="fa-solid fa-bars"></i></button>
+        
+        <div class="nav-menu">
+            <ul class="navbar-nav">
+                <li><a href="admin_dashboard.html" class="nav-link">Dashboard</a></li>
+            </ul>
+            <div class="nav-actions">
+                <a href="/pages/login.html" class="action-btn-danger" onclick="window.appLogout(); return false;">
+                    <i class="fa-solid fa-right-from-bracket"></i> Logout
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+
+        <div id="adminLiveAlertStack" style="position: fixed; top: 90px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 0.6rem; width: min(420px, 92vw);"></div>
+
+        <!-- Advanced Export Modal -->
+        <div id="advancedExportModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10001; justify-content: center; align-items: center; padding: 1rem; backdrop-filter: blur(4px);">
+            <div style="background: white; border-radius: 20px; width: 100%; max-width: 700px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px rgba(0,0,0,0.25); overflow: hidden;">
+                <!-- Modal Header -->
+                <div style="padding: 2rem; border-bottom: 2px solid #f1f5f9; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <h2 style="margin: 0; font-size: 1.75rem; font-weight: 800;">Export Analytics Report</h2>
+                        <button onclick="closeExportModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 1.5rem; cursor: pointer; border-radius: 8px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; transition: all 0.3s;">×</button>
+                    </div>
+                    <p style="margin: 0; opacity: 0.9; font-size: 0.95rem;">Choose export format, date range, and customize your report data</p>
+                </div>
+
+                <!-- Modal Body -->
+                <div style="overflow-y: auto; flex: 1; padding: 2rem;">
+                    <!-- Report Type Selection -->
+                    <div style="margin-bottom: 2rem;">
+                        <label style="display: block; font-weight: 700; color: #0f172a; margin-bottom: 1rem; font-size: 0.95rem;">📋 Report Type</label>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem;">
+                            <div onclick="selectReportType('summary')" class="export-report-type" style="padding: 1rem; border: 2.5px solid #3b82f6; border-radius: 12px; cursor: pointer; text-align: center; background: #dbeafe; transition: all 0.3s; font-weight: 700; color: #1e40af;">
+                                <i class="fa-solid fa-chart-simple" style="font-size: 1.5rem; display: block; margin-bottom: 0.5rem;"></i>Summary
+                            </div>
+                            <div onclick="selectReportType('detailed')" class="export-report-type" style="padding: 1rem; border: 2.5px solid #e2e8f0; border-radius: 12px; cursor: pointer; text-align: center; background: white; transition: all 0.3s; font-weight: 700; color: #64748b;">
+                                <i class="fa-solid fa-list" style="font-size: 1.5rem; display: block; margin-bottom: 0.5rem;"></i>Detailed
+                            </div>
+                            <div onclick="selectReportType('violations')" class="export-report-type" style="padding: 1rem; border: 2.5px solid #e2e8f0; border-radius: 12px; cursor: pointer; text-align: center; background: white; transition: all 0.3s; font-weight: 700; color: #64748b;">
+                                <i class="fa-solid fa-triangle-exclamation" style="font-size: 1.5rem; display: block; margin-bottom: 0.5rem;"></i>Violations
+                            </div>
+                            <div onclick="selectReportType('compliance')" class="export-report-type" style="padding: 1rem; border: 2.5px solid #e2e8f0; border-radius: 12px; cursor: pointer; text-align: center; background: white; transition: all 0.3s; font-weight: 700; color: #64748b;">
+                                <i class="fa-solid fa-shield-check" style="font-size: 1.5rem; display: block; margin-bottom: 0.5rem;"></i>Compliance
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- File Format Selection -->
+                    <div style="margin-bottom: 2rem;">
+                        <label style="display: block; font-weight: 700; color: #0f172a; margin-bottom: 1rem; font-size: 0.95rem;">📁 File Format</label>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1rem;">
+                            <label style="display: flex; align-items: center; padding: 1rem; border: 2px solid #e2e8f0; border-radius: 10px; cursor: pointer; background: white; transition: all 0.3s; font-weight: 600;">
+                                <input type="radio" id="format-csv" name="exportFormat" value="csv" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                                <span>📊 CSV</span>
+                            </label>
+                            <label style="display: flex; align-items: center; padding: 1rem; border: 2px solid #e2e8f0; border-radius: 10px; cursor: pointer; background: white; transition: all 0.3s; font-weight: 600;">
+                                <input type="radio" id="format-excel" name="exportFormat" value="excel" style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                                <span>📈 Excel</span>
+                            </label>
+                            <label style="display: flex; align-items: center; padding: 1rem; border: 2px solid #e2e8f0; border-radius: 10px; cursor: pointer; background: white; transition: all 0.3s; font-weight: 600;">
+                                <input type="radio" id="format-pdf" name="exportFormat" value="pdf" style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                                <span>📄 PDF</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Real-Time Preview -->
+                    <div style="margin-bottom: 2rem; padding: 1.5rem; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-left: 4px solid #0ea5e9; border-radius: 10px;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                            <div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: pulse 2s infinite;"></div>
+                            <span style="font-weight: 700; color: #0369a1; font-size: 0.9rem;">LIVE DATA PREVIEW</span>
+                        </div>
+                        <div id="exportPreview" style="background: white; padding: 1rem; border-radius: 8px; max-height: 220px; overflow-y: auto; font-size: 0.85rem;">
+                            <div style="text-align: center; color: #94a3b8; padding: 2rem 1rem;">
+                                <i class="fa-solid fa-chart-bar" style="font-size: 2rem; opacity: 0.5; margin-bottom: 0.5rem; display: block;"></i>
+                                Select report type to see data preview
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column Customization -->
+                    <div style="margin-bottom: 2rem;">
+                        <label style="display: block; font-weight: 700; color: #0f172a; margin-bottom: 1rem; font-size: 0.95rem;">🔧 Include Columns</label>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
+                                <input type="checkbox" id="col-user" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                                User ID & Name
+                            </label>
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
+                                <input type="checkbox" id="col-date" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                                Date & Time
+                            </label>
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
+                                <input type="checkbox" id="col-status" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                                Status
+                            </label>
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
+                                <input type="checkbox" id="col-location" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                                Location Data
+                            </label>
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
+                                <input type="checkbox" id="col-checkin" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                                Check-in/Out Times
+                            </label>
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
+                                <input type="checkbox" id="col-period" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                                Period Info
+                            </label>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+                        <div>
+                            <label style="display: block; font-weight: 700; color: #0f172a; margin-bottom: 0.5rem; font-size: 0.9rem;">📅 Start Date</label>
+                            <input type="date" id="exportStartDate" style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 1rem; font-weight: 600;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 700; color: #0f172a; margin-bottom: 0.5rem; font-size: 0.9rem;">📅 End Date</label>
+                            <input type="date" id="exportEndDate" style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 1rem; font-weight: 600;">
+                        </div>
+                    </div>
+
+                    <!-- Filter Options -->
+                    <div style="margin-bottom: 2rem;">
+                        <label style="display: block; font-weight: 700; color: #0f172a; margin-bottom: 1rem; font-size: 0.95rem;">🎯 Filter Options</label>
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
+                                <input type="checkbox" id="filterLatestOnly" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                                Latest data only (exclude historical duplicates)
+                            </label>
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
+                                <input type="checkbox" id="filterViolationsOnly" style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                                Violations only (include absent/late/out-of-bounds)
+                            </label>
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
+                                <input type="checkbox" id="includeTimestamps" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                                Include timestamps and location data
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Pre-built Report Templates -->
+                    <div style="background: #f0f9ff; border-left: 4px solid #3b82f6; padding: 1rem; border-radius: 10px; margin-bottom: 1.5rem;">
+                        <div style="font-weight: 700; color: #1e40af; margin-bottom: 0.5rem;">⚡ Quick Presets</div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button onclick="applyExportPreset('today')" style="padding: 0.5rem 1rem; background: white; border: 1px solid #3b82f6; color: #3b82f6; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem;">Today</button>
+                            <button onclick="applyExportPreset('week')" style="padding: 0.5rem 1rem; background: white; border: 1px solid #3b82f6; color: #3b82f6; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem;">This Week</button>
+                            <button onclick="applyExportPreset('month')" style="padding: 0.5rem 1rem; background: white; border: 1px solid #3b82f6; color: #3b82f6; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem;">This Month</button>
+                            <button onclick="applyExportPreset('year')" style="padding: 0.5rem 1rem; background: white; border: 1px solid #3b82f6; color: #3b82f6; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem;">This Year</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div style="padding: 1.5rem 2rem; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; gap: 1rem; justify-content: flex-end;">
+                    <button onclick="closeExportModal()" style="padding: 0.75rem 1.5rem; background: white; border: 2px solid #e2e8f0; border-radius: 10px; font-weight: 700; cursor: pointer; color: #475569; transition: all 0.3s;">Cancel</button>
+                    <button id="btnExecuteExport" onclick="executeExport(this)" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; transition: all 0.3s;">
+                        <i class="fa-solid fa-download"></i> Export Now
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Violations Panel Modal -->
+        <div id="adminLiveViolationsModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); z-index: 10000; justify-content: center; align-items: center; padding: 1rem; backdrop-filter: blur(5px);">
+            <div style="background: white; border-radius: 20px; width: 100%; max-width: 950px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);">
+                <div style="padding: 2rem; border-bottom: 2px solid #f0f9ff; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; display: flex; justify-content: space-between; align-items: center; border-radius: 20px 20px 0 0;">
+                    <div>
+                        <h2 style="margin: 0; font-size: 1.75rem; font-weight: 800;">Live Violations Dashboard</h2>
+                        <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.95rem;">Real-time compliance violations and incidents</p>
+                    </div>
+                    <button onclick="closeLiveViolationsModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 1.5rem; cursor: pointer; border-radius: 10px; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; transition: all 0.3s;">×</button>
+                </div>
+                <div style="overflow-y: auto; flex: 1; padding: 2rem;">
+                    <div id="adminLiveViolationsContent" style="min-height: 300px;">Loading violations...</div>
+                </div>
+                <div style="padding: 1.5rem 2rem; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; gap: 1rem; justify-content: flex-end; border-radius: 0 0 20px 20px;">
+                    <button onclick="closeLiveViolationsModal()" style="padding: 0.75rem 1.5rem; background: white; border: 2px solid #e2e8f0; border-radius: 10px; font-weight: 700; cursor: pointer; color: #475569; transition: all 0.3s;">Close</button>
+                    <button onclick="location.reload()" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; transition: all 0.3s;">
+                        <i class="fa-solid fa-arrows-rotate"></i> Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-header" style="display: flex; justify-content: space-between; align-items: start; gap: 2rem; margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 1px solid #e2e8f0;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                    <span class="live-indicator"></span>
+                    <span style="font-size: 0.75rem; font-weight: 700; color: #10b981; text-transform: uppercase; letter-spacing: 0.5px;">Real-Time Monitoring Active</span>
+                </div>
+                <h1 style="font-size: 2.5rem; color: #0f172a; margin: 0 0 0.25rem 0; font-weight: 800; letter-spacing: -0.03em;">Command Center</h1>
+                <p style="color: #64748b; margin: 0; font-size: 1rem;">Live attendance analytics and facility compliance.</p>
+            </div>
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end;">
+                <button onclick="openExportModal()" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #10b981, #059669); color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; transition: all 0.3s; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); font-size: 0.95rem;">
+                    <i class="fa-solid fa-file-export"></i> Advanced Export
+                </button>
+                <button onclick="openLiveViolationsPanel()" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; transition: all 0.3s; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3); font-size: 0.95rem;">
+                    <i class="fa-solid fa-triangle-exclamation"></i> View Violations
+                </button>
+            </div>
+        </div>
+
+        <!-- SECTION 1: Live Metrics KPIs -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 3rem;">
+            <!-- Total Campus Occupancy -->
+            <div class="metric-card">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <div class="metric-label">Campus Occupancy</div>
+                        <div class="metric-value" id="metric-occupancy">--</div>
+                    </div>
+                    <span class="status-badge ok"><span class="live-indicator" style="margin: 0;"></span></span>
+                </div>
+                <div style="font-size: 0.85rem; color: #64748b; margin-top: 0.5rem;" id="metric-occupancy-sub">Loading...</div>
+            </div>
+            
+            <!-- Compliance Rate -->
+            <div class="metric-card">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <div class="metric-label">Compliance Rate</div>
+                        <div class="metric-value" id="metric-compliance">--</div>
+                    </div>
+                    <span class="status-badge ok"><i class="fa-solid fa-shield-check" style="font-size: 0.9rem;"></i></span>
+                </div>
+                <div style="font-size: 0.85rem; color: #64748b; margin-top: 0.5rem;" id="metric-compliance-sub">In bounds & healthy</div>
+            </div>
+            
+            <!-- Active Violations -->
+            <div class="metric-card">
+                <div>
+                    <div class="metric-label">Active Violations</div>
+                    <div class="metric-value" id="metric-violations">--</div>
+                </div>
+                <div style="font-size: 0.85rem; color: #64748b; margin-top: 0.5rem;" id="metric-violations-sub">Loading...</div>
+            </div>
+            
+        </div>
+
+        <!-- SECTION 2: Live Location Map -->
+        <div class="glass-card" style="margin-bottom: 3rem; padding: 0; overflow: hidden;">
+            <div style="padding: 1.5rem 2rem; border-bottom: 1px solid #e2e8f0; background: linear-gradient(135deg, #f8fafc, #ffffff); display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 style="margin: 0 0 0.25rem 0; font-size: 1.25rem; color: #0f172a; font-weight: 800;">Campus Live Tracking</h2>
+                    <p style="margin: 0; font-size: 0.85rem; color: #64748b;">Real-time location monitoring with boundary enforcement</p>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.25rem;">Last Updated</div>
+                    <div style="font-size: 1.25rem; font-weight: 700; color: #0f172a;" id="map-last-update">--:--</div>
+                </div>
+            </div>
+            <div style="padding: 1.5rem 2rem;">
+                <p id="adminLiveMapStatus" style="margin: 0 0 0.5rem 0; color: #64748b; font-size: 0.9rem;">Live tracking is loading...</p>
+                <p id="adminLiveDebugStatus" style="margin: 0 0 1rem 0; color: #666; font-size: 0.8rem; font-family: 'Courier New'; background: #f0f9ff; padding: 0.75rem 1rem; border-radius: 8px; border-left: 3px solid #3b82f6;"></p>
+                <div id="adminLiveMapCanvas" style="width: 100%; height: 450px; border-radius: 12px; border: 2px solid #e0e7ff; background: linear-gradient(135deg, #eff6ff, #f8fafc);"></div>
+            </div>
+        </div>
+
+        <!-- SECTION 3: Professional Real-Time Status Dashboard -->
+        <div style="margin-bottom: 3rem;">
+            <h2 style="font-size: 1.5rem; color: #0f172a; font-weight: 800; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem;">
+                <i class="fa-solid fa-satellite" style="color: #3b82f6;"></i> Live Facility Status
+            </h2>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem;">
+                <!-- Network & Location Real-Time Board -->
+                <div class="glass-card" style="position: relative; overflow: hidden;">
+                    <div style="position: absolute; top: 0; right: 0; width: 200px; height: 200px; background: radial-gradient(circle, rgba(59, 130, 246, 0.1), transparent); border-radius: 50%; pointer-events: none;"></div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; position: relative; z-index: 1;">
+                        <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #0f172a;">Network & Location</h3>
+                        <span class="live-indicator" style="margin: 0;"></span>
+                    </div>
+                    
+                    <!-- Network ON -->
+                    <div onclick="openDetailedStatusModal('network')" style="background: linear-gradient(135deg, #d1fae5 0%, #ecfdf5 100%); border: 2px solid #10b981; border-radius: 14px; padding: 1.25rem; margin-bottom: 1rem; position: relative; overflow: hidden; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 10px 25px rgba(16, 185, 129, 0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                        <div style="position: absolute; top: 0; right: 0; width: 100px; height: 100px; background: radial-gradient(circle, rgba(16, 185, 129, 0.2), transparent); border-radius: 50%;"></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; position: relative; z-index: 1;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <div style="width: 12px; height: 12px; background: #10b981; border-radius: 50%; animation: pulse-glow 2s infinite;"></div>
+                                <span style="font-weight: 700; color: #065f46; font-size: 0.9rem; text-transform: uppercase;">Network Status</span>
+                            </div>
+                            <span id="network-status-badge" style="background: #10b981; color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-weight: 700; font-size: 0.8rem;">ONLINE</span>
+                        </div>
+                        <div style="display: flex; align-items: baseline; gap: 0.5rem;">
+                            <span style="font-size: 2.2rem; font-weight: 800; color: #065f46;" id="network-online-count">0</span>
+                            <span style="color: #059669; font-weight: 600;">devices connected</span>
+                        </div>
+                        <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(16, 185, 129, 0.3);">
+                            <div style="font-size: 0.8rem; color: #059669; display: flex; justify-content: space-between;">
+                                <span>Coverage:</span>
+                                <span id="network-coverage-pct" style="font-weight: 700;">0%</span>
+                            </div>
+                            <div style="background: rgba(16, 185, 129, 0.2); height: 6px; border-radius: 3px; margin-top: 0.5rem; overflow: hidden;">
+                                <div id="network-coverage-bar" style="background: linear-gradient(90deg, #10b981, #34d399); height: 100%; width: 0%; transition: width 0.4s ease;"></div>
+                            </div>
+                            <p style="margin-top: 0.75rem; font-size: 0.8rem; color: #059669; text-align: center; font-weight: 600;">👆 Click for details</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Location ON -->
+                    <div onclick="openDetailedStatusModal('location')" style="background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%); border: 2px solid #f59e0b; border-radius: 14px; padding: 1.25rem; position: relative; overflow: hidden; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 10px 25px rgba(245, 158, 11, 0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                        <div style="position: absolute; top: 0; right: 0; width: 100px; height: 100px; background: radial-gradient(circle, rgba(245, 158, 11, 0.2), transparent); border-radius: 50%;"></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; position: relative; z-index: 1;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <div style="width: 12px; height: 12px; background: #f59e0b; border-radius: 50%; animation: pulse-glow 2s infinite; animation-delay: 0.3s;"></div>
+                                <span style="font-weight: 700; color: #78350f; font-size: 0.9rem; text-transform: uppercase;">GPS Location</span>
+                            </div>
+                            <span id="location-status-badge" style="background: #f59e0b; color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-weight: 700; font-size: 0.8rem;">ACTIVE</span>
+                        </div>
+                        <div style="display: flex; align-items: baseline; gap: 0.5rem;">
+                            <span style="font-size: 2.2rem; font-weight: 800; color: #78350f;" id="location-active-count">0</span>
+                            <span style="color: #d97706; font-weight: 600;">devices tracking</span>
+                        </div>
+                        <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(245, 158, 11, 0.3);">
+                            <div style="font-size: 0.8rem; color: #d97706; display: flex; justify-content: space-between;">
+                                <span>Accuracy:</span>
+                                <span id="location-accuracy-pct" style="font-weight: 700;">0%</span>
+                            </div>
+                            <div style="background: rgba(245, 158, 11, 0.2); height: 6px; border-radius: 3px; margin-top: 0.5rem; overflow: hidden;">
+                                <div id="location-accuracy-bar" style="background: linear-gradient(90deg, #f59e0b, #fbbf24); height: 100%; width: 0%; transition: width 0.4s ease;"></div>
+                            </div>
+                            <p style="margin-top: 0.75rem; font-size: 0.8rem; color: #d97706; text-align: center; font-weight: 600;">👆 Click for details</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Campus Boundaries Status -->
+                <div class="glass-card" style="position: relative; overflow: hidden;">
+                    <div style="position: absolute; top: 0; right: 0; width: 200px; height: 200px; background: radial-gradient(circle, rgba(239, 68, 68, 0.1), transparent); border-radius: 50%; pointer-events: none;"></div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; position: relative; z-index: 1;">
+                        <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #0f172a;">Campus Zones</h3>
+                        <i class="fa-solid fa-location-dot" style="color: #ef4444; font-size: 1.5rem;"></i>
+                    </div>
+                    
+                    <!-- In Bounds -->
+                    <div onclick="openDetailedStatusModal('bounds')" style="background: linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%); border: 2.5px solid #22c55e; border-radius: 14px; padding: 1.25rem; margin-bottom: 1rem; position: relative; overflow: hidden; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 10px 25px rgba(34, 197, 94, 0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                        <div style="position: absolute; top: 0; right: 0; width: 100px; height: 100px; background: radial-gradient(circle, rgba(34, 197, 94, 0.2), transparent); border-radius: 50%;"></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; position: relative; z-index: 1;">
+                            <span style="font-weight: 800; color: #166534; font-size: 0.95rem; text-transform: uppercase;">In Bounds</span>
+                            <i class="fa-solid fa-check-circle" style="color: #22c55e; font-size: 1.5rem;"></i>
+                        </div>
+                        <div style="display: flex; align-items: baseline; gap: 0.5rem;">
+                            <span style="font-size: 2.5rem; font-weight: 900; background: linear-gradient(135deg, #22c55e, #16a34a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;" id="bounds-inbounds">0</span>
+                            <span style="color: #16a34a; font-weight: 700; font-size: 1.1rem;">faculty</span>
+                        </div>
+                        <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(34, 197, 94, 0.3); font-size: 0.8rem; color: #16a34a;">
+                            ✓ Within campus boundary
+                        </div>
+                        <p style="margin-top: 0.75rem; font-size: 0.8rem; color: #16a34a; text-align: center; font-weight: 600;">👆 Click for names</p>
+                    </div>
+                    
+                    <!-- Out of Bounds -->
+                    <div onclick="openDetailedStatusModal('bounds')" style="background: linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%); border: 2.5px solid #ef4444; border-radius: 14px; padding: 1.25rem; position: relative; overflow: hidden; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 10px 25px rgba(239, 68, 68, 0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                        <div style="position: absolute; top: 0; right: 0; width: 100px; height: 100px; background: radial-gradient(circle, rgba(239, 68, 68, 0.2), transparent); border-radius: 50%;"></div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; position: relative; z-index: 1;">
+                            <span style="font-weight: 800; color: #7f1d1d; font-size: 0.95rem; text-transform: uppercase;">Out of Bounds</span>
+                            <i class="fa-solid fa-triangle-exclamation" style="color: #ef4444; font-size: 1.5rem;"></i>
+                        </div>
+                        <div style="display: flex; align-items: baseline; gap: 0.5rem;">
+                            <span style="font-size: 2.5rem; font-weight: 900; background: linear-gradient(135deg, #ef4444, #dc2626); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;" id="bounds-outbounds">0</span>
+                            <span style="color: #dc2626; font-weight: 700; font-size: 1.1rem;">faculty</span>
+                        </div>
+                        <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(239, 68, 68, 0.3); font-size: 0.8rem; color: #dc2626;">
+                            ⚠ Outside campus boundary
+                        </div>
+                        <p style="margin-top: 0.75rem; font-size: 0.8rem; color: #dc2626; text-align: center; font-weight: 600;">👆 Click for names</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 5: Leaderboards & Activity -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem; margin-bottom: 3rem;">
+            <!-- Late Arrivals -->
+            <div class="glass-card">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem;">
+                    <h3 style="margin: 0; font-size: 1.15rem; color: #0f172a; font-weight: 800;">Late Arrivals</h3>
+                    <span style="font-size: 0.75rem; background: #fee2e2; color: #991b1b; padding: 0.3rem 0.7rem; border-radius: 20px; font-weight: 700;">This Month</span>
+                </div>
+                <div style="overflow-y: auto; max-height: 280px;" id="lateLeaderboardContainer">
+                    <p style="color: #94a3b8; padding: 2rem 0; text-align: center; font-size: 0.9rem;">Loading leaderboard...</p>
+                </div>
+            </div>
+
+            <!-- Recent Activity Timeline -->
+            <div class="glass-card">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem;">
+                    <h3 style="margin: 0; font-size: 1.15rem; color: #0f172a; font-weight: 800;">Recent Activity</h3>
+                    <span class="live-indicator"></span>
+                </div>
+                <div style="overflow-y: auto; max-height: 280px; position: relative;" id="activityFeedContainer">
+                    <div style="position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: linear-gradient(180deg, #3b82f6, #dbeafe);"></div>
+                    <p style="color: #94a3b8; padding: 2rem 1rem; font-size: 0.9rem;">Loading feed...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SECTION 7: Detailed Logs Table -->
+        <div class="glass-card" style="padding: 0; overflow: hidden;">
+            <div style="padding: 1.5rem 2rem; border-bottom: 1px solid #e2e8f0; background: linear-gradient(135deg, #f8fafc, #ffffff); display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                <div>
+                    <h3 style="margin: 0; font-size: 1.15rem; color: #0f172a; font-weight: 800;">
+                        <i class="fa-solid fa-database" style="margin-right: 0.75rem; color: #3b82f6;"></i> Daily Aggregation Report
+                    </h3>
+                    <p id="selectedDailyDateLabel" style="margin: 0.35rem 0 0 0; color: #64748b; font-size: 0.85rem;">Showing all dates in range.</p>
+                </div>
+                <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                    <label for="reportDateFilter" style="font-size:0.78rem; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.05em;">Calendar Date</label>
+                    <input type="date" id="reportDateFilter" style="padding:0.5rem 0.65rem; border:1px solid #cbd5e1; border-radius:8px; font-size:0.9rem;">
+                    <button type="button" id="clearReportDateFilter" style="padding:0.5rem 0.75rem; border:1px solid #cbd5e1; border-radius:8px; background:#ffffff; color:#334155; font-weight:700; cursor:pointer;">Clear</button>
+                </div>
+            </div>
+            <div class="table-desktop-wrap" style="overflow-x: auto;">
+                <table class="premium-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Present</th>
+                            <th>Absent</th>
+                            <th>Late</th>
+                            <th>Violations</th>
+                            <th>Avg Check-in</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportTableBody">
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 3rem !important; color: #64748b;">
+                                <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 1.5rem; color: #3b82f6; margin-bottom: 0.75rem;"></i><br>
+                                Compiling Report Data...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="reportMobileList" class="mobile-daily-list">
+                <p style="margin: 0; color: #64748b; font-size: 0.9rem; text-align: center;">Loading daily report...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Status Modal -->
+    <div id="detailedStatusModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10001; justify-content: center; align-items: center; padding: 1rem; backdrop-filter: blur(4px);">
+        <div style="background: white; border-radius: 20px; width: 100%; max-width: 900px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px rgba(0,0,0,0.25); overflow: hidden;">
+            <!-- Modal Header -->
+            <div id="modalHeader" style="padding: 2rem; border-bottom: 2px solid #f1f5f9; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <h2 id="modalTitle" style="margin: 0; font-size: 1.75rem; font-weight: 800; display: flex; align-items: center; gap: 0.75rem;">
+                        <i id="modalIcon" class="fa-solid fa-network-wired" style="font-size: 1.5rem;"></i>
+                        Network Details
+                    </h2>
+                    <button onclick="closeDetailedStatusModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 1.5rem; cursor: pointer; border-radius: 8px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; transition: all 0.3s;">×</button>
+                </div>
+                <p id="modalSubtitle" style="margin: 0; opacity: 0.9; font-size: 0.95rem;">View detailed breakdown of user statuses</p>
+            </div>
+
+            <!-- Modal Body with Tabs -->
+            <div style="overflow-y: auto; flex: 1; padding: 2rem;">
+                <!-- Tab Buttons -->
+                <div id="modalTabs" style="display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 1rem;">
+                    <button id="tab-on" onclick="switchDetailTab('on')" style="padding: 0.75rem 1.5rem; background: #10b981; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; transition: all 0.3s;">
+                        <i class="fa-solid fa-circle-check" style="margin-right: 0.5rem;"></i><span id="tab-on-label">Online</span>
+                    </button>
+                    <button id="tab-off" onclick="switchDetailTab('off')" style="padding: 0.75rem 1.5rem; background: #e2e8f0; color: #0f172a; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; transition: all 0.3s;">
+                        <i class="fa-solid fa-circle-xmark" style="margin-right: 0.5rem;"></i><span id="tab-off-label">Offline</span>
+                    </button>
+                </div>
+
+                <!-- Content Area -->
+                <div id="modalContent" style="min-height: 300px;">
+                    <p style="color: #94a3b8; padding: 2rem; text-align: center;">Loading detailed data...</p>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div style="padding: 1.5rem 2rem; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; justify-content: flex-end; gap: 1rem;">
+                <button onclick="closeDetailedStatusModal()" style="padding: 0.75rem 1.5rem; background: #e2e8f0; color: #0f172a; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; transition: all 0.3s;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const menuToggle = document.querySelector('.menu-toggle');
+        const navMenu = document.querySelector('.nav-menu');
+        
+        if (menuToggle && navMenu) {
+            menuToggle.addEventListener('click', () => {
+                navMenu.classList.toggle('active');
+                const icon = menuToggle.querySelector('i');
+                if (navMenu.classList.contains('active')) {
+                    icon.classList.remove('fa-bars');
+                    icon.classList.add('fa-times');
+                } else {
+                    icon.classList.remove('fa-times');
+                    icon.classList.add('fa-bars');
+                }
+            });
+        }
+
+        // Store the current live data
+        let currentDetailedStatus = null;
+        let currentDetailedType = null;
+        let currentDetailedTab = 'on';
+
+        function openDetailedStatusModal(type) {
+            const modal = document.getElementById('detailedStatusModal');
+            if (!currentLiveViolationsData) return alert('No live data available yet.');
+
+            currentDetailedType = type;
+            currentDetailedTab = 'on';
+            const mapPoints = currentLiveViolationsData.map_points || [];
+            const inactiveUsers = currentLiveViolationsData.inactive_users || [];  // NEW: Get logged-out users
+            
+            let title, icon, tabs;
+            
+            if (type === 'network') {
+                title = 'Network Status Details';
+                icon = 'fa-network-wired';
+                tabs = ['ON', 'OFF'];
+                document.getElementById('modalSubtitle').textContent = 'Live network availability across devices.';
+                currentDetailedStatus = {
+                    on: mapPoints.filter(p => p.device_status && p.device_status.network_on),
+                    off: [...mapPoints.filter(p => !p.device_status || !p.device_status.network_on), ...inactiveUsers]  // NEW: Include inactive
+                };
+            } else if (type === 'location') {
+                title = 'GPS Location Status Details';
+                icon = 'fa-location-dot';
+                tabs = ['ACTIVE', 'INACTIVE'];
+                document.getElementById('modalSubtitle').textContent = 'Live GPS permission and tracking status.';
+                currentDetailedStatus = {
+                    on: mapPoints.filter(p => p.device_status && p.device_status.location_on),
+                    off: [...mapPoints.filter(p => !p.device_status || !p.device_status.location_on), ...inactiveUsers]  // NEW: Include inactive
+                };
+            } else if (type === 'bounds') {
+                title = 'Campus Zone Status Details';
+                icon = 'fa-location-crosshairs';
+                tabs = ['IN BOUNDS', 'OUT OF BOUNDS'];
+                document.getElementById('modalSubtitle').textContent = 'Shows both Physical geofence and Policy status (lunch rule can differ).';
+                currentDetailedStatus = {
+                    on: mapPoints.filter(p => p.in_bounds !== false),
+                    off: [...mapPoints.filter(p => p.in_bounds === false), ...inactiveUsers]  // NEW: Include inactive (logged out = out of bounds)
+                };
+            }
+
+            document.getElementById('modalTitle').innerHTML = `<i class="fa-solid ${icon}" style="font-size: 1.5rem;"></i> ${title}`;
+            document.getElementById('tab-on-label').textContent = tabs[0];
+            document.getElementById('tab-off-label').textContent = tabs[1];
+            
+            switchDetailTab('on');
+            modal.style.display = 'flex';
+        }
+
+        function closeDetailedStatusModal() {
+            document.getElementById('detailedStatusModal').style.display = 'none';
+        }
+
+        function switchDetailTab(tab) {
+            currentDetailedTab = tab;
+            const onBtn = document.getElementById('tab-on');
+            const offBtn = document.getElementById('tab-off');
+            const data = tab === 'on' ? currentDetailedStatus.on : currentDetailedStatus.off;
+
+            if (tab === 'on') {
+                onBtn.style.background = '#10b981';
+                onBtn.style.color = 'white';
+                offBtn.style.background = '#e2e8f0';
+                offBtn.style.color = '#0f172a';
+            } else {
+                onBtn.style.background = '#e2e8f0';
+                onBtn.style.color = '#0f172a';
+                offBtn.style.background = '#ef4444';
+                offBtn.style.color = 'white';
+            }
+
+            const contentDiv = document.getElementById('modalContent');
+            
+            if (data.length === 0) {
+                contentDiv.innerHTML = `
+                    <div style="text-align: center; padding: 3rem; background: #f8fafc; border-radius: 12px;">
+                        <i class="fa-solid fa-check-circle" style="font-size: 3rem; color: #10b981; margin-bottom: 1rem;"></i>
+                        <p style="color: #0f172a; font-weight: 700; font-size: 1.1rem;">All users are in good status!</p>
+                        <p style="color: #64748b;">No issues to report.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const isBoundsView = currentDetailedType === 'bounds';
+
+            let html = `
+                <div style="display: grid; gap: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: #f8fafc; border-radius: 8px; border-left: 4px solid ${tab === 'on' ? '#10b981' : '#ef4444'};">
+                        <span style="font-weight: 700; color: #0f172a;">Total Users: <span style="font-size: 1.3rem; color: ${tab === 'on' ? '#10b981' : '#ef4444'};">${data.length}</span></span>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: ${tab === 'on' ? '#ecfdf5' : '#fee2e2'}; border-bottom: 2px solid ${tab === 'on' ? '#10b981' : '#ef4444'};">
+                                <th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">User ID</th>
+                                <th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">Name</th>
+                                <th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">Role</th>
+                                ${isBoundsView ? `<th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">Physical</th>` : ''}
+                                ${isBoundsView ? `<th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">Policy</th>` : ''}
+                                <th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">Last Seen</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            data.forEach((user, idx) => {
+                const lastSeen = user.last_seen ? convertUTCtoIST(user.last_seen) : 'N/A';
+                const bgColor = idx % 2 === 0 ? 'white' : '#f9fafb';
+                const physicalState = user.in_bounds === false ? 'OUT OF BOUNDS' : 'IN BOUNDS';
+                const policyRaw = user.policy_in_bounds;
+                const policyState = policyRaw === undefined || policyRaw === null ? 'N/A' : (policyRaw ? 'ALLOWED' : 'BLOCKED');
+                const physicalChipBg = user.in_bounds === false ? '#fee2e2' : '#dcfce7';
+                const physicalChipColor = user.in_bounds === false ? '#991b1b' : '#166534';
+                const policyChipBg = policyState === 'ALLOWED' ? '#dbeafe' : policyState === 'BLOCKED' ? '#fee2e2' : '#f1f5f9';
+                const policyChipColor = policyState === 'ALLOWED' ? '#1e40af' : policyState === 'BLOCKED' ? '#991b1b' : '#475569';
+                html += `
+                    <tr style="background: ${bgColor}; border-bottom: 1px solid #e2e8f0;">
+                        <td style="padding: 0.875rem 1rem; color: #0f172a; font-weight: 700; font-family: 'Courier New';">${user.user_id}</td>
+                        <td style="padding: 0.875rem 1rem; color: #0f172a;">${user.name || 'Unknown'}</td>
+                        <td style="padding: 0.875rem 1rem;">
+                            <span style="background: ${user.role === 'admin' ? '#dbeafe' : '#ede9fe'}; color: ${user.role === 'admin' ? '#1e40af' : '#5b21b6'}; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600;">
+                                ${user.role || 'user'}
+                            </span>
+                        </td>
+                        ${isBoundsView ? `<td style="padding: 0.875rem 1rem;"><span style="background: ${physicalChipBg}; color: ${physicalChipColor}; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700;">${physicalState}</span></td>` : ''}
+                        ${isBoundsView ? `<td style="padding: 0.875rem 1rem;"><span style="background: ${policyChipBg}; color: ${policyChipColor}; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700;">${policyState}</span></td>` : ''}
+                        <td style="padding: 0.875rem 1rem; color: #64748b; font-size: 0.9rem;">${lastSeen}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            contentDiv.innerHTML = html;
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('detailedStatusModal').addEventListener('click', (e) => {
+            if (e.target.id === 'detailedStatusModal') {
+                closeDetailedStatusModal();
+            }
+        });
+    </script>
+    <script src="../js/mobile-fixes.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Login - FaceAttend</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="../js/back-button-native.js"></script>
+    <script src="../js/route-persistence.js"></script>
+    <script src="../js/background-tracking.js"></script>
+    <script src="../js/config.js"></script>
+    <script src="../js/main.js" defer></script>
+</head>
+<body>
+    <div class="auth-layout">
+        
+        <div class="auth-hero">
+            <div class="hero-content">
+                <div class="brand-logo" style="gap: 1.5rem;">
+                    <img src="../assets/Bits-logo.png" alt="BITS Logo" style="height: 140px; width: auto; object-fit: contain;">
+                     
+                </div>
+                
+                <div class="hero-text">
+                    <h2>Be the change<br>your campus needs.</h2>
+                    <p>Join the community-led movement to report, track, and resolve attendance in real-time. Secure, contactless, and driven by advanced biometrics.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="auth-form-area">
+            <div class="form-wrapper">
+                
+                <div class="form-header">
+                    <h2>Welcome back</h2>
+                    <p>Please enter your details to sign in.</p>
+                </div>
+
+                <div class="toggle-container">
+                    <a href="login.html" class="toggle-btn active">Login</a>
+                    <a href="register.html" class="toggle-btn">Register</a>
+                </div>
+
+                <form id="loginForm">
+                    <div class="input-group">
+                        <label>ID</label>
+                        <div class="input-relative">
+                            <i class="fa-regular fa-envelope input-icon"></i>
+                            <input type="text" id="username" placeholder="Enter your ID" required>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Password</label>
+                        <div class="input-relative">
+                            <i class="fa-solid fa-lock input-icon"></i>
+                            <input type="password" id="password" placeholder="••••••••" required>
+                            <i id="loginPasswordToggle" class="fa-regular fa-eye password-toggle" title="Show password" aria-label="Toggle password visibility"></i>
+                        </div>
+                    </div>
+
+                    <div class="form-options">
+                        <label class="remember-me">
+                            <input type="checkbox" id="rememberMeCheckbox"> Remember me
+                        </label>
+                        <a href="#" class="forgot-link">Forgot Password?</a>
+                    </div>
+
+                    <button type="submit" class="btn-primary">Sign In</button>
+                    
+                </form>
+
+                <div class="terms-text">
+                    By continuing, you agree to our <a href="#">Terms of Service</a>.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+        
+        body { background-color: #ffffff; }
+
+        .auth-layout { display: flex; min-height: 100vh; }
+
+        /* Left Side: Image with Blue Overlay */
+        .auth-hero {
+            flex: 1;
+            /* Using a high-quality placeholder image with a deep blue blend */
+            background: linear-gradient(135deg, rgba(30, 58, 138, 0.95) 0%, rgba(30, 58, 138, 0.85) 100%), 
+                        url('https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=1000&auto=format&fit=crop') center/cover;
+            padding: 3.5rem;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end; /* Pushes content to bottom to match CivicConnect */
+        }
+
+        .hero-content { height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
+
+        .brand-logo { font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; letter-spacing: -0.5px; }
+
+        .hero-text h1 { font-size: 3.5rem; line-height: 1.1; margin-bottom: 1.5rem; font-weight: 800; letter-spacing: -1px; }
+        .hero-text p { font-size: 1.1rem; line-height: 1.6; color: rgba(255, 255, 255, 0.85); max-width: 480px; font-weight: 400; }
+
+        .stats-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1.5rem;
+            border-radius: 12px;
+            max-width: 320px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .stats-card h2 { font-size: 1.5rem; margin-bottom: 0.25rem; font-weight: 700; }
+        .stats-card p { font-size: 0.85rem; color: rgba(255, 255, 255, 0.8); line-height: 1.4; }
+
+        /* Right Side: Clean Form */
+        .auth-form-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            background: #ffffff;
+        }
+
+        .form-wrapper { width: 100%; max-width: 400px; }
+
+        .form-header { text-align: center; margin-bottom: 2rem; }
+        .form-header h2 { font-size: 1.75rem; color: #0f172a; margin-bottom: 0.5rem; font-weight: 800; letter-spacing: -0.5px; }
+        .form-header p { color: #64748b; font-size: 0.95rem; }
+
+        /* The Pill Toggle */
+        .toggle-container {
+            display: flex;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0.25rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+        }
+        .toggle-btn {
+            flex: 1; text-align: center; padding: 0.75rem; border-radius: 8px;
+            font-size: 0.9rem; font-weight: 600; color: #64748b; text-decoration: none; transition: all 0.2s;
+        }
+        .toggle-btn:hover { color: #0f172a; }
+        .toggle-btn.active { color: #2563eb; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+
+        /* Inputs */
+        .input-group { margin-bottom: 1.25rem; }
+        .input-group label { display: block; font-size: 0.85rem; font-weight: 600; color: #0f172a; margin-bottom: 0.5rem; }
+        .input-relative { position: relative; }
+        .input-icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.9rem; }
+        .select-arrow { position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.8rem; pointer-events: none; }
+        
+        .input-relative input, .input-relative select {
+            width: 100%; padding: 0.85rem 1rem 0.85rem 2.5rem;
+            border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; color: #0f172a;
+            outline: none; transition: border 0.2s; appearance: none; background: #ffffff;
+        }
+
+        .input-relative input[type="password"],
+        .input-relative input[type="text"] {
+            padding-right: 2.5rem;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 0.85rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+
+        .password-toggle:hover {
+            color: #334155;
+        }
+        .input-relative input::placeholder { color: #94a3b8; }
+        .input-relative input:focus, .input-relative select:focus { border-color: #2563eb; }
+
+        .form-options { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; font-size: 0.85rem; }
+        .remember-me { display: flex; align-items: center; gap: 0.5rem; color: #64748b; cursor: pointer; }
+        .forgot-link { color: #2563eb; font-weight: 600; text-decoration: none; }
+
+        /* Buttons */
+        .btn-primary { width: 100%; padding: 0.85rem; background: #2563eb; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: background 0.2s; margin-bottom: 1rem; }
+        .btn-primary:hover { background: #1d4ed8; }
+
+        .btn-secondary { display: flex; align-items: center; justify-content: center; width: 100%; padding: 0.85rem; background: #ffffff; color: #0f172a; border: 1px solid #e2e8f0; border-radius: 8px; font-weight: 600; font-size: 0.95rem; text-decoration: none; transition: background 0.2s; }
+        .btn-secondary:hover { background: #f8fafc; }
+
+        .terms-text { text-align: center; margin-top: 2rem; font-size: 0.75rem; color: #94a3b8; }
+        .terms-text a { color: #0f172a; text-decoration: underline; }
+
+        @media (max-width: 900px) {
+            .auth-layout { flex-direction: column; }
+            .auth-hero { padding: 1.5rem; min-height: 260px; }
+            .hero-text h1 { font-size: 2.2rem; }
+            .auth-form-area { padding: 1.5rem 1rem 2rem; }
+        }
+
+        @media (max-width: 520px) {
+            .auth-hero {
+                min-height: 220px;
+                padding: 1.25rem;
+            }
+
+            .brand-logo img {
+                height: 92px !important;
+            }
+
+            .hero-text h1 {
+                font-size: 1.9rem;
+                margin-bottom: 1rem;
+            }
+
+            .hero-text p {
+                font-size: 0.95rem;
+            }
+
+            .stats-card {
+                max-width: 100%;
+                padding: 1rem;
+            }
+
+            .form-wrapper {
+                max-width: 100%;
+            }
+
+            .form-header {
+                margin-bottom: 1.25rem;
+            }
+
+            .toggle-container {
+                margin-bottom: 1.25rem;
+            }
+
+            .form-options {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.75rem;
+            }
+
+            .btn-primary {
+                min-height: 46px;
+            }
+        }
+    </style>
+</body>
+</html>
