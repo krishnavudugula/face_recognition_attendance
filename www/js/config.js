@@ -56,6 +56,19 @@ setTimeout(async () => {
     }
 }, 1000);
 
+// Keep Render backend awake by pinging every 5 minutes (prevents cold starts)
+setInterval(async () => {
+    try {
+        await fetch(API_BASE_URL + '/api/health', {
+            method: 'GET',
+            headers: { 'ngrok-skip-browser-warning': 'true' },
+            mode: 'cors'
+        });
+    } catch (err) {
+        // Silent fail - just trying to keep backend warm
+    }
+}, 5 * 60 * 1000);  // 5 minutes
+
 // MAGIC INTERCEPTOR: This automatically upgrades EVERY fetch call in your entire app!
 const originalFetch = window.fetch;
 
@@ -66,10 +79,15 @@ window.fetch = async function(resource, config = {}) {
         console.log('[Config] Fetch intercepted - new URL:', resource);
     }
 
-    // 2. Automatically inject the Ngrok VIP Pass header into every request (safe to include always)
+    // 2. Automatically set CORS mode
+    if (!config.mode) {
+        config.mode = 'cors';
+    }
+
+    // 3. Automatically inject the Ngrok VIP Pass header into every request (safe to include always)
     config.headers = config.headers || {};
     config.headers['ngrok-skip-browser-warning'] = 'true';
 
-    // 3. Send the upgraded request
+    // 4. Send the upgraded request
     return originalFetch(resource, config);
 };

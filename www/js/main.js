@@ -68,13 +68,17 @@ async function handleLogin(e) {
     }
 
     try {
+        console.log('[Login] Attempting to connect to:', `${API_BASE_URL}/api/login`);
         const response = await fetch(`${API_BASE_URL}/api/login`, {
             method: 'POST',
+            mode: 'cors',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username: username, password: password })
         });
         
+        console.log('[Login] Response status:', response.status);
         const result = await response.json();
+        console.log('[Login] Response:', result);
         
         if (result.success) {
             // Check if faculty needs to complete face registration
@@ -110,8 +114,10 @@ async function handleLogin(e) {
             alert("Login Failed: " + result.message);
         }
     } catch (err) {
-        console.error("Login Error:", err);
-        alert("Server Error. Ensure backend is running.");
+        console.error("[Login] Error Details:", err);
+        console.error("[Login] Error Message:", err.message);
+        console.error("[Login] Error Stack:", err.stack);
+        alert("Server Error:\n\n" + err.message + "\n\nAPI URL: " + API_BASE_URL);
     }
 }
 
