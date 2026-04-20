@@ -668,7 +668,7 @@ async function setupReportFilters() {
         // Fetch list of faculty
         if (facultySelect) {
             try {
-                const response = await fetch('/api/users');
+                const response = await fetch(`${API_BASE_URL}/api/users`);
                 if (!response.ok) throw new Error('Failed to fetch users');
                 
                 const users = await response.json();
@@ -851,7 +851,7 @@ async function sendAdminPresenceHeartbeat() {
 
     navigator.geolocation.getCurrentPosition(async (pos) => {
         try {
-            await fetch('/api/location_heartbeat', {
+            await fetch(`${API_BASE_URL}/api/location_heartbeat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -871,7 +871,7 @@ async function sendAdminPresenceHeartbeat() {
         }
     }, async () => {
         try {
-            await fetch('/api/location_heartbeat', {
+            await fetch(`${API_BASE_URL}/api/location_heartbeat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

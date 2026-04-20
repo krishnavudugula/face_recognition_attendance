@@ -69,7 +69,7 @@
                 return;
             }
 
-            const response = await fetch('/api/faculty/location', {
+            const response = await fetch(`${API_BASE_URL}/api/faculty/location`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

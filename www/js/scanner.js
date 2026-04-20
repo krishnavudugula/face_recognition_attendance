@@ -266,7 +266,7 @@ async function processFrame() {
         }, 10000);
 
         // Send to API
-        const response = await fetch('/api/recognize', {
+        const response = await fetch(`${API_BASE_URL}/api/recognize`, {
             method: 'POST',
             body: JSON.stringify({ 
                 image: imageData,
