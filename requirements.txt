@@ -1,6 +1,6 @@
 Flask==2.3.3
 Flask-CORS==4.0.0
-Flask-SQLAlchemy==3.0.5
+Flask-SQLAlchemy>=3.1.0
 opencv-python>=4.10.0
 numpy>=2.0.0
 pandas>=2.2.0
@@ -10,6 +10,6 @@ bcrypt==4.0.1
 pytz==2023.3
 firebase-admin>=6.5.0
 requests==2.31.0
-Werkzeug==2.3.7
-SQLAlchemy==2.0.21
+Werkzeug>=3.0.0
+SQLAlchemy>=2.1.0
 gunicorn==21.2.0
