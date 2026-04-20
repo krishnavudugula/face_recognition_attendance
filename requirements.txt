@@ -11,5 +11,5 @@ pytz==2023.3
 firebase-admin>=6.5.0
 requests==2.31.0
 Werkzeug>=3.0.0
-SQLAlchemy>=2.1.0
+SQLAlchemy>=2.0.48
 gunicorn==21.2.0
