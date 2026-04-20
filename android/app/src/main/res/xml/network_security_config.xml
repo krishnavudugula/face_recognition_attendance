@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Allow connections to Render backend -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">face-attendance-api-ogih.onrender.com</domain>
+        <pin-set>
+            <!-- Allow standard TLS verification -->
+            <pin digest="SHA-256">placeholder</pin>
+        </pin-set>
+    </domain-config>
+    
+    <!-- Allow localhost for debugging -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+    </domain-config>
+    
+    <!-- Default policy - allow HTTPS for all domains -->
+    <default-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <!-- Trust system CA certificates -->
+            <certificates src="system"/>
+        </trust-anchors>
+    </default-config>
+</network-security-config>

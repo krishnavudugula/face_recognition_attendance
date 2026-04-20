@@ -26,7 +26,8 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
-        android:usesCleartextTraffic="true"> <!-- ALLOWS HTTP LOCALHOST CONNECTION -->
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"> <!-- ALLOWS HTTP LOCALHOST CONNECTION & EXTERNAL HTTPS -->
 
         <activity
             android:name=".MainActivity"
