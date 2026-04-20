@@ -18,5 +18,6 @@ class MainActivity : BridgeActivity() {
         Log.d(TAG, "🔙 Back button pressed")
         val jsCode = "window.handleAndroidBackButton && window.handleAndroidBackButton()"
         this.bridge.eval(jsCode, null)
+        super.onBackPressed()
     }
 }
