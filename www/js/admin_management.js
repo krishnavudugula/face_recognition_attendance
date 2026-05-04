@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadAdmins() {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/list_admins`, {
+        const response = await fetch('/api/list_admins', {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' }
         });
@@ -101,7 +101,7 @@ async function loadAdmins() {
 
 async function loadAuditLog() {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/admin_audit_log`, {
+        const response = await fetch('/api/admin_audit_log', {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' }
         });
@@ -261,7 +261,7 @@ async function submitCreateAdmin() {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/api/create_admin`, {
+        const response = await fetch('/api/create_admin', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -305,7 +305,7 @@ async function submitInviteAdmin() {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/api/invite_admin`, {
+        const response = await fetch('/api/invite_admin', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -346,7 +346,7 @@ async function deactivateAdmin(user_id, name) {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/api/deactivate_admin`, {
+        const response = await fetch('/api/deactivate_admin', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -375,7 +375,7 @@ async function deactivateAdmin(user_id, name) {
 
 async function reactivateAdmin(user_id, name) {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/reactivate_admin`, {
+        const response = await fetch('/api/reactivate_admin', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -413,7 +413,7 @@ async function deleteAdmin(user_id, name) {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/api/delete_admin`, {
+        const response = await fetch('/api/delete_admin', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -446,7 +446,7 @@ async function cancelInvite(invite_code) {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/api/cancel_invite`, {
+        const response = await fetch('/api/cancel_invite', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -472,7 +472,7 @@ async function cancelInvite(invite_code) {
 
 async function resendInviteEmail(invite_code) {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/resend_invite`, {
+        const response = await fetch('/api/resend_invite', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

@@ -9,9 +9,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="../js/back-button-native.js"></script>
     <script src="../js/route-persistence.js"></script>
-    <script src="../js/background-tracking.js"></script>
+    <script src="../js/location-tracking-plugin.js"></script>
     <script src="../js/config.js"></script>
+    <script src="../js/session-persistence.js" defer></script>
     <script src="../js/main.js" defer></script>
+    <script src="../js/liveness-checker.js" defer></script> 
     <script src="../js/scanner.js" defer></script>
     <style>
         * {
@@ -61,6 +63,47 @@
             z-index: 20;
         }
 
+        /* Liveness Challenge UI */
+        .liveness-box {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(10px);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 16px;
+            text-align: center;
+            z-index: 100;
+            width: 85%;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            animation: slideDown 0.3s ease-out;
+        }
+
+        .liveness-icon {
+            font-size: 1.8rem;
+            margin-bottom: 0.2rem;
+        }
+
+        .liveness-box h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.3rem;
+            color: #f8fafc;
+        }
+
+        .liveness-timer {
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: #3b82f6;
+        }
+
+        @keyframes slideDown {
+            from { top: -20px; opacity: 0; }
+            to { top: 20px; opacity: 1; }
+        }
         .btn-back {
             background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(12px);
@@ -725,10 +768,10 @@
 
         function getIconForStatus(status) {
             const icons = {
-                'success': '✓',
-                'error': '✕',
-                'warning': '!',
-                'info': 'i'
+                'success': '✅',
+                'error': '❌',
+                'warning': '⚠️',
+                'info': 'ℹ️'
             };
             return icons[status] || '–';
         }
@@ -782,6 +825,7 @@
             showProblem: showProblem,
             hideProblem: hideProblem
         };
+        
     </script>
 </body>
 </html>

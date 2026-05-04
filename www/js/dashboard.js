@@ -315,7 +315,7 @@ async function createPermissionFromForm(adminId) {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/api/admin/permissions`, {
+        const response = await fetch('/api/admin/permissions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

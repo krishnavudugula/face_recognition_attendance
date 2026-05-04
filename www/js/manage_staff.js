@@ -26,7 +26,7 @@ async function fetchUsers() {
     tableBody.innerHTML = '<tr><td colspan="6" class="text-center">Loading...</td></tr>';
 
     try {
-        const response = await fetch(`${API_BASE_URL}/api/users`);
+        const response = await fetch('/api/users');
         const users = await response.json();
 
         tableBody.innerHTML = '';
@@ -101,7 +101,7 @@ async function markUserAbsent(userId, userName, adminId) {
     try {
         const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
         
-        const response = await fetch(`${API_BASE_URL}/api/mark_absent`, {
+        const response = await fetch('/api/mark_absent', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

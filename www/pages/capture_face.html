@@ -5,11 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Complete Face Registration - FaceAttend</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/new-features.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="../js/back-button-native.js"></script>
     <script src="../js/route-persistence.js"></script>
-    <script src="../js/background-tracking.js"></script>
+    <script src="../js/location-tracking-plugin.js"></script>
     <script src="../js/config.js"></script>
+    
+    <!-- NEW FEATURES -->
+    <script src="../js/messaging-system.js" defer></script>
+    <script src="../js/alert-preferences.js" defer></script>
     <style>
         * {
             margin: 0;
@@ -741,7 +746,7 @@
                     <div class="top-bar-title">Face Registration</div>
                 </div>
                 <div class="progress-compact">
-                    <span class="current" id="progressCurrent">1</span>/<span>5</span>
+                    <span class="current" id="progressCurrent">1</span>/<span>3</span>
                 </div>
             </div>
 
@@ -805,13 +810,11 @@
     </div>
 
     <script>
-        const angles = ['front', 'left', 'right', 'down', 'up'];
+        const angles = ['front', 'left', 'right'];
         const angleText = {
             front: { text: 'Look Straight at Camera', subtitle: 'Keep your face centered', emoji: '👀' },
             left: { text: 'Turn Head Left', subtitle: 'Rotate about 45 degrees', emoji: '←' },
-            right: { text: 'Turn Head Right', subtitle: 'Rotate about 45 degrees', emoji: '→' },
-            down: { text: 'Look Down Slightly', subtitle: 'Lower your chin', emoji: '↓' },
-            up: { text: 'Look Up Slightly', subtitle: 'Raise your chin', emoji: '↑' }
+            right: { text: 'Turn Head Right', subtitle: 'Rotate about 45 degrees', emoji: '→' }
         };
 
         let currentAngleIndex = 0;
@@ -1060,8 +1063,8 @@
         }
 
         async function submitAllFaces() {
-            if (Object.keys(capturedImages).length < 5) {
-                alert('Please capture all 5 angles before submitting.');
+            if (Object.keys(capturedImages).length < 3) {
+                alert('Please capture all 3 angles before submitting.');
                 return;
             }
 

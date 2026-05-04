@@ -1,49 +1,60 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Login - FaceAttend</title>
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <script src="../js/back-button-native.js"></script>
     <script src="../js/route-persistence.js"></script>
-    <script src="../js/background-tracking.js"></script>
+    <script src="../js/location-tracking-plugin.js"></script>
     <script src="../js/config.js"></script>
+    <script src="../js/session-persistence.js" defer></script>
     <script src="../js/main.js" defer></script>
 </head>
+
 <body>
     <div class="auth-layout">
-        
+
         <div class="auth-hero">
             <div class="hero-content">
                 <div class="brand-logo" style="gap: 1.5rem;">
-                    <img src="../assets/Bits-logo.png" alt="BITS Logo" style="height: 140px; width: auto; object-fit: contain;">
-                     
+                    <img src="../assets/Bits-logo.png" alt="BITS Logo"
+                        style="height: 140px; width: auto; object-fit: contain;">
+
                 </div>
-                
+
                 <div class="hero-text">
-                    <h2>Be the change<br>your campus needs.</h2>
-                    <p>Join the community-led movement to report, track, and resolve attendance in real-time. Secure, contactless, and driven by advanced biometrics.</p>
+                    <p>Join the community-led movement to report, track, and resolve attendance in real-time. Secure,
+                        contactless, and driven by advanced biometrics.</p>
+                </div>
+
+                <div class="stats-card">
+                    <p>Secure Scans across all campus departments.</p>
                 </div>
             </div>
         </div>
 
         <div class="auth-form-area">
             <div class="form-wrapper">
-                
+
                 <div class="form-header">
                     <h2>Welcome back</h2>
                     <p>Please enter your details to sign in.</p>
                 </div>
 
                 <div class="toggle-container">
-                    <a href="login.html" class="toggle-btn active">Login</a>
-                    <a href="register.html" class="toggle-btn">Register</a>
+                    <button type="button" class="toggle-btn active" id="loginToggle">Login</button>
+                    <button type="button" class="toggle-btn" id="registerToggle">Faculty Register</button>
                 </div>
 
-                <form id="loginForm">
+                <!-- LOGIN FORM -->
+                <form id="loginForm" style="display: block;">
                     <div class="input-group">
                         <label>ID</label>
                         <div class="input-relative">
@@ -57,7 +68,8 @@
                         <div class="input-relative">
                             <i class="fa-solid fa-lock input-icon"></i>
                             <input type="password" id="password" placeholder="••••••••" required>
-                            <i id="loginPasswordToggle" class="fa-regular fa-eye password-toggle" title="Show password" aria-label="Toggle password visibility"></i>
+                            <i id="loginPasswordToggle" class="fa-regular fa-eye password-toggle" title="Show password"
+                                aria-label="Toggle password visibility"></i>
                         </div>
                     </div>
 
@@ -69,42 +81,148 @@
                     </div>
 
                     <button type="submit" class="btn-primary">Sign In</button>
-                    
+
                 </form>
 
-                <div class="terms-text">
-                    By continuing, you agree to our <a href="#">Terms of Service</a>.
-                </div>
+                <!-- FACULTY SELF-REGISTRATION FORM -->
+                <form id="registerForm" style="display: none;">
+                    <div class="input-group">
+                        <label>Employee ID</label>
+                        <div class="input-relative">
+                            <i class="fa-solid fa-id-card input-icon"></i>
+                            <input type="text" id="regUserId" placeholder="E.g., EMP001" required>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Full Name</label>
+                        <div class="input-relative">
+                            <i class="fa-solid fa-user input-icon"></i>
+                            <input type="text" id="regName" placeholder="Your full name" required>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Email</label>
+                        <div class="input-relative">
+                            <i class="fa-regular fa-envelope input-icon"></i>
+                            <input type="email" id="regEmail" placeholder="your@email.com" required>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Password</label>
+                        <div class="input-relative">
+                            <i class="fa-solid fa-lock input-icon"></i>
+                            <input type="password" id="regPassword" placeholder="••••••••" required>
+                            <i id="regPasswordToggle" class="fa-regular fa-eye password-toggle" title="Show password"
+                                aria-label="Toggle password visibility"></i>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Face Capture <span style="color: #dc2626;">*</span></label>
+                        <div id="faceCaptureArea" style="
+                            border: 2px dashed #3b82f6;
+                            border-radius: 8px;
+                            padding: 1.5rem;
+                            text-align: center;
+                            background: #f0f9ff;
+                            margin-bottom: 0.75rem;
+                        ">
+                            <video id="regFaceVideo" style="display: none; width: 100%; border-radius: 8px; max-height: 250px;"></video>
+                            <canvas id="regFaceCanvas" style="display: none; width: 100%; border-radius: 8px;"></canvas>
+                            <div id="faceCapturePrompt" style="padding: 1rem;">
+                                <i class="fa-solid fa-camera" style="font-size: 2rem; color: #3b82f6; margin-bottom: 0.5rem;"></i>
+                                <p style="margin: 0.5rem 0; color: #0f172a; font-weight: 600;">Click to capture face</p>
+                                <p style="margin: 0; font-size: 0.85rem; color: #64748b;">Ensure good lighting and clear visibility</p>
+                            </div>
+                            <div id="faceCaptureStatus" style="display: none; color: #059669; font-weight: 600;">
+                                ✓ Face captured
+                            </div>
+                        </div>
+                        <button type="button" id="captureFaceBtn" class="btn-primary" style="margin-bottom: 0.5rem;">
+                            <i class="fa-solid fa-camera" style="margin-right: 0.5rem;"></i> Capture Face
+                        </button>
+                        <button type="button" id="retakeFaceBtn" class="btn-secondary" style="display: none; margin-bottom: 0.5rem;">
+                            <i class="fa-solid fa-redo" style="margin-right: 0.5rem;"></i> Retake Photo
+                        </button>
+                    </div>
+
+                    <div id="registerStatus" style="display: none; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; text-align: center;"></div>
+
+                    <button type="submit" class="btn-primary" id="submitRegisterBtn">Submit Registration</button>
+                    <p style="text-align: center; font-size: 0.85rem; color: #64748b; margin-top: 1rem;">
+                        Already have an account? <a href="#" id="backToLogin" style="color: #2563eb; font-weight: 600; text-decoration: none;">Sign In</a>
+                    </p>
+
+                </form>
             </div>
         </div>
     </div>
 
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
-        
-        body { background-color: #ffffff; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
 
-        .auth-layout { display: flex; min-height: 100vh; }
+        body {
+            background-color: #ffffff;
+        }
+
+        .auth-layout {
+            display: flex;
+            min-height: 100vh;
+        }
 
         /* Left Side: Image with Blue Overlay */
         .auth-hero {
             flex: 1;
             /* Using a high-quality placeholder image with a deep blue blend */
-            background: linear-gradient(135deg, rgba(30, 58, 138, 0.95) 0%, rgba(30, 58, 138, 0.85) 100%), 
-                        url('https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=1000&auto=format&fit=crop') center/cover;
+            background: linear-gradient(135deg, rgba(30, 58, 138, 0.95) 0%, rgba(30, 58, 138, 0.85) 100%),
+                url('https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=1000&auto=format&fit=crop') center/cover;
             padding: 3.5rem;
             color: white;
             display: flex;
             flex-direction: column;
-            justify-content: flex-end; /* Pushes content to bottom to match CivicConnect */
+            justify-content: flex-end;
+            /* Pushes content to bottom to match CivicConnect */
         }
 
-        .hero-content { height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
+        .hero-content {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
 
-        .brand-logo { font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; letter-spacing: -0.5px; }
+        .brand-logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            letter-spacing: -0.5px;
+        }
 
-        .hero-text h1 { font-size: 3.5rem; line-height: 1.1; margin-bottom: 1.5rem; font-weight: 800; letter-spacing: -1px; }
-        .hero-text p { font-size: 1.1rem; line-height: 1.6; color: rgba(255, 255, 255, 0.85); max-width: 480px; font-weight: 400; }
+        .hero-text h1 {
+            font-size: 3.5rem;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            font-weight: 800;
+            letter-spacing: -1px;
+        }
+
+        .hero-text p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.85);
+            max-width: 480px;
+            font-weight: 400;
+        }
 
         .stats-card {
             background: rgba(255, 255, 255, 0.1);
@@ -114,8 +232,18 @@
             max-width: 320px;
             border: 1px solid rgba(255, 255, 255, 0.15);
         }
-        .stats-card h2 { font-size: 1.5rem; margin-bottom: 0.25rem; font-weight: 700; }
-        .stats-card p { font-size: 0.85rem; color: rgba(255, 255, 255, 0.8); line-height: 1.4; }
+
+        .stats-card h2 {
+            font-size: 1.5rem;
+            margin-bottom: 0.25rem;
+            font-weight: 700;
+        }
+
+        .stats-card p {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.8);
+            line-height: 1.4;
+        }
 
         /* Right Side: Clean Form */
         .auth-form-area {
@@ -127,11 +255,28 @@
             background: #ffffff;
         }
 
-        .form-wrapper { width: 100%; max-width: 400px; }
+        .form-wrapper {
+            width: 100%;
+            max-width: 400px;
+        }
 
-        .form-header { text-align: center; margin-bottom: 2rem; }
-        .form-header h2 { font-size: 1.75rem; color: #0f172a; margin-bottom: 0.5rem; font-weight: 800; letter-spacing: -0.5px; }
-        .form-header p { color: #64748b; font-size: 0.95rem; }
+        .form-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .form-header h2 {
+            font-size: 1.75rem;
+            color: #0f172a;
+            margin-bottom: 0.5rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        .form-header p {
+            color: #64748b;
+            font-size: 0.95rem;
+        }
 
         /* The Pill Toggle */
         .toggle-container {
@@ -141,26 +286,78 @@
             border-radius: 12px;
             padding: 0.25rem;
             margin-bottom: 2rem;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
         }
+
         .toggle-btn {
-            flex: 1; text-align: center; padding: 0.75rem; border-radius: 8px;
-            font-size: 0.9rem; font-weight: 600; color: #64748b; text-decoration: none; transition: all 0.2s;
+            flex: 1;
+            text-align: center;
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #64748b;
+            text-decoration: none;
+            transition: all 0.2s;
         }
-        .toggle-btn:hover { color: #0f172a; }
-        .toggle-btn.active { color: #2563eb; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+
+        .toggle-btn:hover {
+            color: #0f172a;
+        }
+
+        .toggle-btn.active {
+            color: #2563eb;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
 
         /* Inputs */
-        .input-group { margin-bottom: 1.25rem; }
-        .input-group label { display: block; font-size: 0.85rem; font-weight: 600; color: #0f172a; margin-bottom: 0.5rem; }
-        .input-relative { position: relative; }
-        .input-icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.9rem; }
-        .select-arrow { position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.8rem; pointer-events: none; }
-        
-        .input-relative input, .input-relative select {
-            width: 100%; padding: 0.85rem 1rem 0.85rem 2.5rem;
-            border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; color: #0f172a;
-            outline: none; transition: border 0.2s; appearance: none; background: #ffffff;
+        .input-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 0.5rem;
+        }
+
+        .input-relative {
+            position: relative;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        .select-arrow {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 0.8rem;
+            pointer-events: none;
+        }
+
+        .input-relative input,
+        .input-relative select {
+            width: 100%;
+            padding: 0.85rem 1rem 0.85rem 2.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            color: #0f172a;
+            outline: none;
+            transition: border 0.2s;
+            appearance: none;
+            background: #ffffff;
         }
 
         .input-relative input[type="password"],
@@ -182,28 +379,113 @@
         .password-toggle:hover {
             color: #334155;
         }
-        .input-relative input::placeholder { color: #94a3b8; }
-        .input-relative input:focus, .input-relative select:focus { border-color: #2563eb; }
 
-        .form-options { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; font-size: 0.85rem; }
-        .remember-me { display: flex; align-items: center; gap: 0.5rem; color: #64748b; cursor: pointer; }
-        .forgot-link { color: #2563eb; font-weight: 600; text-decoration: none; }
+        .input-relative input::placeholder {
+            color: #94a3b8;
+        }
+
+        .input-relative input:focus,
+        .input-relative select:focus {
+            border-color: #2563eb;
+        }
+
+        .form-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            font-size: 0.85rem;
+        }
+
+        .remember-me {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #64748b;
+            cursor: pointer;
+        }
+
+        .forgot-link {
+            color: #2563eb;
+            font-weight: 600;
+            text-decoration: none;
+        }
 
         /* Buttons */
-        .btn-primary { width: 100%; padding: 0.85rem; background: #2563eb; color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: background 0.2s; margin-bottom: 1rem; }
-        .btn-primary:hover { background: #1d4ed8; }
+        .btn-primary {
+            width: 100%;
+            padding: 0.85rem;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 1rem;
+        }
 
-        .btn-secondary { display: flex; align-items: center; justify-content: center; width: 100%; padding: 0.85rem; background: #ffffff; color: #0f172a; border: 1px solid #e2e8f0; border-radius: 8px; font-weight: 600; font-size: 0.95rem; text-decoration: none; transition: background 0.2s; }
-        .btn-secondary:hover { background: #f8fafc; }
+        .btn-primary:hover:not(:disabled) {
+            background: #1d4ed8;
+        }
 
-        .terms-text { text-align: center; margin-top: 2rem; font-size: 0.75rem; color: #94a3b8; }
-        .terms-text a { color: #0f172a; text-decoration: underline; }
+        .btn-primary:disabled {
+            background: #cbd5e1;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 0.85rem;
+            background: #ffffff;
+            color: #0f172a;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            transition: background 0.2s;
+            cursor: pointer;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        .btn-secondary:hover {
+            background: #f8fafc;
+        }
+
+        .terms-text {
+            text-align: center;
+            margin-top: 2rem;
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+
+        .terms-text a {
+            color: #0f172a;
+            text-decoration: underline;
+        }
 
         @media (max-width: 900px) {
-            .auth-layout { flex-direction: column; }
-            .auth-hero { padding: 1.5rem; min-height: 260px; }
-            .hero-text h1 { font-size: 2.2rem; }
-            .auth-form-area { padding: 1.5rem 1rem 2rem; }
+            .auth-layout {
+                flex-direction: column;
+            }
+
+            .auth-hero {
+                padding: 1.5rem;
+                min-height: 260px;
+            }
+
+            .hero-text h1 {
+                font-size: 2.2rem;
+            }
+
+            .auth-form-area {
+                padding: 1.5rem 1rem 2rem;
+            }
         }
 
         @media (max-width: 520px) {
@@ -253,5 +535,185 @@
             }
         }
     </style>
+
+    <script>
+        let faceCaptureData = null;
+
+        // Toggle between login and register forms
+        document.getElementById('loginToggle').addEventListener('click', function() {
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('registerForm').style.display = 'none';
+            document.getElementById('loginToggle').classList.add('active');
+            document.getElementById('registerToggle').classList.remove('active');
+        });
+
+        document.getElementById('registerToggle').addEventListener('click', function() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('registerForm').style.display = 'block';
+            document.getElementById('loginToggle').classList.remove('active');
+            document.getElementById('registerToggle').classList.add('active');
+        });
+
+        document.getElementById('backToLogin').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('loginToggle').click();
+        });
+
+        document.getElementById('regPasswordToggle')?.addEventListener('click', function() {
+            const pwdInput = document.getElementById('regPassword');
+            if (pwdInput.type === 'password') {
+                pwdInput.type = 'text';
+                this.classList.remove('fa-eye');
+                this.classList.add('fa-eye-slash');
+            } else {
+                pwdInput.type = 'password';
+                this.classList.remove('fa-eye-slash');
+                this.classList.add('fa-eye');
+            }
+        });
+
+        // Face Capture
+        let mediaStream = null;
+        let faceCaptureBlob = null;
+
+        document.getElementById('captureFaceBtn').addEventListener('click', async function() {
+            const video = document.getElementById('regFaceVideo');
+            const canvas = document.getElementById('regFaceCanvas');
+            const prompt = document.getElementById('faceCapturePrompt');
+            const status = document.getElementById('faceCaptureStatus');
+            const captureBtn = this;
+            const retakeBtn = document.getElementById('retakeFaceBtn');
+
+            try {
+                if (!mediaStream) {
+                    mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                    video.srcObject = mediaStream;
+                    video.play();
+                    prompt.style.display = 'none';
+                    video.style.display = 'block';
+                    captureBtn.innerHTML = '<i class="fa-solid fa-circle" style="margin-right: 0.5rem;"></i> Take Photo';
+                } else {
+                    // Take the photo
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx.drawImage(video, 0, 0);
+
+                    // Convert canvas to blob
+                    canvas.toBlob(function(blob) {
+                        faceCaptureBlob = blob;
+                        faceCaptureData = canvas.toDataURL('image/jpeg');
+                        
+                        // Stop camera
+                        mediaStream.getTracks().forEach(track => track.stop());
+                        mediaStream = null;
+                        
+                        video.style.display = 'none';
+                        canvas.style.display = 'block';
+                        prompt.style.display = 'none';
+                        status.style.display = 'block';
+                        
+                        captureBtn.innerHTML = '<i class="fa-solid fa-camera" style="margin-right: 0.5rem;"></i> Capture Face';
+                        retakeBtn.style.display = 'flex';
+                    }, 'image/jpeg', 0.9);
+                }
+            } catch (err) {
+                console.error('Camera Error:', err);
+                alert('Camera access denied. Please enable camera permission.');
+            }
+        });
+
+        document.getElementById('retakeFaceBtn').addEventListener('click', function() {
+            faceCaptureData = null;
+            faceCaptureBlob = null;
+            
+            const video = document.getElementById('regFaceVideo');
+            const canvas = document.getElementById('regFaceCanvas');
+            const prompt = document.getElementById('faceCapturePrompt');
+            const status = document.getElementById('faceCaptureStatus');
+            const captureBtn = document.getElementById('captureFaceBtn');
+            
+            canvas.style.display = 'none';
+            video.style.display = 'none';
+            prompt.style.display = 'block';
+            status.style.display = 'none';
+            
+            captureBtn.innerHTML = '<i class="fa-solid fa-camera" style="margin-right: 0.5rem;"></i> Capture Face';
+            this.style.display = 'none';
+        });
+
+        // Faculty Registration Form Submission
+        document.getElementById('registerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const userId = document.getElementById('regUserId').value.trim().toUpperCase();
+            const name = document.getElementById('regName').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const statusDiv = document.getElementById('registerStatus');
+            const submitBtn = document.getElementById('submitRegisterBtn');
+
+            if (!faceCaptureData) {
+                statusDiv.style.display = 'block';
+                statusDiv.style.background = '#fee2e2';
+                statusDiv.style.color = '#dc2626';
+                statusDiv.innerHTML = '<i class="fa-solid fa-exclamation-circle" style="margin-right: 0.5rem;"></i> Please capture your face first';
+                return;
+            }
+
+            submitBtn.disabled = true;
+            statusDiv.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right: 0.5rem;"></i> Submitting registration...';
+            statusDiv.style.display = 'block';
+            statusDiv.style.background = '#dbeafe';
+            statusDiv.style.color = '#0369a1';
+
+            try {
+                const response = await fetch('/api/faculty_self_register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        name: name,
+                        email: email,
+                        password: password,
+                        face_image: faceCaptureData
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    statusDiv.style.background = '#d1fae5';
+                    statusDiv.style.color = '#059669';
+                    statusDiv.innerHTML = `<i class="fa-solid fa-check-circle" style="margin-right: 0.5rem;"></i> Registration submitted! Awaiting admin approval.`;
+                    
+                    // Reset form
+                    setTimeout(() => {
+                        document.getElementById('registerForm').reset();
+                        faceCaptureData = null;
+                        document.getElementById('regFaceVideo').style.display = 'none';
+                        document.getElementById('faceCapturePrompt').style.display = 'block';
+                        document.getElementById('faceCaptureStatus').style.display = 'none';
+                        document.getElementById('retakeFaceBtn').style.display = 'none';
+                        document.getElementById('loginToggle').click();
+                    }, 2000);
+                } else {
+                    statusDiv.style.background = '#fee2e2';
+                    statusDiv.style.color = '#dc2626';
+                    statusDiv.innerHTML = `<i class="fa-solid fa-exclamation-circle" style="margin-right: 0.5rem;"></i> ${result.message}`;
+                }
+            } catch (err) {
+                console.error('Registration Error:', err);
+                statusDiv.style.background = '#fee2e2';
+                statusDiv.style.color = '#dc2626';
+                statusDiv.innerHTML = '<i class="fa-solid fa-exclamation-circle" style="margin-right: 0.5rem;"></i> Registration failed. Please try again.';
+            } finally {
+                submitBtn.disabled = false;
+            }
+        });
+
+        // Login submit and password toggle are handled by ../js/main.js
+    </script>
 </body>
+
 </html>

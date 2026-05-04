@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BITS FaceAttend - Smart College Attendance</title>
-    
+
     <!-- INLINE SESSION CHECK - RUNS BEFORE ANY HTML RENDERS -->
     <script>
-        (function() {
+        (function () {
             // Check if user is already logged in
             const user = JSON.parse(localStorage.getItem('user') || 'null');
             if (user && user.role) {
@@ -22,11 +23,13 @@
             }
         })();
     </script>
-    
+
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
 </head>
+
 <body>
     <nav class="navbar">
         <a href="/" class="navbar-brand">
@@ -34,14 +37,14 @@
                 <img src="assets/Bits-logo.png" alt="BITS Logo" style="height: 85px; width: auto; object-fit: contain;">
             </div>
         </a>
-        
+
         <button class="menu-toggle" aria-label="Toggle navigation">
             <i class="fa-solid fa-bars"></i>
         </button>
 
         <div class="nav-menu">
             <ul class="navbar-nav">
-                                
+
             </ul>
             <div class="nav-actions">
                 <a href="/pages/login.html" class="btn btn-primary">Login Portal</a>
@@ -56,8 +59,10 @@
                 <div class="badge">
                     <span class="badge-dot"></span> Next-Gen AI System V2.0
                 </div>
-                <h1 class="hero-title">Redefining <br><span class="gradient-text">Attendance</span> with Facial Recognition</h1>
-                <p class="hero-description">An infrastructure delivering secure, contactless, and real-time attendance tracking of staff members.</p>
+                <h1 class="hero-title">Redefining <br><span class="gradient-text">Attendance</span> with Facial
+                    Recognition</h1>
+                <p class="hero-description">An infrastructure delivering secure, contactless, and real-time attendance
+                    tracking of staff members.</p>
                 <div class="hero-stats">
                     <div class="stat">
                         <h4>99.9%</h4>
@@ -73,7 +78,8 @@
                     </div>
                 </div>
                 <div class="hero-actions">
-                    <a href="/pages/login.html" class="btn btn-primary btn-lg">Get Started<i class="fa-solid fa-arrow-right"></i></a>
+                    <a href="/pages/login.html" class="btn btn-primary btn-lg">Get Started<i
+                            class="fa-solid fa-arrow-right"></i></a>
                     <a href="#features" class="btn-learn-more">Learn More<i class="fa-solid fa-chevron-down"></i></a>
                 </div>
             </div>
@@ -89,7 +95,7 @@
                 <h2 class="section-title">Powerful Features</h2>
                 <p class="intro-text">Everything you need for enterprise-grade attendance management</p>
             </div>
-            
+
             <div class="features-grid">
                 <!-- Feature 1 -->
                 <div class="feature-card">
@@ -112,7 +118,7 @@
                         <a href="#" class="feature-link">Learn More <i class="fa-solid fa-arrow-right"></i></a>
                     </div>
                 </div>
-                
+
                 <!-- Feature 2 -->
                 <div class="feature-card">
                     <div class="feature-card-header">
@@ -134,7 +140,7 @@
                         <a href="#" class="feature-link">Learn More <i class="fa-solid fa-arrow-right"></i></a>
                     </div>
                 </div>
-                
+
                 <!-- Feature 3 -->
                 <div class="feature-card">
                     <div class="feature-card-header">
@@ -175,10 +181,15 @@
     <script src="js/notifications.js" defer></script>
     <!-- Mobile Fixes -->
     <script src="js/mobile-fixes.js" defer></script>
+    
+    <!-- NEW FEATURES -->
+    <script src="js/messaging-system.js" defer></script>
+    <script src="js/alert-preferences.js" defer></script>
+    
     <script>
         const menuToggle = document.querySelector('.menu-toggle');
         const navMenu = document.querySelector('.nav-menu');
-        
+
         if (menuToggle && navMenu) {
             menuToggle.addEventListener('click', () => {
                 navMenu.classList.toggle('active');
@@ -187,4 +198,5 @@
         }
     </script>
 </body>
+
 </html>

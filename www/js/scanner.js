@@ -59,6 +59,7 @@ function resolveScanError(result, httpStatus) {
     if (code === 'FACE_NOT_DETECTED') return 'Face not clearly detected. Keep steady, improve lighting, and try again.';
     if (code === 'INVALID_USER') return 'Unregistered user. Please contact administration.';
     if (code === 'NO_IMAGE') return 'Camera frame not captured. Please retry the scan.';
+    if (code === 'FACE_MISMATCH') return 'Face does not match your account. You must scan YOUR OWN face. This has been reported.';
     if (code === 'SERVER_ERROR') return 'Server error during validation. Please retry.';
 
     if (httpStatus === 401) return 'Invalid or unregistered user. Please contact admin.';
@@ -265,12 +266,14 @@ async function processFrame() {
              }
         }, 10000);
 
-        // Send to API
-        const response = await fetch(`${API_BASE_URL}/api/recognize`, {
+        // Send to API (include logged_in_user_id for face match lock)
+        const loggedInUserId = localStorage.getItem('user_id') || '';
+        const response = await fetch('/api/recognize', {
             method: 'POST',
             body: JSON.stringify({ 
                 image: imageData,
-                location: currentLocation 
+                location: currentLocation,
+                logged_in_user_id: loggedInUserId
             }),
             headers: { 'Content-Type': 'application/json' }
         });

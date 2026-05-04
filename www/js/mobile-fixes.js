@@ -262,6 +262,20 @@ window.appLogout = async function() {
     if (window.clearNavigationHistory) {
         window.clearNavigationHistory();
     }
+
+    const userId = localStorage.getItem('user_id');
+    if (userId) {
+        try {
+            await fetch('/api/logout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: userId })
+            });
+            console.log('[MobileFix] ✅ Session cleared from server');
+        } catch (err) {
+            console.error('[MobileFix] Logout API error:', err);
+        }
+    }
     
     // Clear localStorage
     localStorage.removeItem('user');
@@ -338,3 +352,6 @@ console.log('- Session: persistent storage + logout handler');
 console.log('- History: back button protection');
 console.log('Try: window.mobileDownload(url) or window.appLogout()');
 console.log('========================');
+
+// ============ 6. CAPGO OTA UPDATER ============
+// Placeholder for future OTA update checks

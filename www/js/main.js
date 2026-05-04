@@ -43,8 +43,9 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.href = 'login.html';
     }
 
-    // NOTE: Background tracking auto-start is now handled by background-tracking.js
-    // It checks localStorage at module initialization, so no need to start it here
+    // NOTE: Native background tracking is now handled by Kotlin's LocationTrackingService
+    // JavaScript calls window.startNativeTracking(userId, userName, apiBase) on login
+    // The native service handles all location/network tracking independently of WebView
 });
 
 function redirectToRoleDashboard(role) {
@@ -68,17 +69,31 @@ async function handleLogin(e) {
     }
 
     try {
-        console.log('[Login] Attempting to connect to:', `${API_BASE_URL}/api/login`);
-        const response = await fetch(`${API_BASE_URL}/api/login`, {
+        const response = await fetch('/api/login', {
             method: 'POST',
-            mode: 'cors',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true' // <--- ADD THIS LINE!
+            },
             body: JSON.stringify({ username: username, password: password })
         });
-        
-        console.log('[Login] Response status:', response.status);
-        const result = await response.json();
-        console.log('[Login] Response:', result);
+
+        // Parse safely: backend may return non-JSON for 5xx errors.
+        const rawBody = await response.text();
+        let result = null;
+        try {
+            result = rawBody ? JSON.parse(rawBody) : {};
+        } catch (parseErr) {
+            console.error('Login response is not JSON:', parseErr, rawBody?.slice?.(0, 200));
+            alert(`Login failed (${response.status}). Backend returned invalid response.`);
+            return;
+        }
+
+        if (!response.ok) {
+            const backendMsg = result?.message || `HTTP ${response.status}`;
+            alert(`Login failed: ${backendMsg}`);
+            return;
+        }
         
         if (result.success) {
             // Check if faculty needs to complete face registration
@@ -91,11 +106,24 @@ async function handleLogin(e) {
                 return;
             }
             
-            // Persist login until explicit logout
-            localStorage.setItem('user', JSON.stringify(result.user));
-            localStorage.setItem('user_role', result.user.role);
-            localStorage.setItem('user_id', result.user.user_id || result.user.id);
-            localStorage.setItem('user_name', result.user.name);  // Store full name
+            // 🔒 Save session to BOTH localStorage AND native storage (survives app kill)
+            if (window.SessionPersistence) {
+                try {
+                    await window.SessionPersistence.save(result.user);
+                } catch (storageErr) {
+                    console.warn('SessionPersistence failed, falling back to localStorage:', storageErr);
+                    localStorage.setItem('user', JSON.stringify(result.user));
+                    localStorage.setItem('user_role', result.user.role);
+                    localStorage.setItem('user_id', result.user.user_id || result.user.id);
+                    localStorage.setItem('user_name', result.user.name);
+                }
+            } else {
+                // Fallback: localStorage only
+                localStorage.setItem('user', JSON.stringify(result.user));
+                localStorage.setItem('user_role', result.user.role);
+                localStorage.setItem('user_id', result.user.user_id || result.user.id);
+                localStorage.setItem('user_name', result.user.name);
+            }
             localStorage.removeItem('pending_face_user');
             localStorage.removeItem('pending_face_registration');
 
@@ -103,6 +131,75 @@ async function handleLogin(e) {
                 localStorage.setItem('remembered_login_user', username);
             } else {
                 localStorage.removeItem('remembered_login_user');
+            }
+            
+            // Start native tracking for faculty immediately after login
+            if (result.user.role === 'faculty' && window.startNativeTracking) {
+                try {
+                    await window.startNativeTracking(
+                        result.user.user_id || result.user.id,
+                        result.user.name
+                    );
+                    console.log('✅ Native tracking started on login');
+                    
+                    // Show AutoStart guidance dialog after 2 seconds
+                    if (window.LocationTrackingPlugin?.showGuidanceDialog) {
+                        setTimeout(() => {
+                            window.LocationTrackingPlugin.showGuidanceDialog().catch(e => {
+                                console.warn('Could not show guidance:', e);
+                            });
+                        }, 2000);
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Failed to start native tracking:', e);
+                }
+            }
+
+            // 🔴 CRITICAL: Send FCM token to server so it can ping this device
+            // Without this, the server doesn't know how to wake up this device
+            if (result.user.role === 'faculty') {
+                try {
+                    // Get FCM token from Capacitor/Cordova bridge
+                    let fcmToken = null;
+                    
+                    // Try Capacitor LocationTrackingPlugin
+                    if (window.LocationTrackingPlugin?.getFCMToken) {
+                        try {
+                            const tokenResult = await window.LocationTrackingPlugin.getFCMToken();
+                            fcmToken = tokenResult?.token;
+                        } catch (e) {
+                            console.log('LocationTrackingPlugin.getFCMToken() not ready:', e.message);
+                        }
+                    }
+                    
+                    // Try reading from localStorage (set by FaceAttendFirebaseService)
+                    if (!fcmToken) {
+                        fcmToken = localStorage.getItem('fcmToken');
+                    }
+                    
+                    if (fcmToken) {
+                        const registerResponse = await fetch(CONFIG.API_URL + '/api/fcm/register_token', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                user_id: result.user.user_id || result.user.id,
+                                fcm_token: fcmToken,
+                                device_info: 'Android'
+                            })
+                        });
+                        
+                        if (registerResponse.ok) {
+                            console.log('✅ FCM token registered with server');
+                        } else {
+                            console.warn('⚠️ FCM token registration failed:', registerResponse.status);
+                        }
+                    } else {
+                        console.warn('⚠️ FCM token not available yet (Firebase not initialized, app may be in browser)');
+                    }
+                } catch (fcmErr) {
+                    console.warn('⚠️ FCM token registration error:', fcmErr);
+                    // Don't block login if FCM registration fails
+                }
             }
             
             // Redirect based on role returned by backend to be safe
@@ -114,10 +211,10 @@ async function handleLogin(e) {
             alert("Login Failed: " + result.message);
         }
     } catch (err) {
-        console.error("[Login] Error Details:", err);
-        console.error("[Login] Error Message:", err.message);
-        console.error("[Login] Error Stack:", err.stack);
-        alert("Server Error:\n\n" + err.message + "\n\nAPI URL: " + API_BASE_URL);
+        console.error('Login Error:', err);
+        const online = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        const msg = err?.message || 'Unknown network error';
+        alert(`Login request failed: ${msg}${online ? '' : ' (Device appears offline)'}`);
     }
 }
 
@@ -125,65 +222,89 @@ async function handleLogin(e) {
 // GLOBAL LOGOUT FUNCTION (used by all pages)
 // ============================================
 async function appLogout() {
-    console.log('🔓 Logout initiated...');
-    
-    // Stop any heartbeat intervals
-    if (typeof heartbeatInterval !== 'undefined' && heartbeatInterval) {
-        clearInterval(heartbeatInterval);
-        heartbeatInterval = null;
-    }
-    if (typeof adminLivePollInterval !== 'undefined' && adminLivePollInterval) {
-        clearInterval(adminLivePollInterval);
-        adminLivePollInterval = null;
-    }
-    
-    // Get user_id before clearing localStorage
-    const userId = localStorage.getItem('user_id');
-    
-    // Call backend to delete LivePresence record
-    if (userId) {
+    // 1. Force the Native OS to drop the shield and kill GPS
+    if (window.stopNativeTracking) {
+        console.log('Sending kill signal to native Android tracker...');
         try {
-            const response = await fetch('/api/logout', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: userId })
-            });
-            const data = await response.json();
-            console.log('✅ Server logout:', data.message);
-        } catch (err) {
-            console.warn('⚠️ Server logout failed (continuing anyway):', err);
+            await window.stopNativeTracking();
+        } catch (e) {
+            console.warn('Native tracking stop failed:', e);
+        }
+        // Force the webview to wait half a second for the Android OS to shut down
+        await new Promise(resolve => setTimeout(resolve, 500)); 
+    }
+
+    // 2. Clear native session persistence (SharedPreferences)
+    if (window.SessionPersistence) {
+        try {
+            await window.SessionPersistence.clear();
+            console.log('✅ Native session storage cleared');
+        } catch (e) {
+            console.warn('SessionPersistence clear failed:', e);
         }
     }
-    
-    // Clear all session data
+
+    // 3. Notify backend to remove LivePresence record + force offline status
+    const userId = localStorage.getItem('user_id');
+    if (userId) {
+        try {
+            // Belt-and-suspenders: call BOTH endpoints
+            // The native service already fires /api/force_offline on ACTION_STOP,
+            // but we call it from JS too in case the native call failed
+            await Promise.allSettled([
+                fetch('/api/location_heartbeat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        device_status: {},
+                        logout: true
+                    })
+                }),
+                fetch('/api/force_offline', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId })
+                })
+            ]);
+            console.log('✅ Backend notified: presence cleared + force offline');
+        } catch (e) {
+            // Not critical — LivePresence will be cleaned up by stale detection
+            console.warn('Logout backend notification failed:', e);
+        }
+    }
+
+    // 4. NOW it is safe to clear storage and redirect
     localStorage.removeItem('user');
-    localStorage.removeItem('user_role');
     localStorage.removeItem('user_id');
+    localStorage.removeItem('user_role');
     localStorage.removeItem('user_name');
-    localStorage.removeItem('pending_face_user');
-    localStorage.removeItem('pending_face_registration');
-    sessionStorage.removeItem('user_for_face_registration');
-    
-    // Clear back button history
-    sessionStorage.removeItem('pageHistory');
-    console.log('✅ Back button history cleared');
-    
-    // Clear route persistence
-    if (window.clearPersistedRoute) {
-        await window.clearPersistedRoute();
-    }
-    
-    // Stop location tracking
-    if (window.stopLocationTracking) {
-        await window.stopLocationTracking();
-        console.log('✅ Location tracking stopped');
-    }
-    
-    console.log('✅ Local session cleared');
-    
-    // Redirect to login
     window.location.href = '/pages/login.html';
 }
-
 // Make it globally available
 window.appLogout = appLogout;
+
+// Global Notification Bell Logic
+
+function updateAdminNotificationBell() {
+    const bellBadge = document.getElementById('pendingApprovalBadge');
+    if (bellBadge && (localStorage.getItem('user_role') === 'admin' || localStorage.getItem('user_role') === 'super_admin')) {
+        fetch('/api/admin/pending_faculty_registrations', { method: 'GET', headers: { 'Content-Type': 'application/json' } })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success && result.registrations) {
+                    const count = result.registrations.length;
+                    if (count > 0) {
+                        bellBadge.textContent = count;
+                        bellBadge.style.display = 'flex';
+                    } else {
+                        bellBadge.style.display = 'none';
+                    }
+                }
+            })
+            .catch(e => console.error('Failed to load pending registrations count', e));
+    }
+}
+
+document.addEventListener('DOMContentLoaded', updateAdminNotificationBell);
+

@@ -2,43 +2,22 @@
 
 // Dynamic API Base URL - works with browser, Android, and deployed environments
 const getBaseURL = () => {
-    const hostname = window.location.hostname;
-    const protocol = window.location.protocol;
-    const port = window.location.port;
-    
-    // Check if running on Capacitor/Android
-    const isCapacitor = typeof window.Capacitor !== 'undefined';
-    
-    console.log('[Config] Capacitor detected:', isCapacitor, 'Hostname:', hostname, 'Protocol:', protocol);
-    
-    // If already on ngrok URL in browser, use it
-    if (hostname.includes('ngrok')) {
-        console.log('[Config] Already on ngrok tunnel - using current URL');
-        return `${protocol}//${hostname}`;
-    }
-    
-    // On Capacitor/Android - use deployed Render backend (always available)
-    if (isCapacitor) {
-        console.log('[Config] Running on Capacitor/Android');
-        // Use deployed Render backend - always available, no ngrok needed
-        const renderUrl = 'https://face-attendance-api-ogih.onrender.com';
-        console.log('[Config] Using Render backend:', renderUrl);
-        return renderUrl;
-    }
-    
-    // If on localhost (browser development), use HTTP on port 5000
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        console.log('[Config] Running on localhost - using local backend');
-        return `http://${hostname}:5000`;
-    }
-    
-    // For other URLs (deployed), use the same protocol and host
-    console.log('[Config] Running on deployed - using:', protocol + '//' + hostname + (port ? ':' + port : ''));
-    return `${protocol}//${hostname}${port ? ':' + port : ''}`;
+    // Pointing to the live production server!
+    const apiUrl = 'https://krishnaa08.pythonanywhere.com';
+    console.log('[Config] Using Live Backend:', apiUrl);
+    return apiUrl;
 };
 
 const API_BASE_URL = getBaseURL();
 window.API_BASE_URL = API_BASE_URL;
+
+// Helper for scripts that need explicit absolute URLs (useful in native WebView contexts).
+window.buildApiUrl = function(path) {
+    if (!path || typeof path !== 'string') return path;
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    if (path.startsWith('/api')) return API_BASE_URL + path;
+    return path;
+};
 
 console.log('[Config] API_BASE_URL set to:', API_BASE_URL);
 
@@ -56,19 +35,6 @@ setTimeout(async () => {
     }
 }, 1000);
 
-// Keep Render backend awake by pinging every 5 minutes (prevents cold starts)
-setInterval(async () => {
-    try {
-        await fetch(API_BASE_URL + '/api/health', {
-            method: 'GET',
-            headers: { 'ngrok-skip-browser-warning': 'true' },
-            mode: 'cors'
-        });
-    } catch (err) {
-        // Silent fail - just trying to keep backend warm
-    }
-}, 5 * 60 * 1000);  // 5 minutes
-
 // MAGIC INTERCEPTOR: This automatically upgrades EVERY fetch call in your entire app!
 const originalFetch = window.fetch;
 
@@ -79,15 +45,37 @@ window.fetch = async function(resource, config = {}) {
         console.log('[Config] Fetch intercepted - new URL:', resource);
     }
 
-    // 2. Automatically set CORS mode
-    if (!config.mode) {
-        config.mode = 'cors';
-    }
-
-    // 3. Automatically inject the Ngrok VIP Pass header into every request (safe to include always)
+    // 2. Automatically inject the Ngrok VIP Pass header into every request (safe to include always)
     config.headers = config.headers || {};
     config.headers['ngrok-skip-browser-warning'] = 'true';
 
-    // 4. Send the upgraded request
+    // 3. Send the upgraded request
     return originalFetch(resource, config);
 };
+
+// ============ CAPGO OTA UPDATER (GLOBAL) ============
+// Placed in config.js so it is guaranteed to run on every single page, 
+// surviving any fast redirects from index.html!
+(function initCapgoSafely() {
+    let retries = 0;
+    const maxRetries = 40; // Try for up to 20 seconds
+
+    const checkInterval = setInterval(async () => {
+        // Check if Capacitor and the Updater plugin exist yet
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorUpdater) {
+            try {
+                // Send the critical signal to prevent rollbacks!
+                await window.Capacitor.Plugins.CapacitorUpdater.notifyAppReady();
+                console.log('✅ [Capgo] Update marked as successful! Rollback prevented.');
+                clearInterval(checkInterval); // Stop checking
+            } catch (err) {
+                console.warn('⚠️ [Capgo] Failed to notify app ready:', err);
+            }
+        } else {
+            retries++;
+            if (retries >= maxRetries) {
+                clearInterval(checkInterval);
+            }
+        }
+    }, 500); // Check every half second
+})();

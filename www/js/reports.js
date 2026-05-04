@@ -11,6 +11,33 @@ let selectedExportType = 'summary';
 const LIVE_POPUP_ALERTS_ENABLED = false;
 let selectedDailyReportDate = '';
 
+function getApiUrl(path) {
+    if (typeof window.buildApiUrl === 'function') {
+        return window.buildApiUrl(path);
+    }
+    return path;
+}
+
+async function fetchJsonStrict(path) {
+    const url = getApiUrl(path);
+    const res = await fetch(url);
+    const bodyText = await res.text();
+
+    let data;
+    try {
+        data = bodyText ? JSON.parse(bodyText) : {};
+    } catch (e) {
+        const preview = (bodyText || '').slice(0, 80).replace(/\s+/g, ' ');
+        throw new Error(`HTTP ${res.status} from ${url}: non-JSON response (${preview})`);
+    }
+
+    if (!res.ok) {
+        throw new Error(data?.message || `HTTP ${res.status} from ${url}`);
+    }
+
+    return data;
+}
+
 // ========== TIMEZONE UTILITY (IST - UTC+5:30) ==========
 function convertUTCtoIST(utcDateString) {
     if (!utcDateString) return 'N/A';
@@ -636,9 +663,41 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function setupReportFilters() {
-    // 1. Get current user from localStorage
+    // 1. Get current user from localStorage (with recovery fallbacks)
     let userRole = localStorage.getItem('user_role');
     let currentUserId = localStorage.getItem('user_id');
+
+    // Recover from stored user object when individual keys are missing.
+    if (!userRole || !currentUserId) {
+        try {
+            const storedUser = JSON.parse(localStorage.getItem('user') || 'null');
+            if (storedUser) {
+                userRole = userRole || storedUser.role || '';
+                currentUserId = currentUserId || storedUser.user_id || storedUser.id || '';
+                if (userRole) localStorage.setItem('user_role', userRole);
+                if (currentUserId) localStorage.setItem('user_id', currentUserId);
+                if (storedUser.name && !localStorage.getItem('user_name')) {
+                    localStorage.setItem('user_name', storedUser.name);
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to parse stored user context:', e);
+        }
+    }
+
+    // Ask native session persistence to restore once before redirecting.
+    if ((!userRole || !currentUserId) && window.SessionPersistence?.restore) {
+        try {
+            await window.SessionPersistence.restore();
+            const restoredUser = JSON.parse(localStorage.getItem('user') || 'null');
+            userRole = localStorage.getItem('user_role') || restoredUser?.role || '';
+            currentUserId = localStorage.getItem('user_id') || restoredUser?.user_id || restoredUser?.id || '';
+            if (userRole && !localStorage.getItem('user_role')) localStorage.setItem('user_role', userRole);
+            if (currentUserId && !localStorage.getItem('user_id')) localStorage.setItem('user_id', currentUserId);
+        } catch (e) {
+            console.warn('Session restore failed while opening reports:', e);
+        }
+    }
 
     if (!userRole || !currentUserId) {
         console.warn('Missing login context for reports. Redirecting to login.');
@@ -668,7 +727,7 @@ async function setupReportFilters() {
         // Fetch list of faculty
         if (facultySelect) {
             try {
-                const response = await fetch(`${API_BASE_URL}/api/users`);
+                const response = await fetch('/api/users');
                 if (!response.ok) throw new Error('Failed to fetch users');
                 
                 const users = await response.json();
@@ -777,44 +836,44 @@ function renderAdminLiveMap(data) {
             fillOpacity: 0.12
         }).addTo(adminMap);
     }
+    
+    // 1. Define the Stickman Icon
+    const stickmanIcon = L.icon({
+        iconUrl: 'https://cdn-icons-png.flaticon.com/512/10/10522.png', // Clean, professional stickman
+        iconSize: [32, 32],
+        iconAnchor: [16, 32], // Anchor at the feet
+        popupAnchor: [0, -32]
+    });
 
     const incoming = new Set();
     (data.map_points || []).forEach(p => {
+        // Only skip from MAP if no valid coordinates to plot
+        if (p.latitude == null || p.longitude == null) return;
+        if (p.latitude === 0 && p.longitude === 0) return;
+
         incoming.add(p.user_id);
         const position = [p.latitude, p.longitude];
         
         // Color based on in_bounds status
-        let markerColor, markerOpacity;
-        if (!p.in_bounds) {
-            // Out of bounds - red/danger color
-            markerColor = '#ef4444';
-            markerOpacity = 0.7;
-        } else if (p.role === 'admin') {
-            markerColor = '#0ea5e9';
-            markerOpacity = 1;
-        } else {
-            markerColor = '#16a34a';
-            markerOpacity = 1;
-        }
-        
-        const markerTitle = `${p.name} (${p.user_id})${!p.in_bounds ? ' - OUT OF BOUNDS' : ''}`;
+        const boundsColor = p.in_bounds ? 'green' : 'red';
+        const inBoundsText = p.in_bounds ? 'Inside Campus' : 'Out of Bounds';
+        const popupContent = `
+            <div style="text-align: center;">
+                <b>${p.name}</b><br>
+                <span style="color: ${boundsColor}; font-weight: bold;">
+                    ${inBoundsText}
+                </span><br>
+                <small>Updated: just now</small>
+            </div>
+        `;
 
         if (!adminMapMarkers[p.user_id]) {
-            adminMapMarkers[p.user_id] = L.circleMarker(position, {
-                radius: 8,
-                fillColor: markerColor,
-                color: '#ffffff',
-                weight: 2,
-                opacity: 1,
-                fillOpacity: markerOpacity
-            }).addTo(adminMap).bindTooltip(markerTitle, { permanent: false });
+            adminMapMarkers[p.user_id] = L.marker(position, { icon: stickmanIcon })
+                .addTo(adminMap)
+                .bindPopup(popupContent, { autoPan: false });
         } else {
             adminMapMarkers[p.user_id].setLatLng(position);
-            adminMapMarkers[p.user_id].setStyle({
-                fillColor: markerColor,
-                fillOpacity: markerOpacity
-            });
-            adminMapMarkers[p.user_id].setTooltipContent(markerTitle);
+            adminMapMarkers[p.user_id].setPopupContent(popupContent);
         }
     });
 
@@ -843,23 +902,18 @@ async function sendAdminPresenceHeartbeat() {
     
     if (!adminId) return;
 
-    if (!navigator.onLine) {
-        return;
-    }
-
     if (!navigator.geolocation) return;
 
     navigator.geolocation.getCurrentPosition(async (pos) => {
         try {
-            await fetch(`${API_BASE_URL}/api/location_heartbeat`, {
+            await fetch('/api/location_heartbeat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     user_id: adminId,
-                    device_status: {
-                        network_on: navigator.onLine,
-                        location_on: true
-                    },
+                    // FIXED: Do NOT send network_on/location_on claims from WebView.
+                    // navigator.onLine is unreliable. Native Android service handles truth.
+                    device_status: {},
                     location: {
                         latitude: pos.coords.latitude,
                         longitude: pos.coords.longitude
@@ -871,15 +925,12 @@ async function sendAdminPresenceHeartbeat() {
         }
     }, async () => {
         try {
-            await fetch(`${API_BASE_URL}/api/location_heartbeat`, {
+            await fetch('/api/location_heartbeat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     user_id: adminId,
-                    device_status: {
-                        network_on: navigator.onLine,
-                        location_on: false
-                    }
+                    device_status: {}
                 })
             });
         } catch (err) {
@@ -899,28 +950,36 @@ function updateLiveMetrics(data) {
     
     // Calculate metrics - INCLUDE INACTIVE USERS IN ALL TOTALS
     const totalUsers = mapPoints.length + inactiveUsers.length;
-    const inBounds = mapPoints.filter(p => p.in_bounds !== false).length;  // Only active users can be in bounds
-    const outBounds = mapPoints.filter(p => p.in_bounds === false).length + inactiveUsers.length;  // Active out of bounds + ALL inactive
+    
+    // In bounds = heartbeat is fresh AND physically inside campus
+    const inBounds = mapPoints.filter(p => 
+        p.in_bounds !== false && 
+        p.device_status && p.device_status.network_on === true
+    ).length;
+
+    // Out of bounds includes explicit out_of_bounds, plus those we can't track (Network OFF, Location OFF, or Inactive)
+    const outBounds = totalUsers - inBounds;
     const violations = faultAlerts.length;
     
-    // Count devices with network/location ON (only active users can have these)
-    // Inactive users (logged out) have NO network and NO location
-    const devicesWithNetwork = mapPoints.filter(p => p.device_status && p.device_status.network_on).length;
-    const devicesWithLocation = mapPoints.filter(p => p.device_status && p.device_status.location_on).length;
-    const devicesWithoutNetwork = mapPoints.filter(p => !p.device_status || !p.device_status.network_on).length + inactiveUsers.length;
-    const devicesWithoutLocation = mapPoints.filter(p => !p.device_status || !p.device_status.location_on).length + inactiveUsers.length;
+    // FIXED: Use native truth from device_status (set by Android service, NOT navigator.onLine)
+    // device_status.network_on and device_status.location_on now come from the native Android service
+    const devicesWithNetwork = mapPoints.filter(p => p.device_status && p.device_status.network_on !== false).length;
+    const devicesWithLocation = mapPoints.filter(p => p.device_status && p.device_status.location_on !== false).length;
+    const devicesWithoutNetwork = totalUsers - devicesWithNetwork;
+    const devicesWithoutLocation = totalUsers - devicesWithLocation;
     
     // Calculate percentages based on TOTAL users (active + inactive)
     const networkOnPct = totalUsers > 0 ? Math.round((devicesWithNetwork / totalUsers) * 100) : 0;
     const locationOnPct = totalUsers > 0 ? Math.round((devicesWithLocation / totalUsers) * 100) : 0;
     
     // Network & Location status (based on fault alerts for redundancy)
-    const networkOff = faultAlerts.filter(a => a.code === 'NETWORK_OFF').length + inactiveUsers.length;
+    const networkOff = faultAlerts.filter(a => a.code === 'STALE').length + inactiveUsers.length;
     const locationOff = faultAlerts.filter(a => a.code === 'LOCATION_OFF').length + inactiveUsers.length;
     
     // Overall health: devices with both network AND location ON
     const healthyDevices = mapPoints.filter(p => 
-        p.device_status && p.device_status.network_on && p.device_status.location_on
+        p.device_status && p.device_status.network_on === true &&
+        p.device_status && p.device_status.location_on === true
     ).length;
     const healthPct = totalUsers > 0 ? Math.round((healthyDevices / totalUsers) * 100) : 0;
     
@@ -953,6 +1012,26 @@ function updateLiveMetrics(data) {
     // === NEW: Update Campus Boundaries Status ===
     animateCountChange('bounds-inbounds', inBounds);
     animateCountChange('bounds-outbounds', outBounds);
+    
+    // === NEW: Section 1 Live Metrics KPI Update ===
+    animateCountChange('metric-occupancy', totalUsers);
+    const occupancySub = document.getElementById('metric-occupancy-sub');
+    if (occupancySub) occupancySub.textContent = 'Live presence data';
+    
+    animateCountChange('metric-violations', violations);
+    const violationsSub = document.getElementById('metric-violations-sub');
+    if (violationsSub) {
+        if (violations > 0) {
+            violationsSub.innerHTML = `<span style="color: #ef4444; font-weight: 700;">${violations} issues detected</span>`;
+        } else {
+            violationsSub.innerHTML = '<span style="color: #10b981; font-weight: 700;">No current alerts</span>';
+        }
+    }
+    
+    const complianceRate = totalUsers > 0 ? Math.round((inBounds / totalUsers) * 100) : 100;
+    setMetricValue('metric-compliance', complianceRate);
+    const complianceSub = document.getElementById('metric-compliance-sub');
+    if (complianceSub) complianceSub.textContent = 'In bounds & healthy';
     
     // === NEW: Update Device Health Radar ===
     animateCountChange('health-score', healthPct);
@@ -1064,12 +1143,11 @@ async function pollAdminLiveData() {
     }
 
     try {
-        const res = await fetch(`/api/admin/live_locations?admin_id=${encodeURIComponent(adminId)}`);
-        const data = await res.json();
+        const data = await fetchJsonStrict(`/api/admin/live_locations?admin_id=${encodeURIComponent(adminId)}`);
         
         console.log('Admin Live Data Response:', data);
         
-        if (!res.ok || !data.success) {
+        if (!data.success) {
             throw new Error(data.message || 'Failed to load live location data');
         }
 
@@ -1121,10 +1199,10 @@ async function initAdminLiveMonitoring() {
     pollAdminLiveData();
 
     if (adminHeartbeatInterval) clearInterval(adminHeartbeatInterval);
-    adminHeartbeatInterval = setInterval(sendAdminPresenceHeartbeat, 15000);
+    adminHeartbeatInterval = setInterval(sendAdminPresenceHeartbeat, 10000);
 
     if (adminLivePollInterval) clearInterval(adminLivePollInterval);
-    adminLivePollInterval = setInterval(pollAdminLiveData, 15000);
+    adminLivePollInterval = setInterval(pollAdminLiveData, 10000);
 }
 
 // Function to handle quick date presets
@@ -1278,7 +1356,7 @@ async function fetchReportData() {
             const metricNetwork = document.getElementById('metric-network');
             const metricNetworkSub = document.getElementById('metric-network-sub');
 
-            if (metricCompliance) metricCompliance.textContent = `${complianceRate}%`;
+            if (metricCompliance) metricCompliance.textContent = complianceRate;
             if (metricComplianceSub) metricComplianceSub.textContent = `Present: ${todayData.present}, Absent: ${todayData.absent}`;
             if (metricViolations) metricViolations.textContent = todayData.violations ?? todayData.late;
             if (metricViolationsSub) metricViolationsSub.textContent = `Late: ${todayData.late}`;

@@ -5,14 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Admin Dashboard - FaceAttend</title>
     <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/new-features.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="../js/back-button-native.js"></script>
     <script src="../js/route-persistence.js"></script>
-    <script src="../js/background-tracking.js"></script>
+    <script src="../js/location-tracking-plugin.js"></script>
     <script src="../js/config.js"></script>
+    <script src="../js/session-persistence.js" defer></script>
     <script src="../js/main.js" defer></script>
     <script src="../js/dashboard.js" defer></script>
+    <script src="../js/faculty_approvals.js" defer></script>
+    
+    <!-- NEW FEATURES -->
+    <script src="../js/messaging-system.js" defer></script>
+    <script src="../js/alert-preferences.js" defer></script>
     <style>
         #permissionSection {
             border: 1px solid #dbeafe !important;
@@ -201,9 +208,7 @@
             <span>Admin Portal</span>
         </a>
 
-        <button class="menu-toggle" aria-label="Toggle navigation">
-            <i class="fa-solid fa-bars"></i>
-        </button>
+        <div class="mobile-nav-actions" style="display: flex; align-items: center; justify-content: center; gap: 1rem;"><a href="faculty_approvals.html" class="notification-bell" id="facultyApprovalsBell" style="position: relative; color: #1e293b; text-decoration: none; font-size: 1.5rem; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-bell"></i><span id="pendingApprovalBadge" style="position: absolute; top: -5px; right: -8px; background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 50%; font-size: 0.75rem; font-weight: bold; width: 18px; height: 18px; display: none; align-items: center; justify-content: center;">0</span></a><button class="menu-toggle" aria-label="Toggle navigation"><i class="fa-solid fa-bars"></i></button></div>
         
         <div class="nav-menu">
             <ul class="navbar-nav">
@@ -296,44 +301,7 @@
             </div>
 
         </div>
-
-        <div id="activitySection" class="glass-card section-card" style="padding: 0; overflow: hidden;">
-            
-            <div style="padding: 1.5rem; border-bottom: 1px solid #e2e8f0; background: #ffffff; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                <h3 style="margin: 0; font-size: 1.15rem; color: #0f172a;">Recent Attendance Activity</h3>
-                
-                <div style="position: relative; width: 100%; max-width: 300px;">
-                    <i class="fa-solid fa-search" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.9rem;"></i>
-                    <input type="text" placeholder="Search by name or ID..." style="width: 100%; padding: 0.6rem 1rem 0.6rem 2.5rem; border: 1px solid #cbd5e1; border-radius: 50px; font-size: 0.9rem; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#cbd5e1'">
-                </div>
-            </div>
-            
-            <div class="table-responsive compact-mobile">
-                <table class="premium-table activity-table">
-                    <thead>
-                        <tr>
-                            <th>User ID</th>
-                            <th>Full Name</th>
-                            <th>Role</th>
-                            <th>Date</th>
-                            <th>Check-In</th>
-                            <th>Check-Out</th>
-                            <th>Status</th>
-                            <th style="text-align: right; padding-right: 3rem;">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="attendanceTableBody">
-                        <tr>
-                            <td colspan="6" style="text-align: center; padding: 3rem !important; color: #64748b;">
-                                <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 1.5rem; color: #3b82f6; margin-bottom: 0.75rem;"></i><br>
-                                Syncing live data...
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
+        
         <div id="permissionSection" class="glass-card section-card permission-section" style="margin-top: 1.5rem; padding: 0; overflow: hidden; border: 1px solid #dbeafe;">
             <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e2e8f0; background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
                 <div>
@@ -492,6 +460,42 @@
         </div>
     </div>
 
+        <div id="activitySection" class="glass-card section-card" style="padding: 0; overflow: hidden;">
+            
+            <div style="padding: 1.5rem; border-bottom: 1px solid #e2e8f0; background: #ffffff; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <h3 style="margin: 0; font-size: 1.15rem; color: #0f172a;">Recent Attendance Activity</h3>
+                
+                <div style="position: relative; width: 100%; max-width: 300px;">
+                    <i class="fa-solid fa-search" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.9rem;"></i>
+                    <input type="text" placeholder="Search by name or ID..." style="width: 100%; padding: 0.6rem 1rem 0.6rem 2.5rem; border: 1px solid #cbd5e1; border-radius: 50px; font-size: 0.9rem; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#cbd5e1'">
+                </div>
+            </div>
+            
+            <div class="table-responsive compact-mobile">
+                <table class="premium-table activity-table">
+                    <thead>
+                        <tr>
+                            <th>User ID</th>
+                            <th>Full Name</th>
+                            <th>Role</th>
+                            <th>Date</th>
+                            <th>Check-In</th>
+                            <th>Check-Out</th>
+                            <th>Status</th>
+                            <th style="text-align: right; padding-right: 3rem;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendanceTableBody">
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 3rem !important; color: #64748b;">
+                                <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 1.5rem; color: #3b82f6; margin-bottom: 0.75rem;"></i><br>
+                                Syncing live data...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     <script>
         const menuToggle = document.querySelector('.menu-toggle');
         const navMenu = document.querySelector('.nav-menu');
@@ -695,3 +699,4 @@
     </div>
 </body>
 </html>
+

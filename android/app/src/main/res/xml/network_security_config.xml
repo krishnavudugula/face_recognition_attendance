@@ -3,10 +3,9 @@
     <!-- Allow connections to Render backend -->
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">face-attendance-api-ogih.onrender.com</domain>
-        <pin-set>
-            <!-- Allow standard TLS verification -->
-            <pin digest="SHA-256">placeholder</pin>
-        </pin-set>
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
     </domain-config>
     
     <!-- Allow localhost for debugging -->

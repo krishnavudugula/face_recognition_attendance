@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "322553278642",
+    "project_id": "face-attendance-0",
+    "storage_bucket": "face-attendance-0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:322553278642:android:0fa432900a379ec6cf59ab",
+        "android_client_info": {
+          "package_name": "com.bits.faceattend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCgC5g_l6maKmxgBQSX4YgfGZSwUTvzlJU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

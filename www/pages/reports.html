@@ -12,8 +12,10 @@
     <script src="../js/config.js"></script>
     <script src="../js/back-button-native.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="../js/session-persistence.js" defer></script>
     <script src="../js/main.js" defer></script>
     <script src="../js/reports.js" defer></script>
+    <script src="../js/location-tracking-plugin.js"></script>
     <style>
         @keyframes pulse-glow {
             0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
@@ -209,7 +211,84 @@
             0% { opacity: 0.5; transform: translateY(4px); }
             100% { opacity: 1; transform: translateY(0); }
         }
-        
+
+        /* Export Modal Animations */
+        @keyframes fadeInOverlay {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes modalSlideUp {
+            from {
+                opacity: 0;
+                transform: translateY(32px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        @keyframes livePulse {
+            0%, 100% { 
+                box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+                transform: scale(1);
+            }
+            50% { 
+                box-shadow: 0 0 12px rgba(16, 185, 129, 0.6);
+                transform: scale(1.1);
+            }
+        }
+
+        /* Export Report Type Selection */
+        .export-report-type {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .export-report-type::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), transparent);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .export-report-type:hover {
+            border-color: #4F46E5 !important;
+            background: #EEF2FF !important;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .export-report-type:active {
+            transform: translateY(0);
+        }
+
+        /* Export button interactions */
+        #btnExecuteExport:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(79, 70, 229, 0.4);
+        }
+
+        #btnExecuteExport:active {
+            transform: translateY(0);
+        }
+
+        /* Date input styling */
+        input[type="date"]:focus {
+            border-color: #4F46E5 !important;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1) !important;
+        }
+
         /* Status card enhancement */
         .status-box {
             padding: 1rem;
@@ -377,7 +456,7 @@
             <span>Analytics Center</span>
         </a>
         
-        <button class="menu-toggle" aria-label="Toggle navigation"><i class="fa-solid fa-bars"></i></button>
+        <div class="mobile-nav-actions" style="display: flex; align-items: center; justify-content: center; gap: 1rem;"><a href="faculty_approvals.html" class="notification-bell" id="facultyApprovalsBell" style="position: relative; color: #1e293b; text-decoration: none; font-size: 1.5rem; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-bell"></i><span id="pendingApprovalBadge" style="position: absolute; top: -5px; right: -8px; background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 50%; font-size: 0.75rem; font-weight: bold; width: 18px; height: 18px; display: none; align-items: center; justify-content: center;">0</span></a><button class="menu-toggle" aria-label="Toggle navigation"><i class="fa-solid fa-bars"></i></button></div>
         
         <div class="nav-menu">
             <ul class="navbar-nav">
@@ -396,147 +475,152 @@
         <div id="adminLiveAlertStack" style="position: fixed; top: 90px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 0.6rem; width: min(420px, 92vw);"></div>
 
         <!-- Advanced Export Modal -->
-        <div id="advancedExportModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10001; justify-content: center; align-items: center; padding: 1rem; backdrop-filter: blur(4px);">
-            <div style="background: white; border-radius: 20px; width: 100%; max-width: 700px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px rgba(0,0,0,0.25); overflow: hidden;">
+        <div id="advancedExportModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.25); z-index: 10001; justify-content: center; align-items: center; padding: 1rem; backdrop-filter: blur(8px); animation: fadeInOverlay 0.3s ease-out;">
+            <div style="background: #FFFFFF; border-radius: 24px; width: 100%; max-width: 750px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.12), 0 0 1px rgba(0, 0, 0, 0.05); overflow: hidden; animation: modalSlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);">
                 <!-- Modal Header -->
-                <div style="padding: 2rem; border-bottom: 2px solid #f1f5f9; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                        <h2 style="margin: 0; font-size: 1.75rem; font-weight: 800;">Export Analytics Report</h2>
-                        <button onclick="closeExportModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 1.5rem; cursor: pointer; border-radius: 8px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; transition: all 0.3s;">×</button>
+                <div style="padding: 28px; border-bottom: 1px solid #E5E7EB; background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%); color: white;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <h2 style="margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.3px;">📊 Export Analytics Report</h2>
+                        <button onclick="closeExportModal()" style="background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.2); color: white; font-size: 24px; cursor: pointer; border-radius: 10px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-weight: 600;">×</button>
                     </div>
-                    <p style="margin: 0; opacity: 0.9; font-size: 0.95rem;">Choose export format, date range, and customize your report data</p>
+                    <p style="margin: 0; opacity: 0.9; font-size: 13px; font-weight: 500;">Choose export format, date range, and customize your report data with precision</p>
                 </div>
 
                 <!-- Modal Body -->
-                <div style="overflow-y: auto; flex: 1; padding: 2rem;">
+                <div style="overflow-y: auto; flex: 1; padding: 28px;">
                     <!-- Report Type Selection -->
-                    <div style="margin-bottom: 2rem;">
-                        <label style="display: block; font-weight: 700; color: #0f172a; margin-bottom: 1rem; font-size: 0.95rem;">📋 Report Type</label>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem;">
-                            <div onclick="selectReportType('summary')" class="export-report-type" style="padding: 1rem; border: 2.5px solid #3b82f6; border-radius: 12px; cursor: pointer; text-align: center; background: #dbeafe; transition: all 0.3s; font-weight: 700; color: #1e40af;">
-                                <i class="fa-solid fa-chart-simple" style="font-size: 1.5rem; display: block; margin-bottom: 0.5rem;"></i>Summary
+                    <div style="margin-bottom: 28px;">
+                        <label style="display: block; font-weight: 700; color: #1F2937; margin-bottom: 14px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">📋 Report Type</label>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px;">
+                            <div onclick="selectReportType('summary')" class="export-report-type" style="padding: 16px; border: 2px solid #E5E7EB; border-radius: 14px; cursor: pointer; text-align: center; background: #EEF2FF; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-weight: 700; color: #4F46E5; position: relative; overflow: hidden;">
+                                <i class="fa-solid fa-chart-simple" style="font-size: 18px; display: block; margin-bottom: 8px;"></i>Summary
                             </div>
-                            <div onclick="selectReportType('detailed')" class="export-report-type" style="padding: 1rem; border: 2.5px solid #e2e8f0; border-radius: 12px; cursor: pointer; text-align: center; background: white; transition: all 0.3s; font-weight: 700; color: #64748b;">
-                                <i class="fa-solid fa-list" style="font-size: 1.5rem; display: block; margin-bottom: 0.5rem;"></i>Detailed
+                            <div onclick="selectReportType('detailed')" class="export-report-type" style="padding: 16px; border: 2px solid #E5E7EB; border-radius: 14px; cursor: pointer; text-align: center; background: #FFFFFF; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-weight: 700; color: #6B7280;">
+                                <i class="fa-solid fa-list" style="font-size: 18px; display: block; margin-bottom: 8px;"></i>Detailed
                             </div>
-                            <div onclick="selectReportType('violations')" class="export-report-type" style="padding: 1rem; border: 2.5px solid #e2e8f0; border-radius: 12px; cursor: pointer; text-align: center; background: white; transition: all 0.3s; font-weight: 700; color: #64748b;">
-                                <i class="fa-solid fa-triangle-exclamation" style="font-size: 1.5rem; display: block; margin-bottom: 0.5rem;"></i>Violations
+                            <div onclick="selectReportType('violations')" class="export-report-type" style="padding: 16px; border: 2px solid #E5E7EB; border-radius: 14px; cursor: pointer; text-align: center; background: #FFFFFF; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-weight: 700; color: #6B7280;">
+                                <i class="fa-solid fa-triangle-exclamation" style="font-size: 18px; display: block; margin-bottom: 8px;"></i>Violations
                             </div>
-                            <div onclick="selectReportType('compliance')" class="export-report-type" style="padding: 1rem; border: 2.5px solid #e2e8f0; border-radius: 12px; cursor: pointer; text-align: center; background: white; transition: all 0.3s; font-weight: 700; color: #64748b;">
-                                <i class="fa-solid fa-shield-check" style="font-size: 1.5rem; display: block; margin-bottom: 0.5rem;"></i>Compliance
+                            <div onclick="selectReportType('compliance')" class="export-report-type" style="padding: 16px; border: 2px solid #E5E7EB; border-radius: 14px; cursor: pointer; text-align: center; background: #FFFFFF; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-weight: 700; color: #6B7280;">
+                                <i class="fa-solid fa-shield-check" style="font-size: 18px; display: block; margin-bottom: 8px;"></i>Compliance
+                            </div>
+                            <div onclick="selectReportType('device_state')" class="export-report-type" style="padding: 16px; border: 2px solid #E5E7EB; border-radius: 14px; cursor: pointer; text-align: center; background: #FFFFFF; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-weight: 700; color: #6B7280;">
+                                <i class="fa-solid fa-tower-broadcast" style="font-size: 18px; display: block; margin-bottom: 8px;"></i>Device State Log
                             </div>
                         </div>
                     </div>
 
                     <!-- File Format Selection -->
-                    <div style="margin-bottom: 2rem;">
-                        <label style="display: block; font-weight: 700; color: #0f172a; margin-bottom: 1rem; font-size: 0.95rem;">📁 File Format</label>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1rem;">
-                            <label style="display: flex; align-items: center; padding: 1rem; border: 2px solid #e2e8f0; border-radius: 10px; cursor: pointer; background: white; transition: all 0.3s; font-weight: 600;">
-                                <input type="radio" id="format-csv" name="exportFormat" value="csv" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                    <div style="margin-bottom: 28px;">
+                        <label style="display: block; font-weight: 700; color: #1F2937; margin-bottom: 14px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">📁 File Format</label>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;">
+                            <label style="display: flex; align-items: center; padding: 14px; border: 1.5px solid #E5E7EB; border-radius: 12px; cursor: pointer; background: #FFFFFF; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-weight: 600; color: #1F2937;">
+                                <input type="radio" id="format-csv" name="exportFormat" value="csv" checked style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer; accent-color: #4F46E5;">
                                 <span>📊 CSV</span>
                             </label>
-                            <label style="display: flex; align-items: center; padding: 1rem; border: 2px solid #e2e8f0; border-radius: 10px; cursor: pointer; background: white; transition: all 0.3s; font-weight: 600;">
-                                <input type="radio" id="format-excel" name="exportFormat" value="excel" style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                            <label style="display: flex; align-items: center; padding: 14px; border: 1.5px solid #E5E7EB; border-radius: 12px; cursor: pointer; background: #FFFFFF; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-weight: 600; color: #1F2937;">
+                                <input type="radio" id="format-excel" name="exportFormat" value="excel" style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer; accent-color: #4F46E5;">
                                 <span>📈 Excel</span>
                             </label>
-                            <label style="display: flex; align-items: center; padding: 1rem; border: 2px solid #e2e8f0; border-radius: 10px; cursor: pointer; background: white; transition: all 0.3s; font-weight: 600;">
-                                <input type="radio" id="format-pdf" name="exportFormat" value="pdf" style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                            <label style="display: flex; align-items: center; padding: 14px; border: 1.5px solid #E5E7EB; border-radius: 12px; cursor: pointer; background: #FFFFFF; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-weight: 600; color: #1F2937;">
+                                <input type="radio" id="format-pdf" name="exportFormat" value="pdf" style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer; accent-color: #4F46E5;">
                                 <span>📄 PDF</span>
                             </label>
                         </div>
                     </div>
 
                     <!-- Real-Time Preview -->
-                    <div style="margin-bottom: 2rem; padding: 1.5rem; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-left: 4px solid #0ea5e9; border-radius: 10px;">
-                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
-                            <div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: pulse 2s infinite;"></div>
-                            <span style="font-weight: 700; color: #0369a1; font-size: 0.9rem;">LIVE DATA PREVIEW</span>
+                    <div style="margin-bottom: 28px; padding: 18px; background: linear-gradient(135deg, #F9FAFB 0%, #FFFFFF 100%); border-left: 4px solid #4F46E5; border-radius: 12px; border: 1px solid #E5E7EB;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                            <div style="width: 10px; height: 10px; background: linear-gradient(135deg, #10B981 0%, #059669 100%); border-radius: 50%; animation: livePulse 2s infinite; box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);"></div>
+                            <span style="font-weight: 700; color: #4F46E5; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Live Data Preview</span>
                         </div>
-                        <div id="exportPreview" style="background: white; padding: 1rem; border-radius: 8px; max-height: 220px; overflow-y: auto; font-size: 0.85rem;">
-                            <div style="text-align: center; color: #94a3b8; padding: 2rem 1rem;">
-                                <i class="fa-solid fa-chart-bar" style="font-size: 2rem; opacity: 0.5; margin-bottom: 0.5rem; display: block;"></i>
+                        <div id="exportPreview" style="background: #FFFFFF; padding: 14px; border-radius: 10px; max-height: 200px; overflow-y: auto; font-size: 13px; color: #6B7280;">
+                            <div style="text-align: center; color: #9CA3AF; padding: 28px 16px; font-weight: 500;">
+                                <i class="fa-solid fa-chart-bar" style="font-size: 24px; opacity: 0.6; margin-bottom: 8px; display: block;"></i>
                                 Select report type to see data preview
                             </div>
                         </div>
                     </div>
 
                     <!-- Column Customization -->
-                    <div style="margin-bottom: 2rem;">
-                        <label style="display: block; font-weight: 700; color: #0f172a; margin-bottom: 1rem; font-size: 0.95rem;">🔧 Include Columns</label>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
-                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
-                                <input type="checkbox" id="col-user" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                    <div style="margin-bottom: 28px;">
+                        <label style="display: block; font-weight: 700; color: #1F2937; margin-bottom: 14px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">🔧 Include Columns</label>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #1F2937; padding: 8px 0;">
+                                <input type="checkbox" id="col-user" checked style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer; accent-color: #4F46E5;">
                                 User ID & Name
                             </label>
-                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
-                                <input type="checkbox" id="col-date" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #1F2937; padding: 8px 0;">
+                                <input type="checkbox" id="col-date" checked style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer; accent-color: #4F46E5;">
                                 Date & Time
                             </label>
-                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
-                                <input type="checkbox" id="col-status" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #1F2937; padding: 8px 0;">
+                                <input type="checkbox" id="col-status" checked style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer; accent-color: #4F46E5;">
                                 Status
                             </label>
-                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
-                                <input type="checkbox" id="col-location" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #1F2937; padding: 8px 0;">
+                                <input type="checkbox" id="col-location" checked style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer; accent-color: #4F46E5;">
                                 Location Data
                             </label>
-                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
-                                <input type="checkbox" id="col-checkin" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #1F2937; padding: 8px 0;">
+                                <input type="checkbox" id="col-checkin" checked style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer; accent-color: #4F46E5;">
                                 Check-in/Out Times
                             </label>
-                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
-                                <input type="checkbox" id="col-period" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #1F2937; padding: 8px 0;">
+                                <input type="checkbox" id="col-period" checked style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer; accent-color: #4F46E5;">
                                 Period Info
                             </label>
                         </div>
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+
+                    <!-- Date Range Selection -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px;">
                         <div>
-                            <label style="display: block; font-weight: 700; color: #0f172a; margin-bottom: 0.5rem; font-size: 0.9rem;">📅 Start Date</label>
-                            <input type="date" id="exportStartDate" style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 1rem; font-weight: 600;">
+                            <label style="display: block; font-weight: 700; color: #1F2937; margin-bottom: 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">📅 Start Date</label>
+                            <input type="date" id="exportStartDate" style="width: 100%; padding: 12px 14px; border: 1.5px solid #E5E7EB; border-radius: 12px; font-size: 13px; font-weight: 600; color: #1F2937; background: #FFFFFF; transition: all 0.3s; box-sizing: border-box;">
                         </div>
                         <div>
-                            <label style="display: block; font-weight: 700; color: #0f172a; margin-bottom: 0.5rem; font-size: 0.9rem;">📅 End Date</label>
-                            <input type="date" id="exportEndDate" style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 10px; font-size: 1rem; font-weight: 600;">
+                            <label style="display: block; font-weight: 700; color: #1F2937; margin-bottom: 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">📅 End Date</label>
+                            <input type="date" id="exportEndDate" style="width: 100%; padding: 12px 14px; border: 1.5px solid #E5E7EB; border-radius: 12px; font-size: 13px; font-weight: 600; color: #1F2937; background: #FFFFFF; transition: all 0.3s; box-sizing: border-box;">
                         </div>
                     </div>
 
                     <!-- Filter Options -->
-                    <div style="margin-bottom: 2rem;">
-                        <label style="display: block; font-weight: 700; color: #0f172a; margin-bottom: 1rem; font-size: 0.95rem;">🎯 Filter Options</label>
-                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
-                                <input type="checkbox" id="filterLatestOnly" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                    <div style="margin-bottom: 28px;">
+                        <label style="display: block; font-weight: 700; color: #1F2937; margin-bottom: 14px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">🎯 Filter Options</label>
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #1F2937; padding: 8px 0;">
+                                <input type="checkbox" id="filterLatestOnly" checked style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer; accent-color: #4F46E5;">
                                 Latest data only (exclude historical duplicates)
                             </label>
-                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
-                                <input type="checkbox" id="filterViolationsOnly" style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #1F2937; padding: 8px 0;">
+                                <input type="checkbox" id="filterViolationsOnly" style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer; accent-color: #4F46E5;">
                                 Violations only (include absent/late/out-of-bounds)
                             </label>
-                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #334155;">
-                                <input type="checkbox" id="includeTimestamps" checked style="margin-right: 0.75rem; width: 18px; height: 18px; cursor: pointer;">
+                            <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #1F2937; padding: 8px 0;">
+                                <input type="checkbox" id="includeTimestamps" checked style="margin-right: 10px; width: 18px; height: 18px; cursor: pointer; accent-color: #4F46E5;">
                                 Include timestamps and location data
                             </label>
                         </div>
                     </div>
 
-                    <!-- Pre-built Report Templates -->
-                    <div style="background: #f0f9ff; border-left: 4px solid #3b82f6; padding: 1rem; border-radius: 10px; margin-bottom: 1.5rem;">
-                        <div style="font-weight: 700; color: #1e40af; margin-bottom: 0.5rem;">⚡ Quick Presets</div>
-                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                            <button onclick="applyExportPreset('today')" style="padding: 0.5rem 1rem; background: white; border: 1px solid #3b82f6; color: #3b82f6; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem;">Today</button>
-                            <button onclick="applyExportPreset('week')" style="padding: 0.5rem 1rem; background: white; border: 1px solid #3b82f6; color: #3b82f6; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem;">This Week</button>
-                            <button onclick="applyExportPreset('month')" style="padding: 0.5rem 1rem; background: white; border: 1px solid #3b82f6; color: #3b82f6; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem;">This Month</button>
-                            <button onclick="applyExportPreset('year')" style="padding: 0.5rem 1rem; background: white; border: 1px solid #3b82f6; color: #3b82f6; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem;">This Year</button>
+                    <!-- Quick Presets -->
+                    <div style="background: linear-gradient(135deg, #EEF2FF 0%, #F3F4F6 100%); border-left: 4px solid #4F46E5; padding: 16px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #C7D2FE;">
+                        <div style="font-weight: 700; color: #4F46E5; margin-bottom: 10px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">⚡ Quick Presets</div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button onclick="applyExportPreset('today')" style="padding: 8px 14px; background: #FFFFFF; border: 1.5px solid #4F46E5; color: #4F46E5; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 12px; transition: all 0.3s; text-transform: uppercase; letter-spacing: 0.3px;">Today</button>
+                            <button onclick="applyExportPreset('week')" style="padding: 8px 14px; background: #FFFFFF; border: 1.5px solid #4F46E5; color: #4F46E5; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 12px; transition: all 0.3s; text-transform: uppercase; letter-spacing: 0.3px;">This Week</button>
+                            <button onclick="applyExportPreset('month')" style="padding: 8px 14px; background: #FFFFFF; border: 1.5px solid #4F46E5; color: #4F46E5; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 12px; transition: all 0.3s; text-transform: uppercase; letter-spacing: 0.3px;">This Month</button>
+                            <button onclick="applyExportPreset('year')" style="padding: 8px 14px; background: #FFFFFF; border: 1.5px solid #4F46E5; color: #4F46E5; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 12px; transition: all 0.3s; text-transform: uppercase; letter-spacing: 0.3px;">This Year</button>
                         </div>
                     </div>
                 </div>
 
                 <!-- Modal Footer -->
-                <div style="padding: 1.5rem 2rem; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button onclick="closeExportModal()" style="padding: 0.75rem 1.5rem; background: white; border: 2px solid #e2e8f0; border-radius: 10px; font-weight: 700; cursor: pointer; color: #475569; transition: all 0.3s;">Cancel</button>
-                    <button id="btnExecuteExport" onclick="executeExport(this)" style="padding: 0.75rem 1.5rem; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; transition: all 0.3s;">
+                <div style="padding: 18px 28px; border-top: 1px solid #E5E7EB; background: #F9FAFB; display: flex; gap: 12px; justify-content: flex-end;">
+                    <button onclick="closeExportModal()" style="padding: 11px 20px; background: #FFFFFF; border: 1.5px solid #E5E7EB; border-radius: 10px; font-weight: 700; cursor: pointer; color: #6B7280; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-size: 13px; text-transform: uppercase; letter-spacing: 0.3px;">Cancel</button>
+                    <button id="btnExecuteExport" onclick="executeExport(this)" style="padding: 11px 20px; background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%); color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); font-size: 13px; text-transform: uppercase; letter-spacing: 0.3px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);">
                         <i class="fa-solid fa-download"></i> Export Now
                     </button>
                 </div>
@@ -548,7 +632,7 @@
             <div style="background: white; border-radius: 20px; width: 100%; max-width: 950px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);">
                 <div style="padding: 2rem; border-bottom: 2px solid #f0f9ff; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; display: flex; justify-content: space-between; align-items: center; border-radius: 20px 20px 0 0;">
                     <div>
-                        <h2 style="margin: 0; font-size: 1.75rem; font-weight: 800;">Live Violations Dashboard</h2>
+                        <h2 style="margin: 0; font-size: 1.75rem; font-weight: 800; color: white;">Live Violations Dashboard</h2>
                         <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.95rem;">Real-time compliance violations and incidents</p>
                     </div>
                     <button onclick="closeLiveViolationsModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 1.5rem; cursor: pointer; border-radius: 10px; width: 45px; height: 45px; display: flex; align-items: center; justify-content: center; transition: all 0.3s;">×</button>
@@ -585,173 +669,212 @@
         </div>
 
         <!-- SECTION 1: Live Metrics KPIs -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 3rem;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 3rem;">
+            
             <!-- Total Campus Occupancy -->
-            <div class="metric-card">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div>
-                        <div class="metric-label">Campus Occupancy</div>
-                        <div class="metric-value" id="metric-occupancy">--</div>
+            <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e2e8f0; border-radius: 20px; padding: 0.8rem; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05); transition: transform 0.3s ease, box-shadow 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)'">
+                <div style="position: absolute; top: -40px; right: -40px; width: 140px; height: 140px; background: radial-gradient(circle, #dbeafe 0%, transparent 60%); opacity: 0.7; border-radius: 50%; pointer-events: none;"></div>
+                <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 1;">
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <div style="width: 48px; height: 48px; border-radius: 12px; background: #eff6ff; color: #2563eb; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; border: 1px solid #dbeafe;">
+                            <i class="fa-solid fa-users"></i>
+                        </div>
+                        <div style="font-size: 0.85rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Campus Occupancy</div>
                     </div>
-                    <span class="status-badge ok"><span class="live-indicator" style="margin: 0;"></span></span>
                 </div>
-                <div style="font-size: 0.85rem; color: #64748b; margin-top: 0.5rem;" id="metric-occupancy-sub">Loading...</div>
+                <div style="position: relative; z-index: 1;">
+                    <div style="display: flex; align-items: baseline; gap: 0.75rem;">
+                        <div style="font-size: 3rem; font-weight: 800; color: #0f172a; line-height: 1; letter-spacing: -0.03em;" id="metric-occupancy">--</div>
+                        <span style="display: inline-flex; align-items: center; gap: 0.4rem; background: #ecfdf5; color: #16a34a; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; border: 1px solid #d1fae5;">
+                            <span class="live-indicator" style="margin: 0; width: 6px; height: 6px;"></span> Live
+                        </span>
+                    </div>
+                    <div style="font-size: 0.9rem; color: #64748b; margin-top: 1rem; font-weight: 500;" id="metric-occupancy-sub">Loading presence data...</div>
+                </div>
             </div>
             
             <!-- Compliance Rate -->
-            <div class="metric-card">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div>
-                        <div class="metric-label">Compliance Rate</div>
-                        <div class="metric-value" id="metric-compliance">--</div>
+            <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e2e8f0; border-radius: 20px; padding: 0.8rem; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05); transition: transform 0.3s ease, box-shadow 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)'">
+                <div style="position: absolute; top: -40px; right: -40px; width: 140px; height: 140px; background: radial-gradient(circle, #dcfce7 0%, transparent 60%); opacity: 0.7; border-radius: 50%; pointer-events: none;"></div>
+                <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 1;">
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <div style="width: 48px; height: 48px; border-radius: 12px; background: #f0fdf4; color: #10b981; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; border: 1px solid #dcfce7;">
+                            <i class="fa-solid fa-shield-check"></i>
+                        </div>
+                        <div style="font-size: 0.85rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Compliance Rate</div>
                     </div>
-                    <span class="status-badge ok"><i class="fa-solid fa-shield-check" style="font-size: 0.9rem;"></i></span>
                 </div>
-                <div style="font-size: 0.85rem; color: #64748b; margin-top: 0.5rem;" id="metric-compliance-sub">In bounds & healthy</div>
+                <div style="position: relative; z-index: 1;">
+                    <div style="display: flex; align-items: baseline; gap: 0.75rem;">
+                        <div style="font-size: 3rem; font-weight: 800; color: #0f172a; line-height: 1; letter-spacing: -0.03em;" id="metric-compliance">--</div>
+                        <span style="color: #10b981; font-weight: 700; font-size: 1rem;">%</span>
+                    </div>
+                    <div style="font-size: 0.9rem; color: #64748b; margin-top: 1rem; font-weight: 500;" id="metric-compliance-sub">In bounds & healthy</div>
+                </div>
             </div>
             
             <!-- Active Violations -->
-            <div class="metric-card">
-                <div>
-                    <div class="metric-label">Active Violations</div>
-                    <div class="metric-value" id="metric-violations">--</div>
+            <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #e2e8f0; border-radius: 20px; padding: 0.8rem; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05); transition: transform 0.3s ease, box-shadow 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)'">
+                <div style="position: absolute; top: -40px; right: -40px; width: 140px; height: 140px; background: radial-gradient(circle, #fee2e2 0%, transparent 60%); opacity: 0.7; border-radius: 50%; pointer-events: none;"></div>
+                <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 1;">
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <div style="width: 48px; height: 48px; border-radius: 12px; background: #fef2f2; color: #ef4444; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; border: 1px solid #fee2e2;">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                        </div>
+                        <div style="font-size: 0.85rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Active Violations</div>
+                    </div>
                 </div>
-                <div style="font-size: 0.85rem; color: #64748b; margin-top: 0.5rem;" id="metric-violations-sub">Loading...</div>
+                <div style="position: relative; z-index: 1;">
+                    <div style="display: flex; align-items: baseline; gap: 0.75rem;">
+                        <div style="font-size: 3rem; font-weight: 800; color: #0f172a; line-height: 1; letter-spacing: -0.03em;" id="metric-violations">--</div>
+                    </div>
+                    <div style="font-size: 0.9rem; color: #64748b; margin-top: 1rem; font-weight: 500;" id="metric-violations-sub">Loading current alerts...</div>
+                </div>
             </div>
             
         </div>
 
         <!-- SECTION 2: Live Location Map -->
-        <div class="glass-card" style="margin-bottom: 3rem; padding: 0; overflow: hidden;">
-            <div style="padding: 1.5rem 2rem; border-bottom: 1px solid #e2e8f0; background: linear-gradient(135deg, #f8fafc, #ffffff); display: flex; justify-content: space-between; align-items: center;">
+        <div style="background: #ffffff; border: 1px solid #f1f5f9; border-radius: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 10px 15px -3px rgba(0, 0, 0, 0.02); margin-bottom: 3rem; overflow: hidden; transition: all 0.3s ease;">
+            <div style="padding: 1.5rem 2rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                 <div>
-                    <h2 style="margin: 0 0 0.25rem 0; font-size: 1.25rem; color: #0f172a; font-weight: 800;">Campus Live Tracking</h2>
-                    <p style="margin: 0; font-size: 0.85rem; color: #64748b;">Real-time location monitoring with boundary enforcement</p>
+                    <h2 style="margin: 0 0 0.4rem 0; font-size: 1.4rem; color: #111827; font-weight: 700; letter-spacing: -0.01em;">Campus Live Tracking</h2>
+                    <p style="margin: 0; font-size: 0.9rem; color: #6b7280; font-weight: 500;">Real-time location monitoring with boundary enforcement.</p>
                 </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.25rem;">Last Updated</div>
-                    <div style="font-size: 1.25rem; font-weight: 700; color: #0f172a;" id="map-last-update">--:--</div>
+                <div style="display: flex; gap: 0.6rem; align-items:  center;">
+                    <a href="live_tracking.html" style="background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); color: white; border: none; padding: 0.4rem 0.5rem; border-radius: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.6rem; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25); text-decoration: none; transition: all 0.2s ease;">
+                        <i class="fa-solid fa-expand"></i> <span>Detailed View</span>
+                    </a>
+                    <div style="text-align: right; background: #f8fafc; padding: 0.2rem 0.1rem; border-radius: 12px; border: 1px solid #f1f5f9;">
+                        <div style="font-size: 0.55rem; color: #919191; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Last Updated</div>
+                        <div style="font-size: 0.85rem; font-weight: 600; color: #111827;" id="map-last-update">--:--</div>
+                    </div>
                 </div>
             </div>
-            <div style="padding: 1.5rem 2rem;">
-                <p id="adminLiveMapStatus" style="margin: 0 0 0.5rem 0; color: #64748b; font-size: 0.9rem;">Live tracking is loading...</p>
-                <p id="adminLiveDebugStatus" style="margin: 0 0 1rem 0; color: #666; font-size: 0.8rem; font-family: 'Courier New'; background: #f0f9ff; padding: 0.75rem 1rem; border-radius: 8px; border-left: 3px solid #3b82f6;"></p>
-                <div id="adminLiveMapCanvas" style="width: 100%; height: 450px; border-radius: 12px; border: 2px solid #e0e7ff; background: linear-gradient(135deg, #eff6ff, #f8fafc);"></div>
+            <div style="padding: 0rem 2rem; background: #fafafa;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <p id="adminLiveMapStatus" style="margin: 0; color: #4b5563; font-size: 0.95rem; font-weight: 500; display: flex; align-items: center; gap: 0.2rem;"><span style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; display: inline-block;"></span> Live tracking is loading...</p>
+                </div>
+                <p id="adminLiveDebugStatus" style="margin: 0 0 1.2rem 0; color: #475569; font-size: 0.85rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: #f1f5f9; padding: 0.8rem 1rem; border-radius: 8px; border: 1px solid #e2e8f0; display: none;"></p>
+                <div style="position: relative; padding: 0.4rem; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);" onclick="window.location.href='live_tracking.html'" onmouseover="this.style.boxShadow='0 15px 35px rgba(0,0,0,0.1)';" onmouseout="this.style.boxShadow='0 1px 3px rgba(0, 0, 0, 0.1)';">
+                    <div style="position: absolute; right: 20px; top: 20px; background: rgba(0,0,0,0.6); color: white; padding: 6px 12px; border-radius: 12px; z-index: 10; font-size: 0.8rem; font-weight: bold; pointer-events: none; backdrop-filter: blur(4px); display: flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-hand-pointer"></i> Click to enlarge
+                    </div>
+                    <div id="adminLiveMapCanvas" style="width: 100%; height:500px; border-radius: 12px; z-index: 1;"></div>
+                </div>
             </div>
         </div>
 
         <!-- SECTION 3: Professional Real-Time Status Dashboard -->
-        <div style="margin-bottom: 3rem;">
-            <h2 style="font-size: 1.5rem; color: #0f172a; font-weight: 800; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem;">
-                <i class="fa-solid fa-satellite" style="color: #3b82f6;"></i> Live Facility Status
+        <div style="margin-bottom: 4rem;">
+            <h2 style="font-size: 1.6rem; color: #111827; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 2rem; display: flex; align-items: center; gap: 0.8rem;">
+                <div style="background: #eff6ff; padding: 0.6rem; border-radius: 12px; color: #2563eb; display: flex;">
+                    <i class="fa-solid fa-satellite" style="font-size: 1.2rem;"></i>
+                </div>
+                Live Facility Status
             </h2>
             
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem;">
-                <!-- Network & Location Real-Time Board -->
-                <div class="glass-card" style="position: relative; overflow: hidden;">
-                    <div style="position: absolute; top: 0; right: 0; width: 200px; height: 200px; background: radial-gradient(circle, rgba(59, 130, 246, 0.1), transparent); border-radius: 50%; pointer-events: none;"></div>
-                    
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; position: relative; z-index: 1;">
-                        <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #0f172a;">Network & Location</h3>
-                        <span class="live-indicator" style="margin: 0;"></span>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+                
+                <!-- Card 1: Network Connectivity -->
+                <div onclick="openDetailedStatusModal('network')" style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 20px; padding: 1.5rem; position: relative; cursor: pointer; transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; height: 100%; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)'">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: auto;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <div style="width: 40px; height: 40px; border-radius: 10px; background: #f0fdf4; color: #16a34a; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+                                <i class="fa-solid fa-wifi"></i>
+                            </div>
+                            <div>
+                                <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: #374151;">Network Status</h3>
+                            </div>
+                        </div>
+                        <span id="network-status-badge" style="background: #dcfce7; color: #166534; padding: 0.2rem 0.6rem; border-radius: 9999px; font-weight: 600; font-size: 0.75rem; border: 1px solid #bbf7d0;">ONLINE</span>
                     </div>
                     
-                    <!-- Network ON -->
-                    <div onclick="openDetailedStatusModal('network')" style="background: linear-gradient(135deg, #d1fae5 0%, #ecfdf5 100%); border: 2px solid #10b981; border-radius: 14px; padding: 1.25rem; margin-bottom: 1rem; position: relative; overflow: hidden; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 10px 25px rgba(16, 185, 129, 0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
-                        <div style="position: absolute; top: 0; right: 0; width: 100px; height: 100px; background: radial-gradient(circle, rgba(16, 185, 129, 0.2), transparent); border-radius: 50%;"></div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; position: relative; z-index: 1;">
-                            <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                <div style="width: 12px; height: 12px; background: #10b981; border-radius: 50%; animation: pulse-glow 2s infinite;"></div>
-                                <span style="font-weight: 700; color: #065f46; font-size: 0.9rem; text-transform: uppercase;">Network Status</span>
-                            </div>
-                            <span id="network-status-badge" style="background: #10b981; color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-weight: 700; font-size: 0.8rem;">ONLINE</span>
-                        </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem;">
-                            <span style="font-size: 2.2rem; font-weight: 800; color: #065f46;" id="network-online-count">0</span>
-                            <span style="color: #059669; font-weight: 600;">devices connected</span>
-                        </div>
-                        <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(16, 185, 129, 0.3);">
-                            <div style="font-size: 0.8rem; color: #059669; display: flex; justify-content: space-between;">
-                                <span>Coverage:</span>
-                                <span id="network-coverage-pct" style="font-weight: 700;">0%</span>
-                            </div>
-                            <div style="background: rgba(16, 185, 129, 0.2); height: 6px; border-radius: 3px; margin-top: 0.5rem; overflow: hidden;">
-                                <div id="network-coverage-bar" style="background: linear-gradient(90deg, #10b981, #34d399); height: 100%; width: 0%; transition: width 0.4s ease;"></div>
-                            </div>
-                            <p style="margin-top: 0.75rem; font-size: 0.8rem; color: #059669; text-align: center; font-weight: 600;">👆 Click for details</p>
+                    <div style="margin-top: 1.5rem;">
+                        <div style="display: flex; align-items: baseline; gap: 0.4rem;">
+                            <span style="font-size: 2.8rem; font-weight: 700; color: #111827; line-height: 1;" id="network-online-count">0</span>
+                            <span style="color: #6b7280; font-weight: 500; font-size: 1rem;">connected</span>
                         </div>
                     </div>
                     
-                    <!-- Location ON -->
-                    <div onclick="openDetailedStatusModal('location')" style="background: linear-gradient(135deg, #fef3c7 0%, #fffbeb 100%); border: 2px solid #f59e0b; border-radius: 14px; padding: 1.25rem; position: relative; overflow: hidden; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 10px 25px rgba(245, 158, 11, 0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
-                        <div style="position: absolute; top: 0; right: 0; width: 100px; height: 100px; background: radial-gradient(circle, rgba(245, 158, 11, 0.2), transparent); border-radius: 50%;"></div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; position: relative; z-index: 1;">
-                            <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                <div style="width: 12px; height: 12px; background: #f59e0b; border-radius: 50%; animation: pulse-glow 2s infinite; animation-delay: 0.3s;"></div>
-                                <span style="font-weight: 700; color: #78350f; font-size: 0.9rem; text-transform: uppercase;">GPS Location</span>
-                            </div>
-                            <span id="location-status-badge" style="background: #f59e0b; color: white; padding: 0.35rem 0.75rem; border-radius: 20px; font-weight: 700; font-size: 0.8rem;">ACTIVE</span>
+                    <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #f3f4f6;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem; font-weight: 500;">
+                            <span>Coverage</span>
+                            <span id="network-coverage-pct" style="color: #111827; font-weight: 600;">0%</span>
                         </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem;">
-                            <span style="font-size: 2.2rem; font-weight: 800; color: #78350f;" id="location-active-count">0</span>
-                            <span style="color: #d97706; font-weight: 600;">devices tracking</span>
-                        </div>
-                        <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(245, 158, 11, 0.3);">
-                            <div style="font-size: 0.8rem; color: #d97706; display: flex; justify-content: space-between;">
-                                <span>Accuracy:</span>
-                                <span id="location-accuracy-pct" style="font-weight: 700;">0%</span>
-                            </div>
-                            <div style="background: rgba(245, 158, 11, 0.2); height: 6px; border-radius: 3px; margin-top: 0.5rem; overflow: hidden;">
-                                <div id="location-accuracy-bar" style="background: linear-gradient(90deg, #f59e0b, #fbbf24); height: 100%; width: 0%; transition: width 0.4s ease;"></div>
-                            </div>
-                            <p style="margin-top: 0.75rem; font-size: 0.8rem; color: #d97706; text-align: center; font-weight: 600;">👆 Click for details</p>
+                        <div style="background: #f1f5f9; height: 6px; border-radius: 9999px; overflow: hidden;">
+                            <div id="network-coverage-bar" style="background: #10b981; height: 100%; width: 0%; transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);"></div>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Campus Boundaries Status -->
-                <div class="glass-card" style="position: relative; overflow: hidden;">
-                    <div style="position: absolute; top: 0; right: 0; width: 200px; height: 200px; background: radial-gradient(circle, rgba(239, 68, 68, 0.1), transparent); border-radius: 50%; pointer-events: none;"></div>
-                    
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; position: relative; z-index: 1;">
-                        <h3 style="margin: 0; font-size: 1.1rem; font-weight: 800; color: #0f172a;">Campus Zones</h3>
-                        <i class="fa-solid fa-location-dot" style="color: #ef4444; font-size: 1.5rem;"></i>
+                <!-- Card 2: GPS Location -->
+                <div onclick="openDetailedStatusModal('location')" style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 20px; padding: 1.5rem; position: relative; cursor: pointer; transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; height: 100%; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)'">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: auto;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <div style="width: 40px; height: 40px; border-radius: 10px; background: #fff7ed; color: #d97706; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+                                <i class="fa-solid fa-location-crosshairs"></i>
+                            </div>
+                            <div>
+                                <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: #374151;">GPS Location</h3>
+                            </div>
+                        </div>
+                        <span id="location-status-badge" style="background: #ffedd5; color: #9a3412; padding: 0.2rem 0.6rem; border-radius: 9999px; font-weight: 600; font-size: 0.75rem; border: 1px solid #fed7aa;">ACTIVE</span>
                     </div>
                     
-                    <!-- In Bounds -->
-                    <div onclick="openDetailedStatusModal('bounds')" style="background: linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%); border: 2.5px solid #22c55e; border-radius: 14px; padding: 1.25rem; margin-bottom: 1rem; position: relative; overflow: hidden; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 10px 25px rgba(34, 197, 94, 0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
-                        <div style="position: absolute; top: 0; right: 0; width: 100px; height: 100px; background: radial-gradient(circle, rgba(34, 197, 94, 0.2), transparent); border-radius: 50%;"></div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; position: relative; z-index: 1;">
-                            <span style="font-weight: 800; color: #166534; font-size: 0.95rem; text-transform: uppercase;">In Bounds</span>
-                            <i class="fa-solid fa-check-circle" style="color: #22c55e; font-size: 1.5rem;"></i>
+                    <div style="margin-top: 1.5rem;">
+                        <div style="display: flex; align-items: baseline; gap: 0.4rem;">
+                            <span style="font-size: 2.8rem; font-weight: 700; color: #111827; line-height: 1;" id="location-active-count">0</span>
+                            <span style="color: #6b7280; font-weight: 500; font-size: 1rem;">tracking</span>
                         </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem;">
-                            <span style="font-size: 2.5rem; font-weight: 900; background: linear-gradient(135deg, #22c55e, #16a34a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;" id="bounds-inbounds">0</span>
-                            <span style="color: #16a34a; font-weight: 700; font-size: 1.1rem;">faculty</span>
-                        </div>
-                        <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(34, 197, 94, 0.3); font-size: 0.8rem; color: #16a34a;">
-                            ✓ Within campus boundary
-                        </div>
-                        <p style="margin-top: 0.75rem; font-size: 0.8rem; color: #16a34a; text-align: center; font-weight: 600;">👆 Click for names</p>
                     </div>
                     
-                    <!-- Out of Bounds -->
-                    <div onclick="openDetailedStatusModal('bounds')" style="background: linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%); border: 2.5px solid #ef4444; border-radius: 14px; padding: 1.25rem; position: relative; overflow: hidden; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 10px 25px rgba(239, 68, 68, 0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
-                        <div style="position: absolute; top: 0; right: 0; width: 100px; height: 100px; background: radial-gradient(circle, rgba(239, 68, 68, 0.2), transparent); border-radius: 50%;"></div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; position: relative; z-index: 1;">
-                            <span style="font-weight: 800; color: #7f1d1d; font-size: 0.95rem; text-transform: uppercase;">Out of Bounds</span>
-                            <i class="fa-solid fa-triangle-exclamation" style="color: #ef4444; font-size: 1.5rem;"></i>
+                    <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #f3f4f6;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem; font-weight: 500;">
+                            <span>Accuracy</span>
+                            <span id="location-accuracy-pct" style="color: #111827; font-weight: 600;">0%</span>
                         </div>
-                        <div style="display: flex; align-items: baseline; gap: 0.5rem;">
-                            <span style="font-size: 2.5rem; font-weight: 900; background: linear-gradient(135deg, #ef4444, #dc2626); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;" id="bounds-outbounds">0</span>
-                            <span style="color: #dc2626; font-weight: 700; font-size: 1.1rem;">faculty</span>
+                        <div style="background: #f1f5f9; height: 6px; border-radius: 9999px; overflow: hidden;">
+                            <div id="location-accuracy-bar" style="background: #f59e0b; height: 100%; width: 0%; transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);"></div>
                         </div>
-                        <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(239, 68, 68, 0.3); font-size: 0.8rem; color: #dc2626;">
-                            ⚠ Outside campus boundary
-                        </div>
-                        <p style="margin-top: 0.75rem; font-size: 0.8rem; color: #dc2626; text-align: center; font-weight: 600;">👆 Click for names</p>
                     </div>
                 </div>
+
+                <!-- Card 3: In Bounds -->
+                <div onclick="openDetailedStatusModal('bounds')" style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 20px; padding: 1.5rem; position: relative; cursor: pointer; transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; height: 100%; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)'">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: auto;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <div style="width: 40px; height: 40px; border-radius: 10px; background: #eff6ff; color: #2563eb; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+                                <i class="fa-solid fa-building-shield"></i>
+                            </div>
+                            <div>
+                                <h3 style="margin: 0; font-size: 1rem; font-weight: 600; color: #374151;">Campus Zones</h3>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;">
+                        <div>
+                            <div style="display: flex; align-items: baseline; gap: 0.4rem;">
+                                <span style="font-size: 2.8rem; font-weight: 700; color: #111827; line-height: 1;" id="bounds-inbounds">0</span>
+                                <span style="color: #6b7280; font-weight: 500; font-size: 1rem;">in bounds</span>
+                            </div>
+                        </div>
+                        
+                        <div style="text-align: right;">
+                            <div style="background: #fef2f2; color: #dc2626; padding: 0.4rem 0.8rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.5rem; border: 1px solid #fee2e2;">
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                <span style="font-weight: 700; font-size: 1rem;" id="bounds-outbounds">0</span>
+                                <span style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Out</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #f3f4f6; color: #6b7280; font-size: 0.85rem; font-weight: 500;">
+                        <i class="fa-solid fa-info-circle" style="color: #94a3b8; margin-right: 0.3rem;"></i> Click to view faculty locations
+                    </div>
+                </div>
+                
             </div>
         </div>
 
@@ -825,41 +948,42 @@
     </div>
 
     <!-- Detailed Status Modal -->
-    <div id="detailedStatusModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10001; justify-content: center; align-items: center; padding: 1rem; backdrop-filter: blur(4px);">
-        <div style="background: white; border-radius: 20px; width: 100%; max-width: 900px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px rgba(0,0,0,0.25); overflow: hidden;">
+    <div id="detailedStatusModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(17, 24, 39, 0.4); z-index: 10001; justify-content: center; align-items: center; padding: 1rem; backdrop-filter: blur(8px);">
+        <div style="background: #ffffff; border-radius: 24px; width: 100%; max-width: 900px; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); border: 1px solid #f1f5f9; overflow: hidden;">
             <!-- Modal Header -->
-            <div id="modalHeader" style="padding: 2rem; border-bottom: 2px solid #f1f5f9; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                    <h2 id="modalTitle" style="margin: 0; font-size: 1.75rem; font-weight: 800; display: flex; align-items: center; gap: 0.75rem;">
-                        <i id="modalIcon" class="fa-solid fa-network-wired" style="font-size: 1.5rem;"></i>
-                        Network Details
-                    </h2>
-                    <button onclick="closeDetailedStatusModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 1.5rem; cursor: pointer; border-radius: 8px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; transition: all 0.3s;">×</button>
+            <div id="modalHeader" style="padding: 2rem 2.5rem; border-bottom: 1px solid #f1f5f9; background: #ffffff; color: #111827;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div>
+                            <h2 id="modalTitle" style="margin: 0; font-size: 1.5rem; font-weight: 700; color: #111827; letter-spacing: -0.01em;">Network Details</h2>
+                            <p id="modalSubtitle" style="margin: 0.25rem 0 0 0; color: #64748b; font-size: 0.95rem; font-weight: 500;">View detailed breakdown of user statuses</p>
+                        </div>
+                    </div>
+                    <button onclick="closeDetailedStatusModal()" style="background: #f8fafc; border: 1px solid #e2e8f0; color: #64748b; font-size: 1.25rem; cursor: pointer; border-radius: 10px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;">×</button>
                 </div>
-                <p id="modalSubtitle" style="margin: 0; opacity: 0.9; font-size: 0.95rem;">View detailed breakdown of user statuses</p>
             </div>
 
             <!-- Modal Body with Tabs -->
-            <div style="overflow-y: auto; flex: 1; padding: 2rem;">
+            <div style="overflow-y: auto; flex: 1; padding: 2rem 2.5rem; background: #fafafa;">
                 <!-- Tab Buttons -->
-                <div id="modalTabs" style="display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 1rem;">
-                    <button id="tab-on" onclick="switchDetailTab('on')" style="padding: 0.75rem 1.5rem; background: #10b981; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; transition: all 0.3s;">
+                <div id="modalTabs" style="display: flex; gap: 0.75rem; margin-bottom: 2rem; background: #e2e8f0; padding: 0.35rem; border-radius: 12px; width: fit-content;">
+                    <button id="tab-on" onclick="switchDetailTab('on')" style="padding: 0.6rem 1.5rem; background: #ffffff; color: #0f172a; border: 1px solid rgba(0,0,0,0.04); border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
                         <i class="fa-solid fa-circle-check" style="margin-right: 0.5rem;"></i><span id="tab-on-label">Online</span>
                     </button>
-                    <button id="tab-off" onclick="switchDetailTab('off')" style="padding: 0.75rem 1.5rem; background: #e2e8f0; color: #0f172a; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; transition: all 0.3s;">
+                    <button id="tab-off" onclick="switchDetailTab('off')" style="padding: 0.6rem 1.5rem; background: transparent; color: #64748b; border: 1px solid transparent; border-radius: 9px; cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: all 0.2s ease;">
                         <i class="fa-solid fa-circle-xmark" style="margin-right: 0.5rem;"></i><span id="tab-off-label">Offline</span>
                     </button>
                 </div>
 
                 <!-- Content Area -->
-                <div id="modalContent" style="min-height: 300px;">
+                <div id="modalContent" style="min-height: 300px; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; padding: 1.5rem; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);">
                     <p style="color: #94a3b8; padding: 2rem; text-align: center;">Loading detailed data...</p>
                 </div>
             </div>
 
             <!-- Modal Footer -->
-            <div style="padding: 1.5rem 2rem; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; justify-content: flex-end; gap: 1rem;">
-                <button onclick="closeDetailedStatusModal()" style="padding: 0.75rem 1.5rem; background: #e2e8f0; color: #0f172a; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; transition: all 0.3s;">Close</button>
+            <div style="padding: 1.5rem 2.5rem; border-top: 1px solid #f1f5f9; background: #ffffff; display: flex; justify-content: flex-end;">
+                <button onclick="closeDetailedStatusModal()" style="padding: 0.7rem 1.5rem; background: #ffffff; color: #475569; border: 1px solid #cbd5e1; border-radius: 10px; cursor: pointer; font-weight: 600; transition: all 0.2s ease; box-shadow: 0 1px 2px rgba(0,0,0,0.05);" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='#ffffff'">Dismiss</button>
             </div>
         </div>
     </div>
