@@ -67,10 +67,13 @@ android/build/
 # Node modules (if using npm)
 node_modules/
 package-lock.json
-package.json
-serviceAccountKey.json
-capacitor.config.json
+/package.json
+/serviceAccountKey.json
+/capacitor.config.json
 # Backup files
 *.bak
 *.backup
 *~
+
+# Local Netlify folder
+.netlify

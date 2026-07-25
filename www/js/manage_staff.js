@@ -1,21 +1,15 @@
-
 document.addEventListener('DOMContentLoaded', () => {
     fetchUsers();
-    
-    // Add search functionality
+
     const searchInput = document.getElementById('searchStaff');
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('#staffTableBody tr');
-            
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                if (text.includes(query)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
+            const query = String(e.target.value || '').trim().toLowerCase();
+            const rows = document.querySelectorAll('#staffTableBody tr[data-user-row="true"]');
+
+            rows.forEach((row) => {
+                const searchText = String(row.dataset.search || '').toLowerCase();
+                row.style.display = !query || searchText.includes(query) ? '' : 'none';
             });
         });
     }
@@ -23,7 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function fetchUsers() {
     const tableBody = document.getElementById('staffTableBody');
-    tableBody.innerHTML = '<tr><td colspan="6" class="text-center">Loading...</td></tr>';
+    if (!tableBody) return;
+    tableBody.innerHTML = '<tr><td colspan="5" class="text-center">Loading staff records...</td></tr>';
 
     try {
         const response = await fetch('/api/users');
@@ -31,66 +26,87 @@ async function fetchUsers() {
 
         tableBody.innerHTML = '';
 
-        if (users.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="6" class="text-center">No staff found.</td></tr>';
+        if (!Array.isArray(users) || users.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="5" class="text-center">No staff found.</td></tr>';
             return;
         }
 
-        users.forEach(user => {
+        users.forEach((user) => {
             const row = document.createElement('tr');
+            row.setAttribute('data-user-row', 'true');
+            row.dataset.search = `${user.id || ''} ${user.name || ''} ${user.role || ''} ${user.status || ''}`;
             row.innerHTML = `
-                <td>
-                    <div style="width: 40px; height: 40px; background: #e2e8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                        <span style="font-weight: bold; color: #64748b;">${user.name.charAt(0).toUpperCase()}</span>
-                    </div>
-                </td>
-                <td>${user.id}</td>
-                <td>${user.name}</td>
-                <td>${user.role}</td>
-                <td><span class="status-pill ${getStatusClass(user.status)}">${user.status}</span></td>
-                <td>
-                    ${getActionButtons(user)}
-                </td>
+                <td class="staff-id-cell" data-label="Staff ID">${escapeHtml(user.id || '-')}</td>
+                <td class="staff-name-cell" data-label="Name">${escapeHtml(user.name || '-')}</td>
+                <td class="staff-role-cell" data-label="Role">${escapeHtml(formatRole(user.role || '-'))}</td>
+                <td class="staff-status-cell" data-label="Status"><span class="status-pill ${getStatusClass(user.status)}">${escapeHtml(formatStatus(user.status))}</span></td>
+                <td class="staff-actions-cell" data-label="Actions">${getActionButtons(user)}</td>
             `;
             tableBody.appendChild(row);
         });
-
     } catch (error) {
-        console.error("Error fetching users:", error);
-        tableBody.innerHTML = '<tr><td colspan="6" class="text-center" style="color: red;">Failed to load data.</td></tr>';
+        console.error('Error fetching users:', error);
+        tableBody.innerHTML = '<tr><td colspan="5" class="text-center" style="color: #dc2626;">Failed to load staff records.</td></tr>';
     }
 }
 
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function getInitial(name) {
+    return String(name || 'U').trim().charAt(0).toUpperCase() || 'U';
+}
+
+function formatRole(role) {
+    const value = String(role || '').trim().toLowerCase();
+    return value ? value.charAt(0).toUpperCase() + value.slice(1) : '-';
+}
+
+function formatStatus(status) {
+    const value = String(status || '').trim();
+    if (!value) return 'Absent';
+    return value === "Didn't Mark" ? "Didn't Mark" : value;
+}
+
 function getStatusClass(status) {
-    if (status === 'Present' || status === 'On-Time') return 'status-present';
-    if (status === "Didn't Mark" || status === 'Absent') return 'status-absent';
-    if (status === 'Late' || status === 'Late Permission') return 'status-late';
+    const normalized = String(status || '').trim().toLowerCase();
+    if (normalized === 'present' || normalized === 'on-time' || normalized === 'on time') return 'status-present';
+    if (normalized === "didn't mark" || normalized === 'absent') return 'status-absent';
+    if (normalized === 'late' || normalized === 'late permission' || normalized === 'early permission' || normalized === 'hd') return 'status-late';
     return '';
 }
 
 function getActionButtons(user) {
-    if (user.role === 'admin') return ''; // Keep admins read-only in this directory
-    
+    if (String(user.role || '').toLowerCase() === 'admin') return '<span class="text-muted">Protected</span>';
+
     const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
     const adminId = currentUser.user_id || currentUser.id || 'ADMIN01';
-    
+    const safeId = escapeHtml(user.id || '');
+    const safeName = escapeHtml(user.name || '');
+
     return `
-        <button class="icon-btn" onclick="viewUserLogs('${user.id}')" title="View Profile" style="color: #3b82f6;">
-            <i class="fa-solid fa-eye"></i>
-        </button>
-        <button class="icon-btn danger-btn" onclick="markUserAbsent('${user.id}', '${user.name}', '${adminId}')" title="Mark as Didn't Mark">
-            <i class="fa-solid fa-user-slash"></i>
-        </button>
-        <button class="icon-btn danger-btn" onclick="deleteUser('${user.id}')" title="Delete Staff Member">
-            <i class="fa-solid fa-trash"></i>
-        </button>
+        <div class="staff-action-cluster">
+            <button class="icon-btn staff-view-btn" onclick="viewUserLogs('${safeId}')" title="View profile">
+                <i class="fa-solid fa-eye"></i>
+            </button>
+            <button class="icon-btn danger-btn" onclick="markUserAbsent('${safeId}', '${safeName}', '${escapeHtml(adminId)}')" title="Mark as Didn't Mark">
+                <i class="fa-solid fa-user-slash"></i>
+            </button>
+            <button class="icon-btn danger-btn" onclick="deleteUser('${safeId}')" title="Delete staff member">
+                <i class="fa-solid fa-trash"></i>
+            </button>
+        </div>
     `;
 }
 
 function viewUserLogs(userId) {
-    // Redirect to faculty dashboard view for this user
-    // We pass a parameter so the dashboard load logic knows to fetch THIS user's data
-    window.location.href = `/pages/faculty_dashboard.html?view_user=${userId}`;
+    window.location.href = `/pages/faculty_dashboard.html?view_user=${encodeURIComponent(userId)}`;
 }
 
 async function markUserAbsent(userId, userName, adminId) {
@@ -99,8 +115,7 @@ async function markUserAbsent(userId, userName, adminId) {
     }
 
     try {
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-        
+        const today = new Date().toISOString().split('T')[0];
         const response = await fetch('/api/mark_absent', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -110,41 +125,39 @@ async function markUserAbsent(userId, userName, adminId) {
                 admin_id: adminId
             })
         });
-        
+
         const result = await response.json();
-        
         if (result.success) {
-            alert(`✓ ${userName} marked as "Didn't Mark" for today`);
-            fetchUsers(); // Refresh table
+            alert(`${userName} marked as "Didn't Mark" for today.`);
+            fetchUsers();
         } else {
-            alert("Error marking user: " + result.message);
+            alert('Error marking user: ' + result.message);
         }
     } catch (error) {
-        console.error("Mark absent failed:", error);
-        alert("Server error. Please try again.");
+        console.error('Mark absent failed:', error);
+        alert('Server error. Please try again.');
     }
 }
 
 async function deleteUser(userId) {
-    if(!confirm(`Are you sure you want to PERMANENTLY delete user ${userId}? This will remove all their attendance history.`)) {
+    if (!confirm(`Are you sure you want to permanently delete user ${userId}? This removes their attendance history too.`)) {
         return;
     }
 
     try {
-        const response = await fetch(`/api/users/${userId}`, {
+        const response = await fetch(`/api/users/${encodeURIComponent(userId)}`, {
             method: 'DELETE'
         });
-        
         const result = await response.json();
-        
+
         if (result.success) {
-            alert("User deleted successfully.");
-            fetchUsers(); // Refresh table
+            alert('User deleted successfully.');
+            fetchUsers();
         } else {
-            alert("Error deleting user: " + result.message);
+            alert('Error deleting user: ' + result.message);
         }
     } catch (error) {
-        console.error("Delete failed:", error);
-        alert("Server error during deletion.");
+        console.error('Delete failed:', error);
+        alert('Server error during deletion.');
     }
 }

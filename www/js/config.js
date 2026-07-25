@@ -52,30 +52,3 @@ window.fetch = async function(resource, config = {}) {
     // 3. Send the upgraded request
     return originalFetch(resource, config);
 };
-
-// ============ CAPGO OTA UPDATER (GLOBAL) ============
-// Placed in config.js so it is guaranteed to run on every single page, 
-// surviving any fast redirects from index.html!
-(function initCapgoSafely() {
-    let retries = 0;
-    const maxRetries = 40; // Try for up to 20 seconds
-
-    const checkInterval = setInterval(async () => {
-        // Check if Capacitor and the Updater plugin exist yet
-        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorUpdater) {
-            try {
-                // Send the critical signal to prevent rollbacks!
-                await window.Capacitor.Plugins.CapacitorUpdater.notifyAppReady();
-                console.log('✅ [Capgo] Update marked as successful! Rollback prevented.');
-                clearInterval(checkInterval); // Stop checking
-            } catch (err) {
-                console.warn('⚠️ [Capgo] Failed to notify app ready:', err);
-            }
-        } else {
-            retries++;
-            if (retries >= maxRetries) {
-                clearInterval(checkInterval);
-            }
-        }
-    }, 500); // Check every half second
-})();

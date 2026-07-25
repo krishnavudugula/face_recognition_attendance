@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Complete Face Registration - FaceAttend</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/new-features.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="../js/back-button-native.js"></script>
@@ -22,6 +23,7 @@
     <!-- NEW FEATURES -->
     <script src="../js/messaging-system.js" defer></script>
     <script src="../js/alert-preferences.js" defer></script>
+    <script src="../js/profile_settings.js" defer></script>
     <style>
         * {
             margin: 0;
@@ -820,7 +822,12 @@
         function showPolicyAlert(message, isError = false) {
             const el = document.getElementById('policyAlert');
             if (!el) return;
-            el.textContent = message;
+            el.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <span>${message}</span>
+                    <button onclick="clearPolicyAlert()" style="background:none; border:none; color:inherit; font-size:1.25rem; font-weight:bold; cursor:pointer; padding: 0 0.5rem;">&times;</button>
+                </div>
+            `;
             el.style.display = 'block';
             el.style.background = isError ? '#991b1b' : '#0f172a';
         }
@@ -1007,13 +1014,16 @@
                     data.logs.forEach(log => {
                         const normalizedStatus = normalizeFacultyStatus(log.status || 'Not Marked');
                         const statusClass = getFacultyStatusClass(normalizedStatus);
-                        const row = document.createElement('tr');
+                        const isModified = normalizedStatus.includes('[');
+                        const chipStyle = isModified ? 'cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 4px;' : '';
+                        const onclick = isModified ? `onclick="showAttendanceExplanation('${log.date}', '${normalizedStatus}')"` : '';
+                        
                         row.innerHTML = `
                             <td>${log.date}</td>
                             <td>${log.time_in || '--:--'}</td>
                             <td>${log.time_out || '--:--'}</td>
                             <td>${log.duration}</td>
-                            <td><span class="status-chip ${statusClass}">${normalizedStatus}</span></td>
+                            <td><span class="status-chip ${statusClass}" style="${chipStyle}" ${onclick}>${normalizedStatus}</span></td>
                         `;
                         tbody.appendChild(row);
                     });
@@ -1039,7 +1049,9 @@
                 'late': 'Late',
                 'absent': 'Absent'
             };
-
+            // Don't modify if it has a modifier bracket
+            if (value.includes('[')) return value;
+            
             return mapping[normalized] || value || '-';
         }
 
@@ -1048,10 +1060,40 @@
             if (s.includes('present') || s.includes('on time') || s.includes('checked in') || s.includes('checked out')) {
                 return 'on-time';
             }
-            if (s.includes('late') || s.includes('early')) {
+            if (s.includes('late') || s.includes('early') || s.includes('hd')) {
                 return 'late';
             }
+            if (s.includes('ab')) {
+                return 'absent';
+            }
+            if (s.includes('lv')) {
+                return 'late'; // Or yellow
+            }
             return 'absent';
+        }
+        
+        function showAttendanceExplanation(date, status) {
+            const explanationMap = {
+                'LP': 'Late Permission',
+                'EP': 'Early Permission',
+                'WFH': 'Work From Home',
+                'OD': 'On Duty',
+                'OUT': 'Outdoor Duty',
+                'ML': 'Medical Leave',
+                'HD-AM': 'Half Day (Morning)',
+                'HD-PM': 'Half Day (Evening)'
+            };
+            
+            // Extract the modifier between brackets
+            const match = status.match(/\[(.*?)\]/);
+            const modifier = match ? match[1] : 'Unknown';
+            const exp = explanationMap[modifier] || modifier;
+            
+            // Extract base status
+            const baseStatus = status.split(' ')[0];
+            const baseExp = baseStatus === 'FD' ? 'Full Day' : (baseStatus === 'HD' ? 'Half Day' : (baseStatus === 'AB' ? 'Absent' : baseStatus));
+            
+            alert(`Attendance Explanation for ${date}\n\nFinal Status: ${baseExp}\nPolicy Applied: ${exp}\n\nThis status was derived because a "${exp}" policy overrode the default rules.`);
         }
 
         async function fetchAndDisplayUserProfile(userId) {

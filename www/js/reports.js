@@ -272,12 +272,12 @@ async function updateExportPreview() {
     try {
         // Get selected columns for filtering
         const selectedCols = {
-            user: document.getElementById('col-user').checked,
-            date: document.getElementById('col-date').checked,
-            status: document.getElementById('col-status').checked,
-            location: document.getElementById('col-location').checked,
-            checkin: document.getElementById('col-checkin').checked,
-            period: document.getElementById('col-period').checked
+            user: document.getElementById('col-user')?.checked ?? true,
+            date: document.getElementById('col-date')?.checked ?? true,
+            status: document.getElementById('col-status')?.checked ?? true,
+            location: document.getElementById('col-location')?.checked ?? true,
+            checkin: document.getElementById('col-checkin')?.checked ?? true,
+            period: document.getElementById('col-period')?.checked ?? true
         };
         const colsParam = encodeURIComponent(JSON.stringify(selectedCols));
         

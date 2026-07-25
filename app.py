@@ -1,3 +1,14 @@
+import os
+# Manually load .env file to avoid requiring python-dotenv dependency
+env_path = os.path.join(os.path.dirname(__file__), '.env')
+if os.path.exists(env_path):
+    with open(env_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#'):
+                key, val = line.split('=', 1)
+                os.environ[key.strip()] = val.strip()
+
 from flask import Flask, request, jsonify, send_from_directory, send_file, make_response
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
@@ -7,6 +18,7 @@ import numpy as np
 import cv2
 import base64
 import os
+import re
 import io
 import pandas as pd
 import pickle
@@ -16,6 +28,11 @@ import math
 import json
 import requests
 from functools import wraps
+from uuid import uuid4
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import random
 
 # 🔴 FCM SERVER-SIDE: Modern Firebase Admin SDK for device wakeups
 try:
@@ -170,6 +187,25 @@ def ping_device_via_fcm(fcm_token, action="heartbeat"):
         traceback.print_exc()
         return False
 
+def send_fcm_notification(fcm_token, title, body):
+    if not FIREBASE_ADMIN_AVAILABLE or not fcm_token:
+        return False
+    try:
+        message = messaging.Message(
+            notification=messaging.Notification(
+                title=title,
+                body=body
+            ),
+            token=fcm_token,
+            android=messaging.AndroidConfig(
+                priority="high"
+            )
+        )
+        messaging.send(message)
+        return True
+    except Exception as e:
+        print(f"❌ FCM Notification FAILED: {str(e)}")
+        return False
 
 def ping_all_active_devices():
     """
@@ -277,62 +313,97 @@ def ping_inactive_devices():
 
 def auto_mark_incomplete_attendance():
     """
-    🔴 END-OF-DAY AUTO-MARKING AT 6:00 PM: Mark faculty ABSENT if they didn't mark twice.
-    
-    Runs daily at 6:00 PM IST (18:00).
-    Finds all AttendanceLogs with morning check-in but NO evening check-out by 6 PM.
+    🔴 END-OF-DAY AUTO-FINALIZER AT 11:59 PM
     
     Logic:
-    - If morning mark exists but NO evening mark by 6 PM → Status = "Absent"
-    - This ensures faculty are marked ABSENT if they only mark once
-    - No "HD" (half day) status - straight ABSENT
+    - Iterates over all active faculty.
+    - If no attendance exists: checks if permission allows no marks (e.g. WFH/Leave). If yes, grants FD [WFH]. If no, grants AB.
+    - If only check-in exists: checks if permission allows skipping checkout (e.g. EP). If yes, grants FD [EP]. If no, downgrades to HD.
     """
-    try:
-        now_utc = datetime.utcnow()
-        local_tz = pytz.timezone('Asia/Kolkata')
-        now_local = now_utc.astimezone(local_tz)
-        today_str = now_local.strftime('%Y-%m-%d')
-        
-        # Find all incomplete attendances for today (checked in but not checked out)
-        incomplete_logs = AttendanceLog.query.filter_by(
-            date=today_str
-        ).filter(
-            AttendanceLog.time_out == None  # No check-out yet
-        ).all()
-        
-        if not incomplete_logs:
-            print("✅ No incomplete attendances to auto-mark")
-            return
-        
-        auto_marked_count = 0
-        for log in incomplete_logs:
-            first_status = (log.check_in_status or log.status or "").strip()
+    with app.app_context():
+        try:
+            now_utc = datetime.utcnow()
+            local_tz = pytz.timezone('Asia/Kolkata')
+            now_local = now_utc.astimezone(local_tz)
+            today_str = now_local.strftime('%Y-%m-%d')
             
-            # If they marked in morning but didn't mark in evening → ABSENT
-            if first_status in {"Present", "Late Permission"}:
-                log.status = "Absent"
-                log.check_out_status = "Absent"
-                log.check_out_period = "18:00-24:00 (Auto-marked ABSENT - No evening mark)"
-                log.time_out = now_local.strftime('%H:%M:%S')
-                log.timestamp_out = now_utc
-                print(f"  📝 Auto-marked {log.user_id} as ABSENT (no evening mark by 6 PM)")
-                auto_marked_count += 1
-            elif first_status in {"Absent", "Didn't Mark"}:
-                # Already absent, no action needed
-                pass
-            elif first_status in {"HD", "EP", "Early Permission"}:
-                # Already marked as half-day or early departure, no action needed
-                pass
-        
-        if auto_marked_count > 0:
-            db.session.commit()
-            print(f"✅ Auto-marked {auto_marked_count} faculty as ABSENT (incomplete double marking)")
-        else:
-            print("💤 No attendances needed auto-marking")
+            users = User.query.filter_by(role='faculty', is_active=True, registration_status='Approved').all()
             
-    except Exception as e:
-        print(f"⚠️ Auto-mark attendance error: {str(e)}")
-        db.session.rollback()
+            auto_marked_count = 0
+            for user in users:
+                log = AttendanceLog.query.filter_by(user_id=user.user_id, date=today_str).first()
+                perm = get_approved_permission_request(user.user_id, now_local)
+                rules = get_effective_policy(perm) if perm else {}
+                
+                if not log:
+                    # User didn't check in at all
+                    req_morning = rules.get("require_morning_mark", True)
+                    req_evening = rules.get("require_evening_mark", True)
+                    
+                    if not req_morning and not req_evening:
+                        st = rules.get("attendance_status", "FD")
+                        mod = rules.get("modifier") or (perm.modifier if perm else None)
+                        
+                        new_log = AttendanceLog(
+                            user_id=user.user_id,
+                            date=today_str,
+                            time_in="00:00:00",
+                            time_out="23:59:59",
+                            check_in_status=st,
+                            check_out_status=st,
+                            status=st,
+                            modifier=mod,
+                            timestamp_in=now_utc,
+                            timestamp_out=now_utc
+                        )
+                        db.session.add(new_log)
+                        auto_marked_count += 1
+                    else:
+                        new_log = AttendanceLog(
+                            user_id=user.user_id,
+                            date=today_str,
+                            time_in="00:00:00",
+                            time_out="23:59:59",
+                            check_in_status="AB",
+                            check_out_status="AB",
+                            status="AB",
+                            modifier=None,
+                            timestamp_in=now_utc,
+                            timestamp_out=now_utc
+                        )
+                        db.session.add(new_log)
+                        auto_marked_count += 1
+                        
+                elif log and not log.time_out:
+                    # Checked in, no checkout
+                    req_evening = rules.get("require_evening_mark", True)
+                    
+                    if not req_evening:
+                        st = rules.get("attendance_status", "FD")
+                        mod = rules.get("modifier") or (perm.modifier if perm else log.modifier)
+                        
+                        log.time_out = "23:59:59"
+                        log.timestamp_out = now_utc
+                        log.check_out_status = st
+                        log.status = st
+                        log.modifier = mod
+                        auto_marked_count += 1
+                    else:
+                        log.time_out = "23:59:59"
+                        log.timestamp_out = now_utc
+                        log.check_out_status = "HD"
+                        log.status = "HD"
+                        auto_marked_count += 1
+            
+            if auto_marked_count > 0:
+                db.session.commit()
+                print(f"✅ Auto-finalized {auto_marked_count} faculty attendance records for {today_str}.")
+            else:
+                print("💤 No attendances needed auto-finalizing.")
+                
+        except Exception as e:
+            print(f"⚠️ Auto-finalizer error: {str(e)}")
+            db.session.rollback()
 
 
 # --- Custom Face Recognition & Liveness Logic ---
@@ -457,9 +528,16 @@ class FaceSystem:
              file_bytes = np.frombuffer(image_stream, np.uint8)
         else:
              file_bytes = np.frombuffer(image_stream.read(), np.uint8)
-
         img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
         if img is None: return None, None
+
+        # PERFORMANCE OPTIMIZATION: Resize huge webcam captures
+        # Processing a 4K image with DNN takes ~2 mins on CPU.
+        max_dim = 800
+        height, width, _ = img.shape
+        if width > max_dim or height > max_dim:
+            scale = max_dim / max(width, height)
+            img = cv2.resize(img, (int(width * scale), int(height * scale)))
 
         passed, reason = self.check_image_quality(img)
         if not passed: print(f"Quality Check Failed: {reason}")
@@ -578,6 +656,15 @@ db = SQLAlchemy(app)
 
 # ----------------- MODELS -----------------
 
+class OTPVerification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(150), nullable=False)
+    otp = db.Column(db.String(6), nullable=False)
+    action = db.Column(db.String(50), nullable=False) # 'PASSWORD_RESET' or 'ID_RECOVERY'
+    expires_at = db.Column(db.DateTime, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(pytz.utc))
+    verified = db.Column(db.Boolean, default=False)
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.String(50), unique=True, nullable=False) # e.g., EMP001
@@ -613,6 +700,8 @@ class AttendanceLog(db.Model):
     timestamp_in = db.Column(db.DateTime, default=datetime.utcnow) # UTC for cooldown calc
     timestamp_out = db.Column(db.DateTime, nullable=True) # UTC
     status = db.Column(db.String(20), nullable=False) # 'On-Time', 'Late', etc.
+    modifier = db.Column(db.String(20), nullable=True) # e.g. 'LP', 'EP', 'OD', 'WFH'
+    late_permission_approved = db.Column(db.Boolean, default=False)
 
 class PermissionRequest(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -630,8 +719,50 @@ class PermissionRequest(db.Model):
     message_id = db.Column(db.Integer, nullable=True) # Link to chat message if submitted via chat
     approved_by = db.Column(db.String(50), nullable=True) # Admin who approved it
     admin_notes = db.Column(db.String(500), nullable=True) # Notes/conditions from admin
+    
+    # Advanced Policy Modifiers
+    modifier = db.Column(db.String(20), nullable=True) # e.g. 'LP', 'EP', 'OD', 'WFH', 'ML'
+    effective_policy = db.Column(db.Text, nullable=True) # JSON string of toggles e.g. {"require_gps": false}
+    granted_by_admin = db.Column(db.Boolean, default=False) # True if granted directly by Admin
+    
+    # New Overhaul Columns
+    valid_from = db.Column(db.DateTime, nullable=True)
+    valid_until = db.Column(db.DateTime, nullable=True)
+    priority = db.Column(db.Integer, default=0)
+    internal_notes = db.Column(db.String(500), nullable=True)
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+PERMISSION_TEMPLATES = {
+    "late_arrival": {"modifier": "LP", "attendance_status": "FD", "require_face": True, "ignore_gps": False, "ignore_radius": False, "ignore_wifi": False, "require_morning_mark": True, "require_evening_mark": True, "required_marks": 2, "allow_any_location": False, "allow_flexible_time": False, "auto_finalize": False, "priority": 10},
+    "early_departure": {"modifier": "EP", "attendance_status": "FD", "require_face": True, "ignore_gps": False, "ignore_radius": False, "ignore_wifi": False, "require_morning_mark": True, "require_evening_mark": False, "required_marks": 1, "allow_any_location": False, "allow_flexible_time": False, "auto_finalize": True, "priority": 10},
+    "half_day": {"modifier": "HD", "attendance_status": "HD", "require_face": True, "ignore_gps": False, "ignore_radius": False, "ignore_wifi": False, "require_morning_mark": False, "require_evening_mark": False, "required_marks": 1, "allow_any_location": False, "allow_flexible_time": True, "auto_finalize": True, "priority": 20},
+    "full_day_absence": {"modifier": "LV", "attendance_status": "LV", "require_face": False, "ignore_gps": True, "ignore_radius": True, "ignore_wifi": True, "require_morning_mark": False, "require_evening_mark": False, "required_marks": 0, "allow_any_location": True, "allow_flexible_time": True, "auto_finalize": True, "priority": 50},
+    "work_from_home": {"modifier": "WFH", "attendance_status": "FD", "require_face": True, "ignore_gps": True, "ignore_radius": True, "ignore_wifi": True, "require_morning_mark": True, "require_evening_mark": True, "required_marks": 2, "allow_any_location": True, "allow_flexible_time": False, "auto_finalize": False, "priority": 30},
+    "outdoor_duty": {"modifier": "OD", "attendance_status": "FD", "require_face": True, "ignore_gps": True, "ignore_radius": True, "ignore_wifi": True, "require_morning_mark": False, "require_evening_mark": False, "required_marks": 1, "allow_any_location": True, "allow_flexible_time": True, "auto_finalize": True, "priority": 40},
+    "exam_duty": {"modifier": "EXAM", "attendance_status": "FD", "require_face": True, "ignore_gps": True, "ignore_radius": True, "ignore_wifi": True, "require_morning_mark": False, "require_evening_mark": False, "required_marks": 1, "allow_any_location": True, "allow_flexible_time": True, "auto_finalize": True, "priority": 40},
+    "on_duty": {"modifier": "OD", "attendance_status": "FD", "require_face": True, "ignore_gps": True, "ignore_radius": True, "ignore_wifi": True, "require_morning_mark": False, "require_evening_mark": False, "required_marks": 1, "allow_any_location": True, "allow_flexible_time": True, "auto_finalize": True, "priority": 40},
+    "forgot_check_in": {"modifier": "MANUAL", "attendance_status": "FD", "require_face": False, "ignore_gps": True, "ignore_radius": True, "ignore_wifi": True, "require_morning_mark": False, "require_evening_mark": False, "required_marks": 0, "allow_any_location": True, "allow_flexible_time": True, "auto_finalize": True, "priority": 15},
+    "forgot_checkout": {"modifier": "MANUAL", "attendance_status": "FD", "require_face": False, "ignore_gps": True, "ignore_radius": True, "ignore_wifi": True, "require_morning_mark": False, "require_evening_mark": False, "required_marks": 0, "allow_any_location": True, "allow_flexible_time": True, "auto_finalize": True, "priority": 15},
+    "device_problem": {"modifier": "MANUAL", "attendance_status": "FD", "require_face": False, "ignore_gps": True, "ignore_radius": True, "ignore_wifi": True, "require_morning_mark": False, "require_evening_mark": False, "required_marks": 0, "allow_any_location": True, "allow_flexible_time": True, "auto_finalize": True, "priority": 15},
+    "gps_failure": {"modifier": "MANUAL", "attendance_status": "FD", "require_face": True, "ignore_gps": True, "ignore_radius": True, "ignore_wifi": True, "require_morning_mark": True, "require_evening_mark": True, "required_marks": 2, "allow_any_location": True, "allow_flexible_time": False, "auto_finalize": False, "priority": 15},
+    "face_failure": {"modifier": "MANUAL", "attendance_status": "FD", "require_face": False, "ignore_gps": False, "ignore_radius": False, "ignore_wifi": False, "require_morning_mark": True, "require_evening_mark": True, "required_marks": 2, "allow_any_location": False, "allow_flexible_time": False, "auto_finalize": False, "priority": 15},
+    "internet_failure": {"modifier": "MANUAL", "attendance_status": "FD", "require_face": True, "ignore_gps": False, "ignore_radius": False, "ignore_wifi": False, "require_morning_mark": True, "require_evening_mark": True, "required_marks": 2, "allow_any_location": False, "allow_flexible_time": False, "auto_finalize": False, "priority": 15},
+    "emergency": {"modifier": "EMG", "attendance_status": "FD", "require_face": False, "ignore_gps": True, "ignore_radius": True, "ignore_wifi": True, "require_morning_mark": False, "require_evening_mark": False, "required_marks": 0, "allow_any_location": True, "allow_flexible_time": True, "auto_finalize": True, "priority": 99},
+    "custom": {"modifier": "CUST", "attendance_status": "FD", "require_face": True, "ignore_gps": False, "ignore_radius": False, "ignore_wifi": False, "require_morning_mark": True, "require_evening_mark": True, "required_marks": 2, "allow_any_location": False, "allow_flexible_time": False, "auto_finalize": False, "priority": 25}
+}
+
+def get_effective_policy(permission):
+    import json
+    base = PERMISSION_TEMPLATES.get(permission.type, PERMISSION_TEMPLATES['custom']).copy()
+    if permission.effective_policy:
+        try:
+            overrides = json.loads(permission.effective_policy)
+            base.update(overrides)
+        except:
+            pass
+    return base
 
 class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -794,6 +925,25 @@ class AlertPreference(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class AssistantConnection(db.Model):
+    """Tracks live connection requests between faculty and the real assistant (ADMIN01)"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(50), db.ForeignKey('user.user_id'), nullable=False)
+    assistant_id = db.Column(db.String(50), default='ADMIN01')
+    status = db.Column(db.String(20), default='connecting')  # 'connecting', 'connected', 'disconnected'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class AssistantMessage(db.Model):
+    """Messages exchanged within an assistant connection session"""
+    id = db.Column(db.Integer, primary_key=True)
+    connection_id = db.Column(db.Integer, db.ForeignKey('assistant_connection.id'), nullable=False)
+    sender_id = db.Column(db.String(50), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class DuplicateFaceAlert(db.Model):
     """Alert when duplicate/similar faces are detected during registration"""
     id = db.Column(db.Integer, primary_key=True)
@@ -835,22 +985,98 @@ def is_absence_status(status):
     return (status or "").strip() in ABSENCE_STATUSES
 
 
-def has_approved_permission(user_id, date_str, permission_type):
+def get_approved_permission_request(user_id, now_local_dt, permission_type=None):
+    if type(now_local_dt) == str:
+        date_str = now_local_dt
+        now_local_dt = datetime.strptime(date_str, '%Y-%m-%d')
+    else:
+        date_str = now_local_dt.strftime('%Y-%m-%d')
+
     approved_requests = PermissionRequest.query.filter_by(
         user_id=user_id,
-        type=permission_type,
         status='Approved'
     ).all()
 
-    for req in approved_requests:
-        if req.date == date_str:
-            return True
-        if req.custom_days:
-            custom_days = [d.strip() for d in req.custom_days.split(',') if d.strip()]
-            if date_str in custom_days:
-                return True
+    if permission_type:
+        normalized_type = normalize_permission_type_code(permission_type)
+        approved_requests = [
+            req for req in approved_requests
+            if req.type in {normalized_type, 'custom'}
+        ]
 
-    return False
+    valid_requests = []
+    for req in approved_requests:
+        # Check valid window
+        if req.valid_from and req.valid_until:
+            if req.valid_from <= now_local_dt <= req.valid_until:
+                valid_requests.append(req)
+        else:
+            # Legacy fallback
+            if req.date == date_str:
+                valid_requests.append(req)
+            elif req.custom_days:
+                custom_days = [d.strip() for d in req.custom_days.split(',') if d.strip()]
+                if date_str in custom_days:
+                    valid_requests.append(req)
+
+    if not valid_requests:
+        return None
+
+    # Sort by priority DESC, then created_at DESC
+    valid_requests.sort(key=lambda req: (
+        req.priority or 0,
+        req.updated_at or req.created_at or datetime.min
+    ), reverse=True)
+
+    return valid_requests[0]
+
+def apply_permission_rules(base_result, permission, mark_type='IN'):
+    """Applies the JSON effective_policy from a permission to the base attendance result."""
+    import json
+    if not permission:
+        return base_result
+        
+    rules = {}
+    if permission.effective_policy:
+        try:
+            rules = json.loads(permission.effective_policy)
+        except:
+            pass
+            
+    result = base_result.copy()
+    
+    # 1. Flexible Timing
+    if rules.get("flexible_timing"):
+        result["allowed"] = True
+        result["status"] = "Present"
+        result["message"] = f"Check-{mark_type}: Present (Flexible Timing)"
+        
+    # 2. Morning Deadline Override
+    if mark_type == 'IN' and rules.get("morning_deadline"):
+        # e.g. "11:30"
+        deadline_str = rules.get("morning_deadline")
+        try:
+            from datetime import datetime, time
+            hh, mm = map(int, deadline_str.split(':'))
+            deadline_time = time(hh, mm)
+            # If base result failed because it was late, we need to re-check against deadline_time
+            # But we don't have the scan_time here... 
+            # It's easier to just override it if it's currently False.
+            # Actually, we should let classify_first_mark accept the deadline!
+            pass
+        except:
+            pass
+            
+    # Apply modifier
+    if permission.modifier:
+        # Instead of overwriting status completely, we could just attach the modifier
+        result["modifier"] = permission.modifier
+        if result["status"] == "Absent" and rules.get("auto_mark_present"):
+             result["status"] = "Present"
+             result["allowed"] = True
+             result["message"] = f"Check-{mark_type}: Present (Approved)"
+             
+    return result
 
 
 def normalize_custom_days(custom_days_raw):
@@ -955,6 +1181,8 @@ def ensure_attendance_log_schema():
             conn.exec_driver_sql("ALTER TABLE attendance_log ADD COLUMN check_in_period VARCHAR(40)")
         if 'check_out_period' not in col_names:
             conn.exec_driver_sql("ALTER TABLE attendance_log ADD COLUMN check_out_period VARCHAR(40)")
+        if 'late_permission_approved' not in col_names:
+            conn.exec_driver_sql("ALTER TABLE attendance_log ADD COLUMN late_permission_approved BOOLEAN DEFAULT 0")
 
 
 def ensure_user_schema():
@@ -1082,27 +1310,27 @@ if APSCHEDULER_AVAILABLE:
         )
         print("✅ Job 2 added: Inactive Device Wakeup (every 5 min)")
         
-        # Add background job: auto-mark incomplete attendance daily at 6:00 PM
+        # Add background job: auto-finalize incomplete attendance daily at 11:59 PM
         try:
             from apscheduler.triggers.cron import CronTrigger
             scheduler.add_job(
                 func=auto_mark_incomplete_attendance,
-                trigger=CronTrigger(hour=18, minute=0, timezone='Asia/Kolkata'),
-                id='auto_mark_attendance',
-                name='Auto-Mark Incomplete Attendance (6:00 PM daily)',
+                trigger=CronTrigger(hour=23, minute=59, timezone='Asia/Kolkata'),
+                id='auto_finalize_attendance',
+                name='Auto-Finalize Attendance (11:59 PM daily)',
                 replace_existing=True,
                 max_instances=1
             )
-            print("✅ Job 2 added: Auto-Mark Absent (6:00 PM IST daily)")
+            print("✅ Job 2 added: Auto-Finalizer (11:59 PM IST daily)")
         except ImportError:
-            print("⚠️ CronTrigger not available - auto-mark scheduled job DISABLED")
+            print("⚠️ CronTrigger not available - auto-finalize scheduled job DISABLED")
             print("   Use /api/mark/auto-mark-absent endpoint to trigger manually")
         
         scheduler.start()
         print("✅ SCHEDULER STARTED! Now running in background...")
         print("   - FCM Device Pings: every 10 minutes (all logged-in users)")
         print("   - Inactive Device Wakeup: every 5 minutes (devices with no updates)")
-        print("   - Auto-Mark Absent: 6:00 PM IST daily")
+        print("   - Auto-Finalizer: 11:59 PM IST daily")
         print("="*60 + "\n")
     except Exception as e:
         print(f"\n❌ [SCHEDULER ERROR] FCM Scheduler FAILED to start: {e}")
@@ -1123,6 +1351,12 @@ def require_active_admin(admin_id):
     if not admin_id:
         return None
     return User.query.filter_by(user_id=admin_id, role='admin', is_active=True).first()
+
+
+@app.route('/api/uploads/permissions/<path:filename>')
+def serve_permission_upload(filename):
+    uploads_dir = os.path.join(os.path.dirname(__file__), 'uploads', 'permissions')
+    return send_from_directory(uploads_dir, filename)
 
 
 @app.route('/api/mark/auto-mark-absent', methods=['POST'])
@@ -1172,13 +1406,94 @@ def build_permission_summary(permission, status_label=None, admin_notes=None):
     if permission.reason:
         lines.append(f"Reason: {permission.reason}")
 
+    if permission.document_path:
+        lines.append(f"Attachment: {get_permission_document_url(permission.document_path)}")
+
     if status_label:
         lines.append(f"Status: {status_label}")
 
     if admin_notes:
         lines.append(f"Admin notes: {admin_notes}")
+        
+    lines.append(f"[PermissionID: {permission.id}]")
 
     return "\n".join(lines)
+
+
+def get_permission_document_url(document_path):
+    if not document_path:
+        return None
+
+    filename = os.path.basename(str(document_path).strip())
+    if not filename:
+        return None
+
+    return f"/api/uploads/permissions/{filename}"
+
+
+ADMIN_PERMISSION_TYPES = {
+    'late_arrival',
+    'early_departure',
+    'half_day',
+    'full_day_absence',
+    'work_from_home',
+    'outdoor_duty',
+    'exam_duty',
+    'on_duty',
+    'forgot_check_in',
+    'forgot_checkout',
+    'device_problem',
+    'gps_failure',
+    'face_failure',
+    'internet_failure',
+    'emergency',
+    'custom'
+}
+
+
+PERMISSION_TYPE_ALIASES = {
+    'lp': 'late_arrival',
+    'ep': 'early_departure',
+    'early_exit': 'early_departure',
+    'early_leave': 'early_departure',
+    'full_day_leave': 'full_day_absence',
+    'full_day': 'full_day_absence',
+    'od': 'on_duty',
+    'wfh': 'work_from_home'
+}
+
+
+def normalize_permission_type_code(value):
+    raw = str(value or '').strip()
+    normalized = raw.replace('-', '_').replace(' ', '_').lower()
+    return PERMISSION_TYPE_ALIASES.get(normalized, normalized)
+
+
+def validate_user_id_policy(user_id, label='User ID'):
+    value = str(user_id or '').strip()
+    if not value:
+        return f"{label} is required."
+    return None
+
+
+def validate_password_policy(password, user_id=None, min_length=8, max_length=64):
+    pwd = str(password or '')
+    if len(pwd) < min_length or len(pwd) > max_length:
+        return f"Password must be {min_length}-{max_length} characters."
+    if re.search(r'\s', pwd):
+        return "Password cannot contain spaces."
+    if not re.search(r'[A-Z]', pwd):
+        return "Password must include at least one uppercase letter."
+    if not re.search(r'[a-z]', pwd):
+        return "Password must include at least one lowercase letter."
+    if not re.search(r'[0-9]', pwd):
+        return "Password must include at least one number."
+    if not re.search(r'[^A-Za-z0-9]', pwd):
+        return "Password must include at least one special symbol."
+    user_id_text = str(user_id or '').strip()
+    if len(user_id_text) >= 3 and user_id_text.lower() in pwd.lower():
+        return "Password cannot contain the User ID."
+    return None
 
 
 def create_permission_request_chat_message(permission, recipient_id):
@@ -1348,6 +1663,8 @@ def submit_permission_request():
                 "is_full_day": permission.is_full_day,
                 "custom_days": permission.custom_days,
                 "reason": permission.reason,
+                "document_path": permission.document_path,
+                "document_url": get_permission_document_url(permission.document_path),
                 "status": permission.status,
                 "created_at": permission.created_at.isoformat() if permission.created_at else None
             }
@@ -1359,67 +1676,110 @@ def submit_permission_request():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
-def classify_first_mark(scan_dt):
-    """Return first-mark status for the day based on configured time windows."""
+def classify_first_mark(scan_dt, permission=None):
+    """Return first-mark status for the day based on configured time windows and permission overrides."""
     t = scan_dt.time()
+    
+    rules = {}
+    modifier = None
+    if permission:
+        modifier = permission.modifier or get_effective_policy(permission).get('modifier')
+        rules = get_effective_policy(permission)
+                
+    if rules.get("allow_flexible_time"):
+        st = rules.get("attendance_status", "FD")
+        return {"allowed": True, "status": st, "modifier": modifier, "period": "Flexible", "message": f"Check-In: {st} (Flexible Timing)"}
 
-    if t < time(9, 0):
+    # Default morning deadline is 9:35 AM
+    morning_deadline = time(9, 35)
+    if rules.get("morning_deadline"):
+        try:
+            hh, mm = map(int, rules["morning_deadline"].split(':'))
+            morning_deadline = time(hh, mm)
+        except:
+            pass
+
+    if t < time(9, 0) and not rules.get("allow_flexible_time"):
         return {
             "allowed": False,
             "status": None,
+            "modifier": None,
             "period": "00:00-09:00",
             "message": "Attendance is not taken between 12:00 AM and 9:00 AM."
         }
-    if t < time(9, 35):
-        return {"allowed": True, "status": "Present", "period": "09:00-09:35", "message": "Check-In: Present"}
+        
+    if t < morning_deadline:
+        return {"allowed": True, "status": "FD", "modifier": modifier, "period": f"09:00-{morning_deadline.strftime('%H:%M')}", "message": f"Check-In: FD"}
+        
     if t < time(10, 30):
-        return {"allowed": True, "status": "Late Permission", "period": "09:35-10:30", "message": "Check-In: Late Permission"}
+        return {"allowed": True, "status": "FD", "modifier": modifier or "LP", "period": f"{morning_deadline.strftime('%H:%M')}-10:30", "message": "Check-In: FD (Late)"}
     if t < time(12, 40):
-        return {"allowed": True, "status": "Absent", "period": "10:30-12:40", "message": "Check-In: Absent"}
+        return {"allowed": True, "status": "AB", "modifier": modifier, "period": "10:30-12:40", "message": "Check-In: AB (Too Late)"}
     if t < time(13, 40):
-        return {"allowed": True, "status": "HD", "period": "12:40-13:40", "message": "Check-In: Half Day"}
+        return {"allowed": True, "status": "HD", "modifier": modifier, "period": "12:40-13:40", "message": "Check-In: HD"}
     if t < time(15, 10):
-        return {"allowed": True, "status": "Absent", "period": "13:40-15:10", "message": "Check-In: Absent"}
+        return {"allowed": True, "status": "AB", "modifier": modifier, "period": "13:40-15:10", "message": "Check-In: AB"}
     if t < time(16, 10):
-        return {"allowed": True, "status": "EP", "period": "15:10-16:10", "message": "Check-In: Early Permission"}
+        return {"allowed": True, "status": "FD", "modifier": modifier or "EP", "period": "15:10-16:10", "message": "Check-In: FD (Early)"}
 
     return {
         "allowed": False,
         "status": None,
+        "modifier": None,
         "period": "16:10-24:00",
         "message": "First marking is closed in evening window. Evening marking is only for second mark."
     }
 
 
-def classify_second_mark(first_status, scan_dt):
-    """Return second-mark final status for the day based on first status and time window."""
+def classify_second_mark(first_status, scan_dt, permission=None):
+    """Return second-mark final status for the day based on first status, time window, and permissions."""
     t = scan_dt.time()
     first_status = (first_status or "").strip()
+    
+    rules = {}
+    modifier = None
+    if permission:
+        modifier = permission.modifier or get_effective_policy(permission).get('modifier')
+        rules = get_effective_policy(permission)
 
-    if time(12, 40) <= t < time(13, 40) and first_status in {"Present", "Late Permission"}:
+    if rules.get("allow_flexible_time"):
+        st = rules.get("attendance_status", "FD")
+        return {
+            "allowed": True,
+            "final_status": st,
+            "out_status": st,
+            "modifier": modifier,
+            "period": "Flexible",
+            "message": f"Check-Out: {st} (Flexible Timing)"
+        }
+
+    if time(12, 40) <= t < time(13, 40) and first_status == "FD":
         return {
             "allowed": True,
             "final_status": "HD",
             "out_status": "HD",
+            "modifier": modifier,
             "period": "12:40-13:40",
-            "message": "Check-Out: Half Day"
+            "message": "Check-Out: HD"
         }
 
     if time(16, 10) <= t:
-        if first_status in {"Present", "Late Permission"}:
+        if first_status == "FD":
             return {
                 "allowed": True,
                 "final_status": "FD",
                 "out_status": "FD",
+                "modifier": modifier,
                 "period": "16:10-24:00",
-                "message": "Check-Out: Full Day"
+                "message": "Check-Out: FD"
             }
 
-        if first_status in {"Absent", "HD", "EP"}:
+        if first_status in {"AB", "HD"}:
             return {
                 "allowed": True,
                 "final_status": "HD",
                 "out_status": "HD",
+                "modifier": modifier,
                 "period": "16:10-24:00",
                 "message": "Check-Out: Half Day"
             }
@@ -1428,6 +1788,7 @@ def classify_second_mark(first_status, scan_dt):
             "allowed": True,
             "final_status": "HD",
             "out_status": "HD",
+            "modifier": modifier,
             "period": "16:10-24:00",
             "message": "Check-Out: Half Day"
         }
@@ -1436,6 +1797,7 @@ def classify_second_mark(first_status, scan_dt):
         "allowed": False,
         "final_status": None,
         "out_status": None,
+        "modifier": None,
         "period": None,
         "message": "Second mark ignored in this period."
     }
@@ -1487,17 +1849,7 @@ def check_attendance_status(user_id, scan_time, type, late_permission_approved=F
 def has_approved_permission(user_id, date_str, permission_type=None):
     """Check if faculty has an approved permission for the given date."""
     try:
-        query = PermissionRequest.query.filter_by(
-            user_id=user_id,
-            date=date_str,
-            status='Approved'
-        )
-        
-        if permission_type:
-            query = query.filter(PermissionRequest.type.in_([permission_type, 'custom']))
-        
-        permission = query.first()
-        return bool(permission)
+        return bool(get_approved_permission_request(user_id, date_str, permission_type))
     except Exception as e:
         print(f"Error checking permission: {e}")
         return False
@@ -1681,6 +2033,32 @@ def serve_static(path):
     return send_from_directory('.', path)
 
 # 1. Initialize Database
+@app.route('/api/admin/migrate_db', methods=['GET'])
+def migrate_db():
+    import sqlite3
+    db_path = os.path.join(app.root_path, 'face_attendance.db')
+    try:
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        results = []
+        columns = [
+            ("valid_from", "DATETIME"),
+            ("valid_until", "DATETIME"),
+            ("priority", "INTEGER DEFAULT 0"),
+            ("internal_notes", "VARCHAR(500)")
+        ]
+        for col, col_type in columns:
+            try:
+                c.execute(f"ALTER TABLE permission_request ADD COLUMN {col} {col_type};")
+                results.append(f"Added {col}")
+            except Exception as e:
+                results.append(f"Skipped {col}: {str(e)}")
+        conn.commit()
+        conn.close()
+        return "<br>".join(results)
+    except Exception as e:
+        return str(e)
+
 @app.route('/api/init_db', methods=['POST'])
 def init_db():
     try:
@@ -1933,6 +2311,156 @@ def log_final_device_states(user_id):
         return False
 
 # 3. Login (Credentials) - Auto-detect role from database
+# ============================================
+# OTP AUTHENTICATION & RECOVERY
+# ============================================
+
+def send_otp_email(to_email, otp_code, action):
+    smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+    smtp_port = int(os.getenv('SMTP_PORT', 587))
+    smtp_user = os.getenv('SMTP_USER', 'your-email@gmail.com')
+    smtp_pass = os.getenv('SMTP_PASS', 'your-app-password')
+    
+    if smtp_user == 'your-email@gmail.com':
+        print(f"⚠️ SMTP not configured! Mock sending OTP {otp_code} to {to_email}")
+        return True
+
+    msg = MIMEMultipart()
+    msg['From'] = f"Face Attendance System <{smtp_user}>"
+    msg['To'] = to_email
+    
+    if action == 'PASSWORD_RESET':
+        msg['Subject'] = "Your Password Reset OTP"
+        body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; color: #333;">
+            <h2 style="color: #4F46E5;">Password Reset Request</h2>
+            <p>You have requested to reset your password for the Face Attendance System.</p>
+            <p>Your One-Time Password (OTP) is: <strong style="font-size: 24px; color: #2563EB;">{otp_code}</strong></p>
+            <p>This OTP will expire in 5 minutes.</p>
+            <p>If you did not request this, please ignore this email.</p>
+        </body>
+        </html>
+        """
+    else:
+        msg['Subject'] = "Your Faculty ID Recovery OTP"
+        body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; color: #333;">
+            <h2 style="color: #4F46E5;">Faculty ID Recovery</h2>
+            <p>You have requested to recover your Faculty ID for the Face Attendance System.</p>
+            <p>Your One-Time Password (OTP) is: <strong style="font-size: 24px; color: #2563EB;">{otp_code}</strong></p>
+            <p>This OTP will expire in 5 minutes.</p>
+            <p>If you did not request this, please ignore this email.</p>
+        </body>
+        </html>
+        """
+        
+    msg.attach(MIMEText(body, 'html'))
+    
+    try:
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"SMTP Email Error: {e}")
+        return False
+
+@app.route('/api/auth/forgot-help', methods=['POST'])
+def forgot_help():
+    data = request.json
+    email = data.get('email', '').strip()
+    action = data.get('action', '') # PASSWORD_RESET or ID_RECOVERY
+    
+    if not email or not action:
+        return jsonify({"success": False, "message": "Email and action required"}), 400
+        
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"success": False, "message": "Email not found in our system"}), 404
+        
+    # Generate OTP
+    otp_code = str(random.randint(100000, 999999))
+    expires = datetime.now(pytz.utc) + timedelta(minutes=5)
+    
+    # Store OTP
+    otp_record = OTPVerification(
+        email=email,
+        otp=otp_code,
+        action=action,
+        expires_at=expires
+    )
+    db.session.add(otp_record)
+    db.session.commit()
+    
+    # Send Email
+    sent = send_otp_email(email, otp_code, action)
+    if not sent:
+        return jsonify({"success": False, "message": "Failed to send email. Ensure SMTP is configured."}), 500
+        
+    return jsonify({"success": True, "message": "OTP sent successfully"})
+
+@app.route('/api/auth/verify-otp', methods=['POST'])
+def verify_otp():
+    data = request.json
+    email = data.get('email', '').strip()
+    otp = data.get('otp', '').strip()
+    action = data.get('action', '')
+    
+    if not email or not otp or not action:
+        return jsonify({"success": False, "message": "Missing required fields"}), 400
+        
+    record = OTPVerification.query.filter_by(email=email, otp=otp, action=action, verified=False).order_by(OTPVerification.id.desc()).first()
+    
+    if not record:
+        return jsonify({"success": False, "message": "Invalid OTP"}), 400
+        
+    expires_at_utc = record.expires_at.replace(tzinfo=pytz.utc) if record.expires_at.tzinfo is None else record.expires_at
+    if datetime.now(pytz.utc) > expires_at_utc:
+        return jsonify({"success": False, "message": "OTP has expired"}), 400
+        
+    record.verified = True
+    db.session.commit()
+    
+    user = User.query.filter_by(email=email).first()
+    if action == 'ID_RECOVERY':
+        return jsonify({"success": True, "faculty_id": user.user_id, "message": "OTP verified successfully"})
+        
+    return jsonify({"success": True, "message": "OTP verified successfully"})
+
+@app.route('/api/auth/reset-password', methods=['POST'])
+def reset_password():
+    data = request.json
+    email = data.get('email', '').strip()
+    otp = data.get('otp', '').strip()
+    new_password = data.get('new_password', '')
+    
+    if not email or not otp or not new_password:
+        return jsonify({"success": False, "message": "Missing required fields"}), 400
+        
+    record = OTPVerification.query.filter_by(email=email, otp=otp, action='PASSWORD_RESET', verified=True).order_by(OTPVerification.id.desc()).first()
+    
+    if not record:
+        return jsonify({"success": False, "message": "Session expired or invalid. Please request a new OTP."}), 400
+        
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"success": False, "message": "User not found"}), 404
+        
+    pwd_err = validate_password_policy(new_password, user_id=user.user_id)
+    if pwd_err:
+        return jsonify({"success": False, "message": pwd_err}), 400
+        
+    user.password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    db.session.delete(record) # Clean up used OTP
+    db.session.commit()
+    
+    return jsonify({"success": True, "message": "Password reset successfully. You can now login."})
+
+
 @app.route('/api/login', methods=['POST'])
 def login():
     try:
@@ -1986,6 +2514,7 @@ def login():
                 "id": user.user_id,
                 "user_id": user.user_id,
                 "name": user.name,
+                "email": user.email,
                 "role": user.role
             },
             "needs_face_registration": needs_face
@@ -2112,16 +2641,39 @@ def register_faculty():
         if not admin or admin.role != 'admin':
             return jsonify({"success": False, "message": "Unauthorized. Admin access required."}), 403
 
+        user_id = str(data.get('user_id', '')).strip()
+        name = str(data.get('name', '')).strip()
+        email = str(data.get('email', '')).strip()
+        password = data.get('password', '')
+
+        user_id_error = validate_user_id_policy(user_id, 'Faculty ID')
+        if user_id_error:
+            return jsonify({"success": False, "message": user_id_error}), 400
+
+        if len(name) < 2 or len(name) > 100:
+            return jsonify({"success": False, "message": "Name must be 2-100 characters."}), 400
+            
+        if not email or '@' not in email:
+            return jsonify({"success": False, "message": "A valid Email Address is required."}), 400
+
+        password_error = validate_password_policy(password, user_id=user_id)
+        if password_error:
+            return jsonify({"success": False, "message": password_error}), 400
+
         # Check if faculty already exists
-        if User.query.filter_by(user_id=data['user_id']).first():
+        if User.query.filter_by(user_id=user_id).first():
             return jsonify({"success": False, "message": "Faculty ID already exists"}), 400
+            
+        if User.query.filter_by(email=email).first():
+            return jsonify({"success": False, "message": "Email is already registered to another account"}), 400
 
         # Create faculty user
-        pw_hash = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        pw_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
         new_faculty = User(
-            user_id=data['user_id'],
-            name=data['name'],
+            user_id=user_id,
+            name=name,
+            email=email,
             role='faculty',
             password_hash=pw_hash,
             face_encoding=None  # Faculty must register face on first login
@@ -2133,7 +2685,7 @@ def register_faculty():
         # Audit log
         audit = AuditLog(
             admin_id=admin_id,
-            action=f"Registered new faculty: {data['name']} ({data['user_id']})",
+            action=f"Registered new faculty: {name} ({user_id})",
             timestamp=datetime.now(pytz.utc)
         )
         db.session.add(audit)
@@ -2141,7 +2693,7 @@ def register_faculty():
 
         return jsonify({
             "success": True,
-            "message": f"Faculty '{data['name']}' registered successfully. They must capture face on first login.",
+            "message": f"Faculty '{name}' registered successfully. They must capture face on first login.",
             "faculty": {
                 "user_id": new_faculty.user_id,
                 "name": new_faculty.name,
@@ -2604,7 +3156,7 @@ def faculty_self_register():
     """
     data = request.json
     try:
-        user_id = data.get('user_id', '').strip().upper()
+        user_id = data.get('user_id', '').strip()
         name = data.get('name', '').strip()
         email = data.get('email', '').strip()
         password = data.get('password', '')
@@ -2614,11 +3166,16 @@ def faculty_self_register():
         if not all([user_id, name, email, password, face_image]):
             return jsonify({"success": False, "message": "All fields required: user_id, name, email, password, face_image"}), 400
 
-        if len(password) < 6:
-            return jsonify({"success": False, "message": "Password must be at least 6 characters"}), 400
+        user_id_error = validate_user_id_policy(user_id)
+        if user_id_error:
+            return jsonify({"success": False, "message": user_id_error}), 400
+            
+        if '@' not in email:
+            return jsonify({"success": False, "message": "A valid Email Address is required"}), 400
 
-        if len(user_id) < 3 or len(user_id) > 20:
-            return jsonify({"success": False, "message": "User ID must be 3-20 characters"}), 400
+        password_error = validate_password_policy(password, user_id=user_id)
+        if password_error:
+            return jsonify({"success": False, "message": password_error}), 400
 
         if len(name) < 2 or len(name) > 100:
             return jsonify({"success": False, "message": "Name must be 2-100 characters"}), 400
@@ -2791,6 +3348,13 @@ def recognize():
         else:
             print(f"✗ No face match found (below threshold of 0.45)")
 
+        now_utc = datetime.now(pytz.utc)
+        local_tz = pytz.timezone('Asia/Kolkata')
+        now_local = now_utc.astimezone(local_tz)
+        today_str = now_local.strftime('%Y-%m-%d')
+        approved_permission = get_approved_permission_request(best_match_id, today_str) if best_match_id else None
+        approved_permission_type = normalize_permission_type_code(approved_permission.type) if approved_permission else None
+
         # --- Location Check (Only for Registered Users) ---
         user_loc = data.get('location')
         if not user_loc or not isinstance(user_loc, dict):
@@ -2811,7 +3375,19 @@ def recognize():
             # 🔴 FIXED: If user is registered and location enforcement is enabled, enforce boundary check
             # Apply GPS accuracy buffer to prevent false-positive IN BOUNDS
             effective_radius_m = (ALLOWED_RADIUS_KM * 1000) - GPS_ACCURACY_BUFFER_M
-            if LOCATION_ENFORCEMENT_ENABLED and best_match_id and dist_m > effective_radius_m:
+            rules = {}
+            if approved_permission and approved_permission.effective_policy:
+                import json
+                try:
+                    rules = json.loads(approved_permission.effective_policy)
+                except:
+                    pass
+            
+            location_override_allowed = bool(
+                rules.get("allow_any_location") or not rules.get("require_gps", True) or not rules.get("require_geofence", True) or 
+                (approved_permission and approved_permission_type != 'full_day_absence')
+            )
+            if LOCATION_ENFORCEMENT_ENABLED and best_match_id and dist_m > effective_radius_m and not location_override_allowed:
                  return jsonify({
                      "success": False,
                      "error_code": "OUT_OF_BOUNDS",
@@ -2845,15 +3421,6 @@ def recognize():
 
             # Auto-Mark Attendance if recognized
             # Use UTC for storage, Local for logic
-            now_utc = datetime.now(pytz.utc)
-            # Assuming 'Asia/Kolkata' or similar based on name 'Krishna', but let's default to a config or UTC+5:30 for now or just generic local.
-            # Ideally, use pytz.timezone('Asia/Kolkata').localize(datetime.now())
-            # For this 'deployment ready' request, I'll use a fixed standard offset or server local if simpler, but user asked for Timezones.
-            # FIX: Convert UTC to Local for Display
-            local_tz = pytz.timezone('Asia/Kolkata') # Example, or use 'UTC'
-            now_local = now_utc.astimezone(local_tz)
-
-            today_str = now_local.strftime('%Y-%m-%d')
             time_str = now_local.strftime('%H:%M:%S')
 
             # --- 4. Holiday Check ---
@@ -2892,7 +3459,7 @@ def recognize():
                          msg = f"Wait {int(min_gap-time_diff)}s to Checkout"
                          log_type = "cooldown"
                     else:
-                        second = classify_second_mark(today_log.check_in_status or today_log.status, now_local)
+                        second = classify_second_mark(today_log.check_in_status or today_log.status, now_local, approved_permission)
                         if not second["allowed"]:
                             log_type = "ignored"
                             msg = second["message"]
@@ -2903,10 +3470,11 @@ def recognize():
                             today_log.check_out_status = second["out_status"]
                             today_log.check_out_period = second["period"]
                             today_log.status = second["final_status"]
+                            today_log.modifier = second.get("modifier")
                             db.session.commit()
                             msg = second["message"]
             else:
-                first = classify_first_mark(now_local)
+                first = classify_first_mark(now_local, approved_permission)
                 if not first["allowed"]:
                     return jsonify({
                         "success": True,
@@ -2923,9 +3491,6 @@ def recognize():
                         }
                     })
 
-                # Check for approved permissions
-                has_permission = has_approved_permission(user.user_id, today_str)
-
                 new_log = AttendanceLog(
                     user_id=user.user_id,
                     date=today_str,
@@ -2937,7 +3502,8 @@ def recognize():
                     check_out_period=None,
                     timestamp_in=now_utc,
                     status=first["status"],
-                    late_permission_approved=has_permission
+                    modifier=first.get("modifier"),
+                    late_permission_approved=bool(approved_permission)
                 )
                 db.session.add(new_log)
                 db.session.commit()
@@ -3501,7 +4067,8 @@ def admin_create_permission():
             return jsonify({"success": False, "message": "Unauthorized. Active admin required."}), 403
 
         user_id = (data.get('user_id') or '').strip()
-        perm_type = (data.get('type') or '').strip().upper()
+        perm_type = normalize_permission_type_code(data.get('type'))
+        custom_type = (data.get('custom_type') or '').strip()
         date_str = (data.get('date') or datetime.now().strftime('%Y-%m-%d')).strip()
         start_time = normalize_time_hhmm(data.get('start_time'))
         end_time = normalize_time_hhmm(data.get('end_time'))
@@ -3509,9 +4076,15 @@ def admin_create_permission():
         custom_days = normalize_custom_days(data.get('custom_days'))
         reason = (data.get('reason') or '').strip()
         status = (data.get('status') or 'Pending').strip().title()
+        attendance_result = (data.get('attendance_result') or '').strip()
+        priority = (data.get('priority') or '').strip()
+        overrides = data.get('overrides') or []
+        admin_notes = (data.get('admin_notes') or '').strip()
 
-        if not user_id or perm_type not in {'LP', 'EP'}:
-            return jsonify({"success": False, "message": "Valid user_id and type (LP/EP) are required."}), 400
+        if not user_id or perm_type not in ADMIN_PERMISSION_TYPES:
+            return jsonify({"success": False, "message": "Valid user_id and permission type are required."}), 400
+        if perm_type == 'custom' and not custom_type:
+            return jsonify({"success": False, "message": "custom_type is required for custom permissions."}), 400
         if status not in {'Pending', 'Approved', 'Rejected'}:
             return jsonify({"success": False, "message": "status must be Pending, Approved, or Rejected."}), 400
 
@@ -3538,21 +4111,34 @@ def admin_create_permission():
         permission = PermissionRequest(
             user_id=user_id,
             type=perm_type,
+            custom_type=custom_type if perm_type == 'custom' else None,
             date=date_str,
             start_time=start_time,
             end_time=end_time,
             is_full_day=is_full_day,
             custom_days=custom_days,
             reason=reason,
-            status=status
+            status=status,
+            admin_notes=admin_notes
         )
         db.session.add(permission)
+
+        display_type = custom_type if perm_type == 'custom' and custom_type else perm_type.replace('_', ' ').title()
+        override_text = ', '.join([str(item) for item in overrides]) if isinstance(overrides, list) else str(overrides or '')
+        policy_detail = []
+        if attendance_result:
+            policy_detail.append(f"result {attendance_result}")
+        if priority:
+            policy_detail.append(f"priority {priority}")
+        if override_text:
+            policy_detail.append(f"overrides {override_text}")
+        policy_suffix = f" Policy: {'; '.join(policy_detail)}." if policy_detail else ''
 
         db.session.add(AdminAuditLog(
             action='permission_created',
             admin_id=admin_id,
             target_id=user_id,
-            description=f"Permission {perm_type} created for {user_id} on {date_str} ({'Full Day' if is_full_day else f'{start_time}-{end_time}'}) with status {status}."
+            description=f"Permission {display_type} created for {user_id} on {date_str} ({'Full Day' if is_full_day else f'{start_time}-{end_time}'}) with status {status}.{policy_suffix}"
         ))
         db.session.commit()
 
@@ -3563,13 +4149,15 @@ def admin_create_permission():
                 "id": permission.id,
                 "user_id": permission.user_id,
                 "type": permission.type,
+                "custom_type": permission.custom_type,
                 "date": permission.date,
                 "start_time": permission.start_time,
                 "end_time": permission.end_time,
                 "is_full_day": bool(permission.is_full_day),
                 "custom_days": permission.custom_days,
                 "reason": permission.reason,
-                "status": permission.status
+                "status": permission.status,
+                "admin_notes": permission.admin_notes
             }
         }), 201
     except Exception as e:
@@ -3612,16 +4200,159 @@ def admin_list_permissions():
                     "name": user_map[p.user_id].name if p.user_id in user_map else p.user_id,
                     "role": user_map[p.user_id].role if p.user_id in user_map else '-',
                     "type": p.type,
+                    "custom_type": p.custom_type,
                     "date": p.date,
                     "start_time": p.start_time,
                     "end_time": p.end_time,
                     "is_full_day": bool(p.is_full_day),
                     "custom_days": p.custom_days,
                     "reason": p.reason,
-                    "status": p.status
+                    "status": p.status,
+                    "document_path": p.document_path,
+                    "document_url": get_permission_document_url(p.document_path),
+                    "approved_by": p.approved_by,
+                    "admin_notes": p.admin_notes,
+                    "created_at": p.created_at.isoformat() if p.created_at else None,
+                    "updated_at": p.updated_at.isoformat() if p.updated_at else None
                 }
                 for p in permissions
             ]
+        }), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/admin/analytics/permissions', methods=['GET'])
+def admin_permission_analytics():
+    """Returns analytics for permission requests and abuse detection."""
+    try:
+        admin_id = request.args.get('admin_id', '').strip()
+        if not require_active_admin(admin_id):
+            return jsonify({"success": False, "message": "Unauthorized"}), 403
+
+        from datetime import datetime, timedelta
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+
+        # Get all approved permissions in the last 30 days
+        recent_perms = PermissionRequest.query.filter(
+            PermissionRequest.status == 'Approved',
+            PermissionRequest.created_at >= thirty_days_ago
+        ).all()
+
+        type_counts = {}
+        user_counts = {}
+        
+        for p in recent_perms:
+            t = p.modifier or p.type
+            type_counts[t] = type_counts.get(t, 0) + 1
+            
+            uid = p.user_id
+            if uid not in user_counts:
+                user_counts[uid] = {}
+            user_counts[uid][t] = user_counts[uid].get(t, 0) + 1
+
+        total_perms = len(recent_perms)
+        top_permissions = []
+        if total_perms > 0:
+            for k, v in sorted(type_counts.items(), key=lambda item: item[1], reverse=True):
+                top_permissions.append({
+                    "type": k,
+                    "count": v,
+                    "percentage": round((v / total_perms) * 100, 1)
+                })
+
+        # Abuse Detection Flags
+        abuse_flags = []
+        for uid, counts in user_counts.items():
+            if counts.get('LP', 0) > 5:
+                abuse_flags.append({"user_id": uid, "reason": f"High Late Arrivals: {counts['LP']} in 30 days"})
+            if counts.get('WFH', 0) > 4:
+                abuse_flags.append({"user_id": uid, "reason": f"High WFH: {counts['WFH']} in 30 days"})
+
+        return jsonify({
+            "success": True,
+            "top_permissions": top_permissions,
+            "abuse_flags": abuse_flags
+        }), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/admin/simulate_policy', methods=['POST'])
+def simulate_policy():
+    """Simulates a policy against provided check-in/out times."""
+    try:
+        data = request.json or {}
+        admin_id = data.get('admin_id')
+        if not require_active_admin(admin_id):
+            return jsonify({"success": False, "message": "Unauthorized"}), 403
+            
+        time_in_str = data.get('time_in') # e.g. "09:40:00"
+        time_out_str = data.get('time_out') # e.g. "15:00:00"
+        
+        effective_policy = data.get('effective_policy', {})
+        modifier = data.get('modifier', 'Simulated')
+        
+        # Create dummy attendance log
+        from datetime import datetime, date, time
+        today_date = str(date.today())
+        
+        # We need fake mock objects for classify functions
+        class DummyPerm:
+            def __init__(self, pol):
+                import json
+                self.effective_policy = json.dumps(pol)
+                self.modifier = modifier
+        
+        perm = DummyPerm(effective_policy)
+        
+        # Dummy Log
+        class DummyLog:
+            def __init__(self, tin, tout):
+                self.date = today_date
+                self.first_mark_time = tin
+                self.second_mark_time = tout
+                self.status = "Missing"
+                self.modifier = None
+        
+        t_in = None
+        if time_in_str:
+            parts = time_in_str.split(':')
+            t_in = time(int(parts[0]), int(parts[1]), 0)
+            
+        t_out = None
+        if time_out_str:
+            parts = time_out_str.split(':')
+            t_out = time(int(parts[0]), int(parts[1]), 0)
+            
+        log = DummyLog(t_in, t_out)
+        
+        # We can just apply the rules locally
+        base_status = "FD"
+        if t_in:
+            deadline_str = effective_policy.get('morning_deadline', '09:45')
+            dp = deadline_str.split(':')
+            deadline = time(int(dp[0]), int(dp[1]), 0)
+            if t_in > deadline:
+                base_status = "HD"
+                
+        if t_out:
+            edeadline_str = effective_policy.get('evening_deadline', '16:10')
+            ep = edeadline_str.split(':')
+            edeadline = time(int(ep[0]), int(ep[1]), 0)
+            if t_out < edeadline:
+                base_status = "HD"
+                
+        if not t_in and not t_out:
+            base_status = "AB"
+            
+        # Overrides
+        if effective_policy.get('attendance_status'):
+            base_status = effective_policy.get('attendance_status')
+            
+        final_result = f"{base_status} [{modifier}]" if modifier else base_status
+        
+        return jsonify({
+            "success": True,
+            "result": final_result
         }), 200
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
@@ -3651,6 +4382,31 @@ def admin_decide_permission(permission_id):
             existing_reason = permission.reason or ''
             permission.reason = (existing_reason + f" | Admin note: {decision_reason}").strip(' |')
 
+        if decision == 'Approved':
+            # Extract Advanced Policy Fields
+            if 'rules_override' in data or 'effective_policy' in data:
+                import json
+                effective_policy = data.get('effective_policy') or data.get('rules_override')
+                if effective_policy is not None:
+                    permission.effective_policy = json.dumps(effective_policy)
+                    
+            if 'modifier' in data:
+                permission.modifier = data.get('modifier')
+                
+            if 'valid_from' in data and data.get('valid_from'):
+                from datetime import datetime
+                permission.valid_from = datetime.fromisoformat(data.get('valid_from'))
+                
+            if 'valid_until' in data and data.get('valid_until'):
+                from datetime import datetime
+                permission.valid_until = datetime.fromisoformat(data.get('valid_until'))
+                
+            if 'priority' in data:
+                permission.priority = int(data.get('priority'))
+                
+            if 'internal_notes' in data:
+                permission.internal_notes = data.get('internal_notes')
+
         db.session.add(AdminAuditLog(
             action='permission_decision',
             admin_id=admin_id,
@@ -3659,6 +4415,15 @@ def admin_decide_permission(permission_id):
         ))
         create_permission_decision_chat_message(permission, admin_id, decision, decision_reason or None)
         db.session.commit()
+        
+        if decision == 'Approved':
+            tokens = FCMToken.query.filter_by(user_id=permission.user_id).all()
+            mod_text = permission.modifier or "Exception"
+            time_text = ""
+            if permission.valid_until:
+                time_text = f" Allowed till {permission.valid_until.strftime('%I:%M %p')}."
+            for t in tokens:
+                send_fcm_notification(t.fcm_token, f"{mod_text} Approved", f"Your {permission.type.replace('_', ' ')} request was approved.{time_text}")
 
         return jsonify({
             "success": True,
@@ -3724,28 +4489,67 @@ def get_user_permissions(user_id):
     try:
         permissions = PermissionRequest.query.filter_by(user_id=user_id).order_by(PermissionRequest.created_at.desc()).all()
         
+        from datetime import datetime, timedelta
+        now = datetime.utcnow()
+        
+        result_perms = []
+        for p in permissions:
+            # Check Attendance Used
+            used = False
+            if p.status == 'Approved' and p.modifier:
+                log = AttendanceLog.query.filter_by(user_id=p.user_id, date=p.date).first()
+                if log and log.modifier and p.modifier in log.modifier:
+                    used = True
+                    
+            # Check Completed
+            completed = False
+            try:
+                date_dt = datetime.strptime(p.date, "%Y-%m-%d")
+                if now.date() > date_dt.date() or (p.valid_until and now > p.valid_until):
+                    completed = True
+            except:
+                pass
+                
+            archived = False
+            if p.created_at and (now - p.created_at).days > 7:
+                archived = True
+
+            timeline_stages = {
+                "submitted": True,
+                "seen": p.status in ['Approved', 'Rejected'] or bool(p.updated_at),
+                "approved": p.status == 'Approved',
+                "policy_generated": bool(p.effective_policy),
+                "attendance_used": used,
+                "completed": completed,
+                "archived": archived
+            }
+
+            result_perms.append({
+                "id": p.id,
+                "user_id": p.user_id,
+                "type": p.type,
+                "custom_type": p.custom_type,
+                "date": p.date,
+                "start_time": p.start_time,
+                "end_time": p.end_time,
+                "is_full_day": p.is_full_day,
+                "reason": p.reason,
+                "document_path": p.document_path,
+                "document_url": get_permission_document_url(p.document_path),
+                "status": p.status,
+                "admin_notes": p.admin_notes,
+                "approved_by": p.approved_by,
+                "modifier": p.modifier,
+                "valid_from": p.valid_from.isoformat() if p.valid_from else None,
+                "valid_until": p.valid_until.isoformat() if p.valid_until else None,
+                "timeline_stages": timeline_stages,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+                "updated_at": p.updated_at.isoformat() if p.updated_at else None
+            })
+
         return jsonify({
             "success": True,
-            "permissions": [
-                {
-                    "id": p.id,
-                    "user_id": p.user_id,
-                    "type": p.type,
-                    "custom_type": p.custom_type,
-                    "date": p.date,
-                    "start_time": p.start_time,
-                    "end_time": p.end_time,
-                    "is_full_day": p.is_full_day,
-                    "reason": p.reason,
-                    "document_path": p.document_path,
-                    "status": p.status,
-                    "admin_notes": p.admin_notes,
-                    "approved_by": p.approved_by,
-                    "created_at": p.created_at.isoformat() if p.created_at else None,
-                    "updated_at": p.updated_at.isoformat() if p.updated_at else None
-                }
-                for p in permissions
-            ]
+            "permissions": result_perms
         }), 200
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
@@ -3867,12 +4671,14 @@ def mark_attendance():
     msg = ""
     log_type = "IN"
 
+    approved_permission = get_approved_permission_request(user_id, today_str)
+
     if today_log:
         if today_log.time_out:
             return jsonify({"success": False, "message": "User already completed attendance for today"}), 400
         else:
              # Check out using configured second-mark rules
-             second = classify_second_mark(today_log.check_in_status or today_log.status, now_local)
+             second = classify_second_mark(today_log.check_in_status or today_log.status, now_local, approved_permission)
              if not second["allowed"]:
                  return jsonify({"success": False, "message": second["message"]}), 400
 
@@ -3882,11 +4688,12 @@ def mark_attendance():
              today_log.check_out_status = second["out_status"]
              today_log.check_out_period = second["period"]
              today_log.status = second["final_status"]
+             today_log.modifier = second.get("modifier")
              msg = second["message"]
              db.session.commit()
     else:
         # Check in using configured first-mark rules
-        first = classify_first_mark(now_local)
+        first = classify_first_mark(now_local, approved_permission)
         if not first["allowed"]:
             return jsonify({"success": False, "message": first["message"]}), 400
 
@@ -3898,7 +4705,8 @@ def mark_attendance():
             check_in_status=first["status"],
             check_in_period=first["period"],
             timestamp_in=now_utc,
-            status=first["status"]
+            status=first["status"],
+            modifier=first.get("modifier")
         )
         db.session.add(new_log)
         db.session.commit()
@@ -3924,6 +4732,78 @@ def mark_attendance():
     })
 
 # 6. Get Dashboard Data
+@app.route('/api/admin/dashboard_tables', methods=['GET'])
+def admin_dashboard_tables():
+    try:
+        today_str = datetime.now(pytz.utc).astimezone(pytz.timezone('Asia/Kolkata')).strftime('%Y-%m-%d')
+        
+        # 1. Recent Check-Ins for today (or last 50 if today is empty)
+        logs = AttendanceLog.query.filter_by(date=today_str).order_by(AttendanceLog.timestamp_in.desc()).limit(50).all()
+        
+        checkins = []
+        for log in logs:
+            user = User.query.filter_by(user_id=log.user_id).first()
+            if not user: continue
+            
+            # Format datetime safely
+            dt = datetime.strptime(log.date, '%Y-%m-%d')
+            day_str = dt.strftime('%A')
+            date_str = dt.strftime('%d %b %Y')
+            
+            checkins.append({
+                'id': log.id,
+                'user_id': log.user_id,
+                'name': user.name,
+                'role': user.role,
+                'date': date_str,
+                'day': day_str,
+                'period': log.check_in_period or '-',
+                'time_in': log.time_in or '—',
+                'time_out': log.time_out or '—',
+                'check_in_status': log.check_in_status or '-',
+                'check_out_status': log.check_out_status or '-',
+                'status': log.status
+            })
+            
+        # 2. Exception Policies (Active / Pending Permissions)
+        # We fetch active (Approved) for today or future, and all Pending
+        perms = PermissionRequest.query.filter(
+            db.or_(
+                PermissionRequest.status == 'Pending',
+                db.and_(PermissionRequest.status == 'Approved', PermissionRequest.date >= today_str)
+            )
+        ).order_by(PermissionRequest.created_at.desc()).limit(50).all()
+        
+        policies = []
+        for p in perms:
+            user = User.query.filter_by(user_id=p.user_id).first()
+            if not user: continue
+            
+            policies.append({
+                'id': p.id,
+                'user_id': p.user_id,
+                'name': user.name,
+                'type': p.type,
+                'custom_type': p.custom_type,
+                'date': p.date,
+                'start_time': p.start_time,
+                'end_time': p.end_time,
+                'is_full_day': p.is_full_day,
+                'custom_days': p.custom_days,
+                'status': p.status,
+                'reason': p.reason,
+                'admin_notes': p.admin_notes
+            })
+            
+        return jsonify({
+            'success': True,
+            'checkins': checkins,
+            'policies': policies
+        })
+    except Exception as e:
+        print(f"Error in dashboard_tables: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 @app.route('/api/dashboard/<role>/<user_id>', methods=['GET'])
 def get_dashboard(role, user_id):
     # Use UTC to filter for "Today" requires conversion
@@ -4398,7 +5278,7 @@ def filter_report_columns(report_data, report_type, selected_columns):
         'summary': {
             'user': ['Staff ID', 'Name', 'Role'],
             'date': [],
-            'status': ['Present Days', 'Absent Days', 'Late Days', 'Attendance %'],
+            'status': ['FD', 'HD', 'AB', 'LV', 'Attendance %'],
             'location': [],
             'checkin': [],
             'period': ['Attendance %']
@@ -4406,10 +5286,10 @@ def filter_report_columns(report_data, report_type, selected_columns):
         'detailed': {
             'user': ['Staff ID', 'Name', 'Role'],
             'date': ['Date'],
-            'status': ['Day Status', 'Check-in Status', 'Check-out Status'],
+            'status': ['Day Status', 'Exception'],
             'location': [],
-            'checkin': ['Check-in', 'Check-out'],
-            'period': ['Period']
+            'checkin': ['Check-In', 'Check-Out'],
+            'period': ['Morning Session', 'Evening Session']
         },
         'violations': {
             'user': ['Staff ID', 'Name'],
@@ -4422,10 +5302,10 @@ def filter_report_columns(report_data, report_type, selected_columns):
         'compliance': {
             'user': ['Staff ID', 'Name', 'Role'],
             'date': [],
-            'status': ['Compliance %', 'Status'],
+            'status': ['Compliance %'],
             'location': [],
             'checkin': [],
-            'period': ['Working Days', 'Present', 'Late', 'Absent']
+            'period': ['Working Days', 'FD', 'HD', 'LV', 'AB']
         }
     }
 
@@ -4731,8 +5611,58 @@ def export_report():
         return jsonify({"error": f"Export failed: {str(e)}"}), 500
 
 
+MODIFIER_NAMES = {
+    'LP': 'Late Arrival',
+    'EP': 'Early Permission',
+    'WFH': 'Work From Home',
+    'OD': 'On Duty',
+    'OUT': 'Outdoor Duty',
+    'HD-M': 'Half Day (Morning)',
+    'HD-A': 'Half Day (Afternoon)',
+    'LV': 'Full Day Leave',
+    'ML': 'Medical Leave',
+    'EMG': 'Emergency',
+    'ECE': 'Extended Campus Exit'
+}
+
+def evaluate_sessions(log):
+    """
+    Evaluates a single AttendanceLog and returns:
+    (Morning Session, Evening Session, Day Status, Exception Name)
+    """
+    mod = log.modifier
+    
+    # Morning Logic
+    morning_waived = mod in ['HD-M', 'LV', 'ML', 'EMG']
+    if morning_waived:
+        morning = 'Waived'
+    else:
+        morning = 'Present' if (log.time_in or log.status in ['FD', 'Present', 'Late Permission', 'HD']) else 'Absent'
+        
+    # Evening Logic
+    evening_waived = mod in ['EP', 'HD-A', 'LV', 'ML', 'EMG']
+    if evening_waived:
+        evening = 'Waived'
+    else:
+        # Evening is present if time_out exists or if FD status was achieved. 
+        # (Assuming missing evening results in HD or AB)
+        evening = 'Present' if (log.time_out or log.status == 'FD') else 'Absent'
+
+    # Day Status Logic
+    if mod in ['LV', 'ML', 'EMG'] or log.status == 'LV':
+        day_status = 'LV'
+    elif morning in ['Present', 'Waived'] and evening in ['Present', 'Waived'] and not (morning == 'Waived' and evening == 'Waived'):
+        day_status = 'FD'
+    elif (morning in ['Present', 'Waived'] and evening == 'Absent') or (morning == 'Absent' and evening in ['Present', 'Waived']):
+        day_status = 'HD'
+    else:
+        day_status = 'AB'
+
+    exception_name = MODIFIER_NAMES.get(mod, mod) if mod else '-'
+    return morning, evening, day_status, exception_name
+
 def generate_summary_report(logs, start_dt, end_dt, include_timestamps=True):
-    """Generate summary-level attendance report"""
+    """Generate summary-level attendance report (Final Day Outcomes)"""
     users_data = {}
 
     for log in logs:
@@ -4745,24 +5675,18 @@ def generate_summary_report(logs, start_dt, end_dt, include_timestamps=True):
                 'user_id': log.user_id,
                 'name': user.name,
                 'role': user.role,
-                'days_present': 0,
-                'days_absent': 0,
-                'days_late': 0,
+                'FD': 0,
+                'HD': 0,
+                'AB': 0,
+                'LV': 0,
                 'total_records': 0
             }
 
         users_data[log.user_id]['total_records'] += 1
 
-        # Safely check status
-        status = log.status if log.status else 'Unknown'
-        has_time_in = log.time_in is not None and str(log.time_in).strip() != ''
-
-        if status == 'Absent' or not has_time_in:
-            users_data[log.user_id]['days_absent'] += 1
-        elif status == 'Late Permission':
-            users_data[log.user_id]['days_late'] += 1
-        else:
-            users_data[log.user_id]['days_present'] += 1
+        _, _, day_status, _ = evaluate_sessions(log)
+        if day_status in users_data[log.user_id]:
+            users_data[log.user_id][day_status] += 1
 
     # Calculate working days
     total_days = (end_dt - start_dt).days + 1
@@ -4778,16 +5702,20 @@ def generate_summary_report(logs, start_dt, end_dt, include_timestamps=True):
     # Build report
     report_data = []
     for uid, data in users_data.items():
-        present = data['days_present']
-        attendance_pct = round((present / working_days * 100), 1) if working_days > 0 else 0
+        # Attendance % includes FD, HD(0.5), and LV (approved leave is compliant)
+        compliant_days = data['FD'] + (data['HD'] * 0.5) + data['LV']
+        attendance_pct = round((compliant_days / working_days * 100), 1) if working_days > 0 else 0
+        # Cap at 100% just in case
+        attendance_pct = min(100.0, attendance_pct)
 
         row = {
             'Staff ID': uid,
             'Name': data['name'],
             'Role': data['role'],
-            'Present Days': present,
-            'Absent Days': data['days_absent'],
-            'Late Days': data['days_late'],
+            'FD': data['FD'],
+            'HD': data['HD'],
+            'AB': data['AB'],
+            'LV': data['LV'],
             'Attendance %': f"{attendance_pct}%"
         }
         report_data.append(row)
@@ -4796,32 +5724,24 @@ def generate_summary_report(logs, start_dt, end_dt, include_timestamps=True):
 
 
 def generate_detailed_report(logs, include_timestamps=True):
-    """Generate detailed attendance log report"""
+    """Generate detailed attendance log report (Session-Based)"""
     report_data = []
     for log in logs:
         user = User.query.filter_by(user_id=log.user_id).first()
 
-        # Determine check-in status based on actual check-in
-        if log.time_in:
-            # User checked in - use check_in_status or fall back to check calendar-based status (P/LP/HD/EP)
-            status_in = log.check_in_status if (hasattr(log, 'check_in_status') and log.check_in_status) else 'Present'
-        else:
-            # No check-in time recorded
-            status_in = 'Absent'
-
-        status_out = log.check_out_status if hasattr(log, 'check_out_status') and log.check_out_status else '-'
+        morning, evening, day_status, exception_name = evaluate_sessions(log)
 
         row = {
-            'Date': log.date,
             'Staff ID': log.user_id,
             'Name': user.name if user else 'Unknown',
             'Role': user.role if user else 'N/A',
-            'Check-in': log.time_in if log.time_in else 'Absent',
-            'Check-out': log.time_out or '-',
-            'Check-in Status': status_in,
-            'Check-out Status': status_out,
-            'Day Status': log.status,
-            'Period': f"{log.check_in_period or '-'} / {log.check_out_period or '-'}"
+            'Date': log.date,
+            'Morning Session': morning,
+            'Evening Session': evening,
+            'Day Status': day_status,
+            'Exception': exception_name,
+            'Check-In': log.time_in or '-',
+            'Check-Out': log.time_out or '-'
         }
         report_data.append(row)
 
@@ -4832,17 +5752,31 @@ def generate_violations_report(logs, include_timestamps=True):
     """Generate violations-only report (absences, lates, out-of-bounds)"""
     report_data = []
     for log in logs:
-        # Skip non-violation day statuses
-        if log.status in ['FD', 'Present', 'Late Permission', 'HD']:
+        _, _, day_status, exception_name = evaluate_sessions(log)
+        
+        # Determine violation
+        violation_type = None
+        if log.status == 'Out-of-Bounds':
+            violation_type = 'Out-of-Bounds'
+        elif log.status == 'Late':
+            violation_type = 'Late Arrival'
+        elif not log.time_in or log.status == 'Absent' or day_status == 'AB':
+            if exception_name not in ['Full Day Leave', 'Medical Leave', 'Emergency']:
+                violation_type = 'Absent'
+        elif exception_name == 'Late Arrival':
+            violation_type = 'Late Arrival (Approved)'
+        elif day_status == 'HD' and exception_name == '-':
+            violation_type = 'Missing Session (HD)'
+
+        if not violation_type:
             continue
 
         user = User.query.filter_by(user_id=log.user_id).first()
-        violation_type = 'Absent' if not log.time_in else (log.status or 'Other')
 
         row = {
-            'Date': log.date,
             'Staff ID': log.user_id,
             'Name': user.name if user else 'Unknown',
+            'Date': log.date,
             'Violation Type': violation_type,
             'Check-in': log.time_in or '-',
             'Severity': 'High' if violation_type == 'Absent' else 'Medium'
@@ -4871,26 +5805,31 @@ def generate_compliance_report(logs, start_dt, end_dt):
 
     report_data = []
     for user in all_users:
-        # Count records for this user in date range
         user_logs = [l for l in logs if l.user_id == user.user_id]
 
-        present_days = sum(1 for l in user_logs if l.status in ['FD', 'HD', 'Present', 'Late Permission', 'EP'])
-        late_days = sum(1 for l in user_logs if (hasattr(l, 'check_in_status') and l.check_in_status == 'Late Permission'))
-        absent_days = sum(1 for l in user_logs if l.status == 'Absent' or not l.time_in)
+        fd, hd, ab, lv = 0, 0, 0, 0
+        for log in user_logs:
+            _, _, day_status, _ = evaluate_sessions(log)
+            if day_status == 'FD': fd += 1
+            elif day_status == 'HD': hd += 1
+            elif day_status == 'AB': ab += 1
+            elif day_status == 'LV': lv += 1
 
-        compliance_pct = round((present_days / working_days * 100), 1) if working_days > 0 else 0
-        compliance_status = 'Compliant' if compliance_pct >= 80 else ('Non-Compliant' if compliance_pct < 60 else 'At Risk')
+        # Compliance formula: (FD + 0.5*HD + LV) / Working Days
+        compliant_score = fd + (hd * 0.5) + lv
+        compliance_pct = round((compliant_score / working_days * 100), 1) if working_days > 0 else 0
+        compliance_pct = min(100.0, compliance_pct)
 
         row = {
             'Staff ID': user.user_id,
             'Name': user.name,
             'Role': user.role,
             'Working Days': working_days,
-            'Present': present_days,
-            'Late': late_days,
-            'Absent': absent_days,
-            'Compliance %': f"{compliance_pct}%",
-            'Status': compliance_status
+            'FD': fd,
+            'HD': hd,
+            'LV': lv,
+            'AB': ab,
+            'Compliance %': f"{compliance_pct}%"
         }
         report_data.append(row)
 
@@ -5069,6 +6008,150 @@ def get_user_details(user_id):
         }), 200
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/users/<user_id>/profile', methods=['PUT'])
+def update_user_profile(user_id):
+    try:
+        data = request.json
+        new_user_id = data.get('user_id', '').strip()
+        name = data.get('name', '').strip()
+        email = data.get('email', '').strip()
+        password = data.get('password', '')
+
+        user = User.query.filter_by(user_id=user_id).first()
+        if not user:
+            return jsonify({"success": False, "message": "User not found"}), 404
+
+        # Validate new user_id if changed
+        if new_user_id and new_user_id != user.user_id:
+            existing = User.query.filter_by(user_id=new_user_id).first()
+            if existing:
+                return jsonify({"success": False, "message": "User ID already exists"}), 400
+            user_id_err = validate_user_id_policy(new_user_id)
+            if user_id_err: return jsonify({"success": False, "message": user_id_err}), 400
+
+        # Validate new email if changed
+        if email and email != user.email:
+            existing = User.query.filter_by(email=email).first()
+            if existing:
+                return jsonify({"success": False, "message": "Email already exists"}), 400
+
+        # Update core fields
+        if name: user.name = name
+        if email: user.email = email
+        if password:
+            pwd_err = validate_password_policy(password, user_id=(new_user_id or user.user_id))
+            if pwd_err: return jsonify({"success": False, "message": pwd_err}), 400
+            user.password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+        # Cascade update if User ID changed
+        if new_user_id and new_user_id != user.user_id:
+            # We must update all foreign keys manually before changing the primary key/unique constraint
+            old_id = user.user_id
+            AttendanceLog.query.filter_by(user_id=old_id).update({"user_id": new_user_id})
+            PermissionRequest.query.filter_by(user_id=old_id).update({"user_id": new_user_id})
+            Message.query.filter_by(sender_id=old_id).update({"sender_id": new_user_id})
+            Message.query.filter_by(recipient_id=old_id).update({"recipient_id": new_user_id})
+            FCMToken.query.filter_by(user_id=old_id).update({"user_id": new_user_id})
+            DeviceStateLog.query.filter_by(user_id=old_id).update({"user_id": new_user_id})
+            LivePresence.query.filter_by(user_id=old_id).update({"user_id": new_user_id})
+            
+            user.user_id = new_user_id
+
+        db.session.commit()
+        return jsonify({
+            "success": True, 
+            "message": "Profile updated successfully",
+            "user": {
+                "id": user.user_id,
+                "user_id": user.user_id,
+                "name": user.name,
+                "email": user.email,
+                "role": user.role
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/users/<user_id>/face', methods=['POST'])
+def update_user_face(user_id):
+    try:
+        data = request.json
+        face_image = data.get('face_image')
+        if not face_image:
+            return jsonify({"success": False, "message": "No face image provided"}), 400
+
+        user = User.query.filter_by(user_id=user_id).first()
+        if not user:
+            return jsonify({"success": False, "message": "User not found"}), 404
+
+        quality_score = 0
+        try:
+            image_data = face_image.split(',')[1] if ',' in face_image else face_image
+            image_bytes = base64.b64decode(image_data)
+            
+            # Use OpenCV Face System for compatibility
+            encoding, location = face_system.get_face_encoding(io.BytesIO(image_bytes))
+            
+            if encoding is None or location is None:
+                return jsonify({"success": False, "message": "No face detected or image quality is too low. Please ensure your face is visible and well-lit."}), 400
+                
+            # Quality checks based on location dict
+            top, right, bottom, left = location["top"], location["right"], location["bottom"], location["left"]
+            face_area = max(1, bottom - top) * max(1, right - left)
+            
+            file_bytes = np.frombuffer(image_bytes, np.uint8)
+            img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+            if img is None:
+                return jsonify({"success": False, "message": "Invalid image format."}), 400
+                
+            height, width, _ = img.shape
+            max_dim = 800
+            if width > max_dim or height > max_dim:
+                scale = max_dim / max(width, height)
+                width, height = int(width * scale), int(height * scale)
+                
+            img_area = width * height
+            size_ratio = face_area / img_area
+            
+            if size_ratio < 0.01:
+                return jsonify({"success": False, "message": "Face is too far away. Please move closer to the camera."}), 400
+                
+            face_center_x = (left + right) / 2
+            face_center_y = (top + bottom) / 2
+            
+            center_x_dist = abs(face_center_x - (width / 2)) / width
+            center_y_dist = abs(face_center_y - (height / 2)) / height
+            
+            if center_x_dist > 0.4 or center_y_dist > 0.4:
+                 return jsonify({"success": False, "message": "Face is not centered. Please align your face in the center."}), 400
+            
+            # Base score 100 minus centering penalty
+            quality_score = 100 - int((center_x_dist + center_y_dist) * 100)
+            if size_ratio < 0.05:
+                quality_score -= 8
+                
+            quality_score = max(81, min(99, quality_score))
+
+            # Store the encoding correctly (Pickle as hex string for compatibility with multi-angle)
+            encodings_list = [encoding]
+            user.face_encoding = pickle.dumps(encodings_list).hex()
+            user.face_registered_at = datetime.utcnow()
+            db.session.commit()
+
+            return jsonify({"success": True, "message": f"Accuracy: {quality_score}% ✅ - Face Profile Updated"})
+            
+        except Exception as e:
+            import traceback
+            err_details = traceback.format_exc()
+            print(f"Error processing face image: {err_details}")
+            return jsonify({"success": False, "message": f"Server Error: {str(e)}"}), 400
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": f"Fatal Error: {str(e)}"}), 500
+
 
 # 9B. Delete User
 @app.route('/api/users/<user_id>', methods=['DELETE'])
@@ -5319,6 +6402,78 @@ def get_user_notifications():
             "total": len(notifications)
         }
     }), 200
+
+# 4C. Grant Advanced Policy (Admin Only)
+@app.route('/api/admin/grant_policy', methods=['POST'])
+def grant_policy():
+    """Admin grants an advanced policy (modifier + rules) to one or multiple users."""
+    try:
+        data = request.json or {}
+        admin_id = (data.get('admin_id') or '').strip()
+        admin_user = require_active_admin(admin_id)
+        if not admin_user:
+            return jsonify({"success": False, "message": "Unauthorized. Active admin required."}), 403
+
+        user_ids = data.get('user_ids', [])
+        date_str = data.get('date')
+        modifier = data.get('modifier')
+        effective_policy = data.get('rules_override', {}) # frontend still sends rules_override for now, we'll map it to effective_policy
+        reason = data.get('reason', 'Granted by Admin')
+        
+        valid_from_str = data.get('valid_from')
+        valid_until_str = data.get('valid_until')
+        priority = data.get('priority', 10)
+        internal_notes = data.get('internal_notes')
+        
+        if not user_ids or not date_str:
+            return jsonify({"success": False, "message": "user_ids and date are required."}), 400
+            
+        import json
+        rules_json = json.dumps(effective_policy)
+        
+        granted_count = 0
+        for uid in user_ids:
+            # Check if user exists
+            user = User.query.filter_by(user_id=uid).first()
+            if not user:
+                continue
+                
+            # Create the advanced permission
+            from datetime import datetime
+            
+            valid_from_dt = datetime.fromisoformat(valid_from_str) if valid_from_str else None
+            valid_until_dt = datetime.fromisoformat(valid_until_str) if valid_until_str else None
+            
+            perm = PermissionRequest(
+                user_id=uid,
+                type='custom',
+                date=date_str,
+                reason=reason,
+                status='Approved',
+                approved_by=admin_id,
+                modifier=modifier,
+                effective_policy=rules_json,
+                granted_by_admin=True,
+                valid_from=valid_from_dt,
+                valid_until=valid_until_dt,
+                priority=priority,
+                internal_notes=internal_notes
+            )
+            db.session.add(perm)
+            granted_count += 1
+            
+            db.session.add(AdminAuditLog(
+                action='policy_granted',
+                admin_id=admin_id,
+                target_id=uid,
+                description=f"Granted policy [{modifier}] for {date_str}."
+            ))
+            
+        db.session.commit()
+        return jsonify({"success": True, "message": f"Policy granted successfully to {granted_count} users."}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
 
 # --------- FCM TOKEN MANAGEMENT ---------
 
@@ -5721,6 +6876,7 @@ def get_pinned_alerts(user_id):
                 "type": notif.type,
                 "priority": notif.type if notif.type in ['info', 'warning', 'critical'] else 'info',
                 "is_read": notif.is_read,
+                "related_id": notif.related_id,
                 "created_at": notif.created_at.isoformat() + 'Z',
                 "pinned_at": (notif.pinned_at.isoformat() + 'Z') if notif.pinned_at else None
             })
@@ -5792,6 +6948,36 @@ def clear_all_alerts_for_user():
         db.session.commit()
 
         return jsonify({"success": True, "message": "All alerts cleared"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/admin/alerts/<int:alert_id>/delete', methods=['DELETE'])
+def delete_admin_alert_group(alert_id):
+    """Delete an admin-raised alert for every recipient in the same broadcast group."""
+    try:
+        data = request.get_json(silent=True) or {}
+        admin_id = (data.get('admin_id') or '').strip()
+
+        admin = User.query.filter_by(user_id=admin_id, role='admin', is_active=True).first()
+        if not admin:
+            return jsonify({"error": "Unauthorized"}), 403
+
+        alert = Notification.query.filter_by(id=alert_id).first()
+        if not alert:
+            return jsonify({"error": "Alert not found"}), 404
+
+        related_id = (alert.related_id or '').strip()
+        if related_id:
+            deleted = Notification.query.filter_by(related_id=related_id).delete(synchronize_session=False)
+        else:
+            if alert.user_id != admin_id:
+                return jsonify({"error": "Only grouped admin alerts can be deleted for everyone"}), 403
+            db.session.delete(alert)
+            deleted = 1
+
+        db.session.commit()
+        return jsonify({"success": True, "deleted": deleted}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
@@ -6093,12 +7279,15 @@ def send_admin_notification_alert():
         title = data.get('title')
         content = data.get('content')
         priority = str(data.get('priority', 'info')).lower()
+        related_id = (data.get('related_id') or '').strip()
 
         if not sender_id or not recipient_id or not title or not content:
             return jsonify({"error": "Missing required fields"}), 400
 
         if priority not in ['info', 'warning', 'critical']:
             priority = 'info'
+        if not related_id:
+            related_id = f"broadcast:{uuid4().hex}"
 
         sender = User.query.filter_by(user_id=sender_id).first()
         if not sender or sender.role != 'admin':
@@ -6114,6 +7303,7 @@ def send_admin_notification_alert():
             title=title,
             message=content,
             type=priority,
+            related_id=related_id,
             is_pinned=True, # Auto-pin so it shows in the pinned alerts tab
             pinned_at=datetime.utcnow()
         )
@@ -6125,7 +7315,7 @@ def send_admin_notification_alert():
         for token in tokens:
             ping_device_via_fcm(token.fcm_token, "wakeup")
 
-        return jsonify({"success": True}), 200
+        return jsonify({"success": True, "related_id": related_id, "notification_id": notif.id}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
@@ -6147,6 +7337,293 @@ def search_all_users():
         return jsonify({"success": True, "users": results}), 200
     except Exception as e:
         print(f"User Search API Error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ============ Real Assistant Connection System ============
+
+@app.route('/api/assistant/connect', methods=['POST'])
+def assistant_connect():
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        if not user_id:
+            return jsonify({"success": False, "error": "user_id is required"}), 400
+            
+        existing_conn = AssistantConnection.query.filter(
+            AssistantConnection.user_id == user_id,
+            AssistantConnection.status != 'disconnected'
+        ).first()
+        
+        if existing_conn:
+            return jsonify({
+                "success": True, 
+                "connection": {
+                    "id": existing_conn.id,
+                    "status": existing_conn.status,
+                    "assistant_id": existing_conn.assistant_id
+                }
+            }), 200
+            
+        new_conn = AssistantConnection(user_id=user_id, status='connecting')
+        db.session.add(new_conn)
+        db.session.commit()
+        
+        return jsonify({
+            "success": True, 
+            "connection": {
+                "id": new_conn.id,
+                "status": new_conn.status,
+                "assistant_id": new_conn.assistant_id
+            }
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/assistant/cancel', methods=['POST'])
+def assistant_cancel():
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        if not user_id:
+            return jsonify({"success": False, "error": "user_id is required"}), 400
+            
+        conn = AssistantConnection.query.filter_by(user_id=user_id, status='connecting').first()
+        if conn:
+            conn.status = 'disconnected'
+            db.session.commit()
+            
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/assistant/accept', methods=['POST'])
+def assistant_accept():
+    try:
+        data = request.get_json()
+        connection_id = data.get('connection_id')
+        admin_id = data.get('admin_id')
+        
+        if admin_id != 'ADMIN01':
+            return jsonify({"success": False, "error": "Unauthorized"}), 403
+            
+        conn = AssistantConnection.query.get(connection_id)
+        if not conn:
+            return jsonify({"success": False, "error": "Connection not found"}), 404
+            
+        conn.status = 'connected'
+        db.session.commit()
+        
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/assistant/disconnect', methods=['POST'])
+def assistant_disconnect():
+    try:
+        data = request.get_json()
+        connection_id = data.get('connection_id')
+        user_id = data.get('user_id')
+        
+        if connection_id:
+            conn = AssistantConnection.query.get(connection_id)
+        elif user_id:
+            conn = AssistantConnection.query.filter(
+                AssistantConnection.user_id == user_id,
+                AssistantConnection.status != 'disconnected'
+            ).first()
+        else:
+            return jsonify({"success": False, "error": "connection_id or user_id required"}), 400
+            
+        if conn:
+            conn.status = 'disconnected'
+            db.session.commit()
+            
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/assistant/connections', methods=['GET'])
+def get_assistant_connections():
+    try:
+        admin_id = request.args.get('admin_id')
+        if admin_id != 'ADMIN01':
+            return jsonify({"success": False, "error": "Unauthorized"}), 403
+            
+        # Get connections assigned to this admin OR pending connections waiting for an admin
+        from sqlalchemy import or_, and_
+        connections = AssistantConnection.query.filter(
+            and_(
+                AssistantConnection.status != 'disconnected',
+                or_(
+                    AssistantConnection.assistant_id == admin_id,
+                    AssistantConnection.status == 'connecting'
+                )
+            )
+        ).order_by(AssistantConnection.created_at.desc()).all()
+        
+        results = []
+        for conn in connections:
+            user = User.query.filter_by(user_id=conn.user_id).first()
+            user_name = user.name if user else "Unknown User"
+            
+            unread_count = AssistantMessage.query.filter(
+                AssistantMessage.connection_id == conn.id,
+                AssistantMessage.sender_id != admin_id,
+                AssistantMessage.is_read == False
+            ).count()
+            
+            last_msg = AssistantMessage.query.filter_by(connection_id=conn.id).order_by(AssistantMessage.created_at.desc()).first()
+            last_message_preview = last_msg.content if last_msg else None
+            
+            results.append({
+                "id": conn.id,
+                "user_id": conn.user_id,
+                "user_name": user_name,
+                "status": conn.status,
+                "created_at": conn.created_at.isoformat() if conn.created_at else None,
+                "unread_count": unread_count,
+                "last_message_preview": last_message_preview
+            })
+            
+        return jsonify({"success": True, "connections": results}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/assistant/status/<user_id>', methods=['GET'])
+def get_assistant_status(user_id):
+    try:
+        conn = AssistantConnection.query.filter(
+            AssistantConnection.user_id == user_id,
+            AssistantConnection.status != 'disconnected'
+        ).order_by(AssistantConnection.created_at.desc()).first()
+        
+        if conn:
+            return jsonify({
+                "success": True,
+                "status": conn.status,
+                "connection_id": conn.id
+            }), 200
+        else:
+            return jsonify({"success": True, "status": None, "connection_id": None}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/assistant/messages/<int:connection_id>', methods=['GET'])
+def get_assistant_messages(connection_id):
+    try:
+        reader_id = request.args.get('reader_id')
+        messages = AssistantMessage.query.filter_by(connection_id=connection_id).order_by(AssistantMessage.created_at).all()
+        
+        results = []
+        for msg in messages:
+            if reader_id and msg.sender_id != reader_id and not msg.is_read:
+                msg.is_read = True
+                
+            results.append({
+                "id": msg.id,
+                "sender_id": msg.sender_id,
+                "content": msg.content,
+                "is_read": msg.is_read,
+                "created_at": msg.created_at.isoformat() if msg.created_at else None
+            })
+            
+        if reader_id:
+            db.session.commit()
+            
+        return jsonify({"success": True, "messages": results}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/assistant/messages/send', methods=['POST'])
+def send_assistant_message():
+    try:
+        data = request.get_json()
+        connection_id = data.get('connection_id')
+        sender_id = data.get('sender_id')
+        content = data.get('content')
+        
+        if not all([connection_id, sender_id, content]):
+            return jsonify({"success": False, "error": "Missing required fields"}), 400
+            
+        conn = AssistantConnection.query.get(connection_id)
+        if not conn or conn.status != 'connected':
+            return jsonify({"success": False, "error": "Active connection not found"}), 404
+            
+        new_msg = AssistantMessage(
+            connection_id=connection_id,
+            sender_id=sender_id,
+            content=content
+        )
+        db.session.add(new_msg)
+        db.session.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": {
+                "id": new_msg.id,
+                "sender_id": new_msg.sender_id,
+                "content": new_msg.content,
+                "created_at": new_msg.created_at.isoformat() if new_msg.created_at else None
+            }
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/assistant/unread_count', methods=['GET'])
+def get_assistant_unread_count():
+    try:
+        user_id = request.args.get('user_id') or request.args.get('admin_id')
+        if not user_id:
+            return jsonify({"success": False, "error": "user_id is required"}), 400
+            
+        if user_id == 'ADMIN01':
+            pending_count = AssistantConnection.query.filter_by(status='connecting').count()
+            
+            unread_messages_count = AssistantMessage.query.join(
+                AssistantConnection, AssistantMessage.connection_id == AssistantConnection.id
+            ).filter(
+                AssistantMessage.sender_id != 'ADMIN01',
+                AssistantMessage.is_read == False
+            ).count()
+        else:
+            pending_count = 0
+            unread_messages_count = AssistantMessage.query.join(
+                AssistantConnection, AssistantMessage.connection_id == AssistantConnection.id
+            ).filter(
+                AssistantConnection.user_id == user_id,
+                AssistantMessage.sender_id == 'ADMIN01',
+                AssistantMessage.is_read == False
+            ).count()
+            
+        total = pending_count + unread_messages_count
+        
+        # Determine current connection status for faculty
+        current_status = None
+        connection_id = None
+        if user_id != 'ADMIN01':
+            conn = AssistantConnection.query.filter(
+                AssistantConnection.user_id == user_id,
+                AssistantConnection.status != 'disconnected'
+            ).order_by(AssistantConnection.created_at.desc()).first()
+            if conn:
+                current_status = conn.status
+                connection_id = conn.id
+        
+        return jsonify({
+            "success": True,
+            "pending": pending_count,
+            "unread_messages": unread_messages_count,
+            "count": total,
+            "status": current_status,
+            "connection_id": connection_id
+        }), 200
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':

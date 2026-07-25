@@ -329,7 +329,6 @@ class LocationTrackingService : Service() {
             Log.e(TAG, "Location permission denied: ${e.message}")
         }
     }
-
     // ── NETWORK MONITORING ──
     private fun setupNetworkCallback() {
         networkCallback = object : ConnectivityManager.NetworkCallback() {

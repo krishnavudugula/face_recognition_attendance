@@ -352,6 +352,3 @@ console.log('- Session: persistent storage + logout handler');
 console.log('- History: back button protection');
 console.log('Try: window.mobileDownload(url) or window.appLogout()');
 console.log('========================');
-
-// ============ 6. CAPGO OTA UPDATER ============
-// Placeholder for future OTA update checks

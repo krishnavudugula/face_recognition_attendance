@@ -2,6 +2,9 @@
   "appId": "com.bits.faceattend",
   "appName": "FaceAttend",
   "webDir": "www",
+  "server": {
+    "url": "https://bitswattend.netlify.app/"
+  },
   "android": {
     "allowMixedContent": true,
     "assetPath": "public"

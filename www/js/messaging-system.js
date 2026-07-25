@@ -59,6 +59,11 @@ class MessagingSystem {
     }
 
     createMessagingUI() {
+        // Do not render the floating chat bubble if we are on the full chat page
+        if (window.location.pathname.includes('chat_page.html')) {
+            return;
+        }
+        
         const isAdmin = this.currentUser?.role === 'admin';
         const chatHTML = `
             <div id="messagingSystem" class="messaging-system">
@@ -190,9 +195,9 @@ class MessagingSystem {
         const chatBubble = document.getElementById('chatBubbleBtn');
         const closeBtn = document.getElementById('closeChatBtn');
 
-        // NEW: Open the professional chat page instead of popup
+        // Open the professional chat page directly to the messages tab
         chatBubble?.addEventListener('click', () => {
-            window.location.href = '../pages/chat_page.html';
+            window.location.href = `../pages/chat_page.html?tab=messages`;
         });
         closeBtn?.addEventListener('click', () => this.toggleChat());
 
@@ -767,19 +772,16 @@ class MessagingSystem {
         }
     }
 
-    updateUnreadCount() {
-        const unreadCount = this.messages.filter(m => !m.is_read).length;
-        this.unreadCount = unreadCount;
-
+    updateTotalBadge() {
         const badge = document.getElementById('unreadBadge');
         if (badge) {
-            if (unreadCount > 0) {
-                badge.textContent = unreadCount;
-                badge.style.display = 'flex';
-            } else {
-                badge.style.display = 'none';
-            }
+            badge.style.display = 'none';
         }
+    }
+
+    updateUnreadCount() {
+        this.regularUnreadCount = this.messages.filter(m => !m.is_read).length;
+        this.updateTotalBadge();
     }
 
     openPreferences() {
@@ -825,7 +827,105 @@ class MessagingSystem {
             if (this.isOpen) {
                 this.loadMessages();
             }
+            this.checkSupportQueue();
         }, this.POLL_INTERVAL);
+        
+        // Polling loop specifically for Notification Manager (Live Support)
+        this.supportPollInterval = setInterval(() => {
+            this.checkSupportQueue();
+        }, 1500);
+        
+        // Initial check
+        this.checkSupportQueue();
+    }
+
+    async checkSupportQueue() {
+        if (!this.currentUser) return;
+        try {
+            const res = await fetch(`${this.API_URL}/assistant/unread_count?user_id=${this.currentUser.user_id}`);
+            const data = await res.json();
+            this.assistantUnreadCount = data.count || 0;
+            this.updateTotalBadge();
+            
+            // Also update the Assistant tab badge inside the floating chat window
+            const aiTabBtn = document.querySelector('.chat-tab-btn[data-tab="assistant"]');
+            if (aiTabBtn) {
+                let aiBadge = aiTabBtn.querySelector('.support-badge');
+                if (aiBadge) {
+                    aiBadge.style.display = 'none';
+                }
+            }
+            
+            // Dispatch global event for reactive UI
+            const eventData = {
+                count: data.count,
+                pending: data.pending,
+                unread_messages: data.unread_messages,
+                status: data.status,
+                connection_id: data.connection_id
+            };
+            window.dispatchEvent(new CustomEvent('SupportBridgeStateChanged', { detail: eventData }));
+            
+            // Notify if count went up
+            if (this.lastSupportCount !== undefined && data.count > this.lastSupportCount) {
+                if (this.currentUser.role === 'admin') {
+                    if (data.pending > this.lastPendingCount) {
+                        this.showSupportToast(`New Support Request`);
+                    } else if (data.unread_messages > this.lastUnreadMsgCount) {
+                        this.showSupportToast(`New message from Support Bridge`);
+                    }
+                } else {
+                    this.showSupportToast(`New message from Real Assistant`);
+                }
+            }
+            
+            // Notify if status changed (Faculty only)
+            if (this.currentUser.role !== 'admin' && this.lastSupportStatus && this.lastSupportStatus !== data.status) {
+                if (data.status === 'connected') {
+                    this.showSupportToast(`Support Bridge accepted your request.`);
+                } else if (data.status === 'disconnected' || !data.status) {
+                    if (this.lastSupportStatus === 'connecting') {
+                        this.showSupportToast(`Support request declined.`);
+                    } else if (this.lastSupportStatus === 'connected') {
+                        this.showSupportToast(`Support session ended.`);
+                    }
+                }
+            }
+            
+            this.lastSupportCount = data.count;
+            this.lastPendingCount = data.pending || 0;
+            this.lastUnreadMsgCount = data.unread_messages || 0;
+            this.lastSupportStatus = data.status || 'disconnected';
+        } catch (e) {
+            // silent fail
+        }
+    }
+
+    showSupportToast(msg) {
+        if (typeof window.showToast === 'function') {
+            window.showToast(msg, 'info');
+            return;
+        }
+        
+        let container = document.getElementById('supportToastContainer');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'supportToastContainer';
+            container.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px;';
+            document.body.appendChild(container);
+        }
+        
+        const toast = document.createElement('div');
+        toast.style.cssText = 'background: #3B5BDB; color: white; padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-family: Inter, sans-serif; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 10px; animation: ra-slide-in 0.3s ease;';
+        toast.innerHTML = `<i class="fas fa-bell"></i> ${this.escapeHtml(msg)}`;
+        
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(-10px)';
+            toast.style.transition = 'all 0.3s ease';
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
     }
 
     formatTime(isoString) {

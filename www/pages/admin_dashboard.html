@@ -20,123 +20,343 @@
     <!-- NEW FEATURES -->
     <script src="../js/messaging-system.js" defer></script>
     <script src="../js/alert-preferences.js" defer></script>
+    <script src="../js/profile_settings.js" defer></script>
     <style>
         #permissionSection {
-            border: 1px solid #dbeafe !important;
-            border-radius: 22px !important;
+            border: 1px solid #d8e2ef !important;
+            border-radius: 18px !important;
             overflow: hidden;
             background: #ffffff;
-            box-shadow: 0 22px 42px rgba(15, 23, 42, 0.08);
+            box-shadow: 0 24px 55px rgba(15, 23, 42, 0.09);
         }
 
-        #permissionSection > div:first-child {
-            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #1d4ed8 100%) !important;
-            border-bottom: 0 !important;
-            color: #f8fafc;
+        .permission-engine-header {
+            padding: 1.35rem 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            background:
+                linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.98)),
+                radial-gradient(circle at top left, rgba(37, 99, 235, 0.10), transparent 36%);
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
         }
 
-        #permissionSection > div:first-child h3,
-        #permissionSection > div:first-child p {
-            color: #f8fafc !important;
+        .permission-title-kicker {
+            margin: 0 0 0.45rem 0;
+            color: #2563eb;
+            font-size: 0.72rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
         }
 
-        #permissionSection > div:first-child p {
-            opacity: 0.9;
+        .permission-engine-header h3 {
+            margin: 0;
+            color: #0f172a;
+            font-size: 1.3rem;
+            letter-spacing: -0.02em;
+        }
+
+        .permission-engine-header p {
+            margin: 0.38rem 0 0 0;
+            color: #475569;
+            font-size: 0.92rem;
+            max-width: 760px;
         }
 
         #permissionSection .permission-form-toggle {
-            border: 1px solid rgba(255, 255, 255, 0.4) !important;
-            background: rgba(255, 255, 255, 0.14) !important;
-            color: #ffffff !important;
-            border-radius: 999px !important;
-            padding: 0.55rem 1rem !important;
-            font-weight: 700 !important;
+            border: 1px solid #bfdbfe !important;
+            background: #ffffff !important;
+            color: #1d4ed8 !important;
+            border-radius: 10px !important;
+            padding: 0.6rem 0.95rem !important;
+            font-weight: 800 !important;
             letter-spacing: 0.01em;
+            box-shadow: 0 8px 18px rgba(37, 99, 235, 0.10);
         }
 
         #permissionSection .permission-form-toggle:hover {
-            background: rgba(255, 255, 255, 0.24) !important;
+            background: #eff6ff !important;
             transform: translateY(-1px);
         }
 
         #permFlash {
-            background: rgba(248, 250, 252, 0.2);
-            color: #f8fafc;
-            border: 1px solid rgba(255, 255, 255, 0.35);
-            backdrop-filter: blur(5px);
+            background: #f8fafc;
+            color: #0f172a;
+            border: 1px solid #cbd5e1;
         }
 
-        #permissionSection > div:nth-child(2) {
-            background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%) !important;
+        .permission-flow-strip {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.75rem;
+            padding: 1rem 1.5rem;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
         }
 
-        #permissionSection > div:nth-child(2) > div > div {
-            border: 0 !important;
-            border-radius: 14px !important;
-            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        .permission-flow-step {
+            min-height: 78px;
+            border: 1px solid #dbe4ef;
+            border-radius: 12px;
+            background: #ffffff;
+            padding: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
         }
 
-        #permissionSection > div:nth-child(2) > div > div:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+        .permission-flow-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .permission-flow-step span {
+            display: block;
+            color: #64748b;
+            font-size: 0.72rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .permission-flow-step strong {
+            display: block;
+            margin-top: 0.18rem;
+            color: #0f172a;
+            font-size: 0.92rem;
+            line-height: 1.35;
+        }
+
+        .permission-stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 0.85rem;
+            padding: 1.25rem 1.5rem;
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .permission-stat-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 0.9rem;
+            background: #ffffff;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+        }
+
+        .permission-stat-card p {
+            margin: 0;
+            color: #64748b;
+            font-weight: 800;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .permission-stat-card div {
+            margin-top: 0.35rem;
+            color: #0f172a;
+            font-weight: 800;
+            font-size: 1.45rem;
+            letter-spacing: -0.03em;
         }
 
         #permissionSection .permission-create-collapsible {
-            background: linear-gradient(165deg, #f8fafc 0%, #eef2ff 46%, #f8fafc 100%) !important;
+            background: #f8fafc !important;
             padding: 1.35rem 1.5rem !important;
         }
 
-        #permissionSection h4 {
-            font-size: 1.03rem !important;
+        .permission-form-heading {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 0.95rem;
+            flex-wrap: wrap;
+        }
+
+        .permission-form-heading h4 {
+            margin: 0;
+            color: #0f172a;
+            font-size: 1rem;
             letter-spacing: -0.01em;
+        }
+
+        .permission-form-heading span {
+            color: #64748b;
+            font-size: 0.78rem;
+            font-weight: 700;
         }
 
         #permissionSection form {
             background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 16px;
+            border: 1px solid #dbe4ef;
+            border-radius: 14px;
             padding: 1rem;
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
         }
 
+        .permission-form-grid {
+            display: grid;
+            grid-template-columns: repeat(12, minmax(0, 1fr));
+            gap: 0.82rem;
+            align-items: end;
+        }
+
+        .perm-span-2 { grid-column: span 2; }
+        .perm-span-3 { grid-column: span 3; }
+        .perm-span-4 { grid-column: span 4; }
+        .perm-span-6 { grid-column: span 6; }
+        .perm-span-12 { grid-column: 1 / -1; }
+
         #permissionSection label {
+            display: block;
             margin-bottom: 0.42rem !important;
             color: #1e293b !important;
-            font-size: 0.78rem !important;
+            font-size: 0.73rem !important;
             font-weight: 800 !important;
-            letter-spacing: 0.035em;
+            letter-spacing: 0.06em;
             text-transform: uppercase;
         }
 
         #permissionSection input,
         #permissionSection select,
         #permissionSection textarea {
+            width: 100%;
             border: 1.5px solid #cbd5e1 !important;
-            border-radius: 10px !important;
-            font-size: 0.92rem !important;
+            border-radius: 9px !important;
+            font-size: 0.9rem !important;
             line-height: 1.2;
+            color: #0f172a;
             background: #ffffff;
+            padding: 0.66rem 0.78rem;
             transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
         }
 
         #permissionSection textarea {
-            min-height: 52px;
+            min-height: 78px;
+            resize: vertical;
         }
 
         #permissionSection input:focus,
         #permissionSection select:focus,
         #permissionSection textarea:focus {
-            border-color: #1d4ed8 !important;
-            box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.12);
+            border-color: #2563eb !important;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
             outline: none;
             transform: translateY(-1px);
         }
 
-        #permissionSection > div:nth-child(4) {
-            background: #ffffff !important;
-            border-top: 1px solid #e2e8f0;
+        .permission-rule-panel {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: minmax(240px, 0.85fr) minmax(280px, 1.15fr);
+            gap: 0.9rem;
+            align-items: stretch;
+        }
+
+        .permission-policy-preview,
+        .permission-override-box {
+            border: 1px solid #dbe4ef;
+            border-radius: 12px;
+            background: #f8fafc;
+            padding: 0.95rem;
+        }
+
+        .permission-panel-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0 0 0.75rem 0;
+            color: #0f172a;
+            font-size: 0.86rem;
+            font-weight: 800;
+        }
+
+        .policy-preview-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.6rem;
+        }
+
+        .policy-preview-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: #ffffff;
+            padding: 0.7rem;
+        }
+
+        .policy-preview-card span {
+            display: block;
+            color: #64748b;
+            font-size: 0.67rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+        }
+
+        .policy-preview-card strong {
+            display: block;
+            margin-top: 0.25rem;
+            color: #0f172a;
+            font-size: 0.88rem;
+            line-height: 1.35;
+        }
+
+        .permission-rule-toggles {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+            gap: 0.55rem;
+        }
+
+        .permission-rule-toggle {
+            border: 1px solid #dbe4ef;
+            border-radius: 10px;
+            background: #ffffff;
+            padding: 0.68rem 0.72rem;
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            color: #334155;
+            font-size: 0.8rem;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .permission-rule-toggle input {
+            width: 16px !important;
+            height: 16px;
+            padding: 0;
+            accent-color: #2563eb;
+            flex-shrink: 0;
+        }
+
+        .permission-rule-toggle:has(input:checked) {
+            border-color: #93c5fd;
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        .permission-filter-panel {
+            padding: 1rem 1.5rem;
             border-bottom: 1px solid #e2e8f0;
+            background: #ffffff;
+        }
+
+        .permission-filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 0.65rem;
         }
 
         #permissionSection .permission-table {
@@ -144,58 +364,354 @@
         }
 
         #permissionSection .permission-table thead th {
-            background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+            background: #f8fafc;
             color: #475569;
-            font-size: 0.76rem;
+            font-size: 0.72rem;
             font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
-            border-bottom: 1px solid #dbeafe;
+            letter-spacing: 0.06em;
+            border-bottom: 1px solid #dbe4ef;
         }
 
         #permissionSection .permission-table tbody td {
             border-bottom: 1px solid #eef2f7;
+            vertical-align: middle;
         }
 
         #permissionSection .permission-table tbody tr:hover {
             background: #f8fbff;
         }
 
-        .permission-type-chip {
+        .permission-type-chip,
+        .permission-policy-chip,
+        .permission-mini-chip {
             display: inline-flex;
             align-items: center;
             gap: 0.35rem;
-            padding: 0.34rem 0.62rem;
             border-radius: 999px;
             border: 1px solid #cbd5e1;
             font-size: 0.72rem;
-            font-weight: 700;
+            font-weight: 800;
             color: #334155;
             background: #f8fafc;
             white-space: nowrap;
         }
 
-        .permission-type-chip.lp {
-            background: #fff7ed;
-            border-color: #fed7aa;
-            color: #9a3412;
+        .permission-type-chip {
+            padding: 0.36rem 0.62rem;
+            margin-bottom: 0.34rem;
         }
 
-        .permission-type-chip.ep {
-            background: #eef2ff;
-            border-color: #c7d2fe;
-            color: #3730a3;
+        .permission-policy-chip,
+        .permission-mini-chip {
+            padding: 0.26rem 0.5rem;
+            margin: 0.12rem 0.12rem 0 0;
+        }
+
+        .permission-type-chip.late-arrival { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
+        .permission-type-chip.early-departure { background: #fefce8; border-color: #fde68a; color: #854d0e; }
+        .permission-type-chip.half-day { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+        .permission-type-chip.full-day-absence { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+        .permission-type-chip.work-from-home { background: #ecfeff; border-color: #a5f3fc; color: #155e75; }
+        .permission-type-chip.emergency { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+        .permission-type-chip.custom { background: #f8fafc; border-color: #cbd5e1; color: #334155; }
+
+        @media (max-width: 1100px) {
+            .perm-span-2,
+            .perm-span-3,
+            .perm-span-4,
+            .perm-span-6 {
+                grid-column: span 6;
+            }
+
+            .permission-rule-panel {
+                grid-template-columns: 1fr;
+            }
         }
 
         @media (max-width: 900px) {
             #permissionSection form {
-                padding: 0.8rem;
+                padding: 0.82rem;
             }
 
-            #permissionSection > div:first-child {
+            .permission-engine-header {
                 padding: 1rem !important;
             }
+
+            .permission-flow-strip {
+                grid-template-columns: 1fr;
+                padding: 0.85rem 1rem;
+            }
         }
+
+        @media (max-width: 640px) {
+            .perm-span-2,
+            .perm-span-3,
+            .perm-span-4,
+            .perm-span-6 {
+                grid-column: 1 / -1;
+            }
+
+            .policy-preview-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        
+  :root{
+    --nxadm-ink-900:#0f172a;
+    --nxadm-ink-700:#334155;
+    --nxadm-ink-500:#64748b;
+    --nxadm-ink-300:#cbd5e1;
+    --nxadm-ink-100:#f1f5f9;
+    --nxadm-border:#e2e8f0;
+    --nxadm-accent:#4f46e5;
+    --nxadm-accent-light:#eef2ff;
+    --nxadm-success:#059669;
+    --nxadm-success-bg:#ecfdf5;
+    --nxadm-warn:#b45309;
+    --nxadm-warn-bg:#fffbeb;
+    --nxadm-danger:#dc2626;
+    --nxadm-danger-bg:#fef2f2;
+    --nxadm-neutral:#475569;
+    --nxadm-neutral-bg:#f8fafc;
+    --nxadm-radius:14px;
+  }
+ 
+  .nxadm-root{
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background:#eef1f6;
+    padding:40px 24px 80px;
+    color:var(--nxadm-ink-900);
+  }
+  .nxadm-root *{ box-sizing:border-box; }
+ 
+  .nxadm-page-wrap{
+    max-width:1240px;
+    margin:0 auto;
+    display:flex;
+    flex-direction:column;
+    gap:40px;
+  }
+ 
+  .nxadm-section-header{
+    margin-bottom:18px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .nxadm-section-header h1{
+    font-size:1.35rem;
+    font-weight:700;
+    letter-spacing:-0.01em;
+    margin:0 0 4px;
+  }
+  .nxadm-section-header p{
+    margin:0;
+    color:var(--nxadm-ink-500);
+    font-size:0.87rem;
+  }
+  .nxadm-count-pill{
+    font-size:0.76rem;
+    font-weight:600;
+    color:var(--nxadm-accent);
+    background:var(--nxadm-accent-light);
+    padding:4px 10px;
+    border-radius:999px;
+    white-space:nowrap;
+  }
+ 
+  /* ================= TABLE SHELL ================= */
+  .nxadm-table-card{
+    background:#fff;
+    border:1px solid var(--nxadm-border);
+    border-radius:var(--nxadm-radius);
+    box-shadow:0 1px 2px rgba(15,23,42,0.04), 0 12px 32px -18px rgba(15,23,42,0.18);
+    overflow:hidden;
+  }
+ 
+  .nxadm-table-responsive{
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+  }
+  .nxadm-table-responsive::-webkit-scrollbar{ display:none; }
+ 
+  .nxadm-table{
+    width:100%;
+    border-collapse:separate;
+    border-spacing:0;
+    font-size:0.9rem;
+  }
+ 
+  .nxadm-table thead th{
+    text-align:left;
+    font-size:0.72rem;
+    font-weight:600;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--nxadm-ink-500);
+    background:var(--nxadm-neutral-bg);
+    padding:14px 18px;
+    border-bottom:1px solid var(--nxadm-border);
+    white-space:nowrap;
+  }
+ 
+  .nxadm-table tbody td{
+    padding:16px 18px;
+    border-bottom:1px solid var(--nxadm-border);
+    color:var(--nxadm-ink-700);
+    vertical-align:middle;
+    white-space:nowrap;
+  }
+  .nxadm-table tbody tr:last-child td{ border-bottom:none; }
+  .nxadm-table tbody tr{ transition:background-color 0.15s ease; }
+  .nxadm-table tbody tr:hover td{ background:#fafbfe; }
+ 
+  .nxadm-sticky-col{
+    position:sticky;
+    left:0;
+    background:#fff;
+    z-index:2;
+    box-shadow:1px 0 0 var(--nxadm-border);
+  }
+  .nxadm-table thead th.nxadm-sticky-col{
+    background:var(--nxadm-neutral-bg);
+    z-index:3;
+  }
+  .nxadm-table tbody tr:hover td.nxadm-sticky-col{ background:#fafbfe; }
+ 
+  .nxadm-col-id{
+    font-family:"SFMono-Regular", ui-monospace, Menlo, monospace;
+    font-size:0.8rem;
+    color:var(--nxadm-ink-500);
+    font-weight:600;
+  }
+  .nxadm-col-name{ font-weight:600; color:var(--nxadm-ink-900); }
+  .nxadm-name-sub{
+    display:block;
+    font-weight:400;
+    font-size:0.78rem;
+    color:var(--nxadm-ink-500);
+    margin-top:2px;
+  }
+  .nxadm-col-numeric{ text-align:center; }
+ 
+  .nxadm-badge{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:4px 11px;
+    border-radius:999px;
+    font-size:0.76rem;
+    font-weight:600;
+    white-space:nowrap;
+    line-height:1.5;
+  }
+  .nxadm-badge::before{
+    content:"";
+    width:6px;
+    height:6px;
+    border-radius:50%;
+    background:currentColor;
+    flex:none;
+  }
+  .nxadm-badge--success{ background:var(--nxadm-success-bg); color:var(--nxadm-success); }
+  .nxadm-badge--warn{ background:var(--nxadm-warn-bg); color:var(--nxadm-warn); }
+  .nxadm-badge--danger{ background:var(--nxadm-danger-bg); color:var(--nxadm-danger); }
+  .nxadm-badge--neutral{ background:var(--nxadm-ink-100); color:var(--nxadm-neutral); }
+  .nxadm-badge--accent{ background:var(--nxadm-accent-light); color:var(--nxadm-accent); }
+ 
+  .nxadm-role-tag{
+    display:inline-block;
+    padding:3px 9px;
+    border-radius:6px;
+    font-size:0.76rem;
+    font-weight:600;
+    background:var(--nxadm-ink-100);
+    color:var(--nxadm-ink-700);
+  }
+ 
+  .nxadm-validity-range{ font-size:0.85rem; color:var(--nxadm-ink-700); }
+  .nxadm-validity-range .nxadm-divider{ color:var(--nxadm-ink-300); margin:0 4px; }
+ 
+  .nxadm-th-actions, .nxadm-td-actions{ text-align:right; padding-right:2.6rem !important; }
+  .nxadm-action-group{ display:inline-flex; gap:8px; }
+  .nxadm-btn-icon{
+    width:32px; height:32px;
+    display:inline-flex; align-items:center; justify-content:center;
+    border-radius:8px; border:1px solid var(--nxadm-border);
+    background:#fff; color:var(--nxadm-ink-500); cursor:pointer;
+    transition:all 0.15s ease;
+  }
+  .nxadm-btn-icon:hover{ border-color:var(--nxadm-accent); color:var(--nxadm-accent); background:var(--nxadm-accent-light); }
+  .nxadm-btn-icon--danger:hover{ border-color:var(--nxadm-danger); color:var(--nxadm-danger); background:var(--nxadm-danger-bg); }
+ 
+  .nxadm-empty-state td{
+    text-align:center;
+    padding:3.2rem 1.8rem !important;
+    color:var(--nxadm-ink-500);
+    white-space:normal;
+  }
+  .nxadm-empty-icon{ display:block; font-size:1.6rem; margin-bottom:8px; opacity:0.5; }
+ 
+  /* ================= CUSTOM SCROLL SLIDER ================= */
+  .nxadm-scroll-slider{
+    display:none;
+    align-items:center;
+    gap:10px;
+    padding:10px 18px 14px;
+    border-top:1px solid var(--nxadm-border);
+    background:var(--nxadm-neutral-bg);
+  }
+  .nxadm-scroll-slider.nxadm-is-active{ display:flex; }
+ 
+  .nxadm-scroll-slider-track{
+    position:relative;
+    flex:1;
+    height:6px;
+    background:var(--nxadm-ink-100);
+    border-radius:999px;
+    cursor:pointer;
+  }
+  .nxadm-scroll-slider-thumb{
+    position:absolute;
+    top:0;
+    left:0;
+    height:100%;
+    min-width:36px;
+    background:var(--nxadm-accent);
+    border-radius:999px;
+    cursor:grab;
+  }
+  .nxadm-scroll-slider-thumb:active{ cursor:grabbing; }
+  .nxadm-scroll-slider-label{
+    font-size:0.7rem;
+    font-weight:600;
+    color:var(--nxadm-ink-500);
+    white-space:nowrap;
+  }
+ 
+  /* ================= RESPONSIVE ================= */
+  @media (min-width: 721px){
+    .nxadm-sticky-col{
+      position:static;
+      box-shadow:none;
+    }
+  }
+ 
+  @media (max-width: 720px){
+    .nxadm-page-wrap{ gap:28px; }
+    .nxadm-section-header h1{ font-size:1.15rem; }
+    .nxadm-table{ font-size:0.82rem; }
+    .nxadm-table thead th,
+    .nxadm-table tbody td{ padding:12px 12px; }
+    .nxadm-th-actions, .nxadm-td-actions{ padding-right:1.1rem !important; }
+    .nxadm-scroll-slider{ padding:9px 14px 12px; }
+  }
+
     </style>
 </head>
 <body class="dashboard-body">
@@ -303,199 +819,385 @@
         </div>
         
         <div id="permissionSection" class="glass-card section-card permission-section" style="margin-top: 1.5rem; padding: 0; overflow: hidden; border: 1px solid #dbeafe;">
-            <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e2e8f0; background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
-                <div>
-                    <h3 style="margin: 0; color: #0f172a; font-size: 1.15rem; letter-spacing: -0.01em;">Permission Control Center</h3>
-                    <p style="margin: 0.35rem 0 0 0; color: #475569; font-size: 0.9rem;">Admins can register, approve, or reject late and early permissions after direct faculty discussion.</p>
+            <div style="background: linear-gradient(to right, #f8fafc, #ffffff); border-bottom: 1px solid #e2e8f0; padding: 1.5rem 1.5rem 1rem 1.5rem; display: flex; align-items: center; gap: 0.85rem;">
+                <div style="min-width: 42px; width: 42px; height: 42px; border-radius: 10px; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);">
+                    <i class="fa-solid fa-inbox"></i>
                 </div>
-                <button type="button" id="permissionFormToggle" class="permission-form-toggle" aria-expanded="false">
-                    <i class="fa-solid fa-pen-to-square"></i> Add Permission
-                </button>
-                <div id="permFlash" style="display: none; padding: 0.55rem 0.9rem; border-radius: 8px; font-weight: 700; font-size: 0.82rem;"></div>
+                <h2 style="margin: 0; font-size: 1.4rem; color: #0f172a; font-weight: 800; letter-spacing: -0.5px; line-height: 1.2;">Attendance Exception Engine</h2>
+                <div id="permFlash" style="display: none; padding: 0.55rem 0.9rem; border-radius: 8px; font-weight: 700; font-size: 0.82rem; margin-left: auto;"></div>
             </div>
 
-            <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e2e8f0; background: #ffffff;">
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.85rem;">
-                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.9rem;">
-                        <p style="margin: 0; color: #64748b; font-weight: 700; font-size: 0.75rem; text-transform: uppercase;">Total</p>
-                        <div id="permStatTotal" style="margin-top: 0.35rem; color: #0f172a; font-weight: 800; font-size: 1.3rem;">0</div>
+            <div class="permission-stat-grid" style="padding: 1.5rem;">
+                <div class="permission-stat-card" style="position: relative; overflow: hidden; padding: 1.25rem; border: none; background: linear-gradient(135deg, #ffffff, #f8fafc); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 1px 3px -1px rgba(0,0,0,0.02); border-radius: 12px; border-top: 4px solid #3b82f6;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <p style="margin: 0; font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Total Requests</p>
+                            <div id="permStatTotal" style="margin-top: 0.5rem; font-size: 2rem; font-weight: 800; color: #0f172a;">0</div>
+                        </div>
+                        <div style="width: 32px; height: 32px; border-radius: 8px; background: #eff6ff; color: #3b82f6; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-layer-group"></i></div>
                     </div>
-                    <div style="background: #fefce8; border: 1px solid #fde68a; border-radius: 10px; padding: 0.9rem;">
-                        <p style="margin: 0; color: #92400e; font-weight: 700; font-size: 0.75rem; text-transform: uppercase;">Pending</p>
-                        <div id="permStatPending" style="margin-top: 0.35rem; color: #78350f; font-weight: 800; font-size: 1.3rem;">0</div>
+                </div>
+                
+                <div class="permission-stat-card" style="position: relative; overflow: hidden; padding: 1.25rem; border: none; background: linear-gradient(135deg, #ffffff, #fffbeb); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 1px 3px -1px rgba(0,0,0,0.02); border-radius: 12px; border-top: 4px solid #f59e0b;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <p style="margin: 0; font-size: 0.75rem; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px;">Waiting Review</p>
+                            <div id="permStatPending" style="margin-top: 0.5rem; font-size: 2rem; font-weight: 800; color: #92400e;">0</div>
+                        </div>
+                        <div style="width: 32px; height: 32px; border-radius: 8px; background: #fef3c7; color: #d97706; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-hourglass-half"></i></div>
                     </div>
-                    <div style="background: #ecfdf5; border: 1px solid #86efac; border-radius: 10px; padding: 0.9rem;">
-                        <p style="margin: 0; color: #166534; font-weight: 700; font-size: 0.75rem; text-transform: uppercase;">Approved</p>
-                        <div id="permStatApproved" style="margin-top: 0.35rem; color: #166534; font-weight: 800; font-size: 1.3rem;">0</div>
+                </div>
+
+                <div class="permission-stat-card" style="position: relative; overflow: hidden; padding: 1.25rem; border: none; background: linear-gradient(135deg, #ffffff, #f0fdf4); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 1px 3px -1px rgba(0,0,0,0.02); border-radius: 12px; border-top: 4px solid #10b981;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <p style="margin: 0; font-size: 0.75rem; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Approved</p>
+                            <div id="permStatApproved" style="margin-top: 0.5rem; font-size: 2rem; font-weight: 800; color: #166534;">0</div>
+                        </div>
+                        <div style="width: 32px; height: 32px; border-radius: 8px; background: #dcfce7; color: #15803d; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-check-circle"></i></div>
                     </div>
-                    <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 10px; padding: 0.9rem;">
-                        <p style="margin: 0; color: #991b1b; font-weight: 700; font-size: 0.75rem; text-transform: uppercase;">Rejected</p>
-                        <div id="permStatRejected" style="margin-top: 0.35rem; color: #991b1b; font-weight: 800; font-size: 1.3rem;">0</div>
+                </div>
+
+                <div class="permission-stat-card" style="position: relative; overflow: hidden; padding: 1.25rem; border: none; background: linear-gradient(135deg, #ffffff, #fef2f2); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 1px 3px -1px rgba(0,0,0,0.02); border-radius: 12px; border-top: 4px solid #ef4444;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <p style="margin: 0; font-size: 0.75rem; font-weight: 700; color: #991b1b; text-transform: uppercase; letter-spacing: 0.5px;">Rejected</p>
+                            <div id="permStatRejected" style="margin-top: 0.5rem; font-size: 2rem; font-weight: 800; color: #991b1b;">0</div>
+                        </div>
+                        <div style="width: 32px; height: 32px; border-radius: 8px; background: #fee2e2; color: #b91c1c; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-times-circle"></i></div>
                     </div>
                 </div>
             </div>
 
-            <div class="permission-create-collapsible" style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; margin-bottom:0.85rem; flex-wrap:wrap;">
-                    <h4 style="margin: 0; color: #0f172a; font-size: 0.96rem;">Create Permission (Admin Entry)</h4>
-                    <span style="font-size:0.78rem; color:#64748b; font-weight:600;">Use this form to create late or early permissions with clear window rules.</span>
+            <div class="permission-create-collapsible" style="display: none; padding: 1.25rem 1.5rem; border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+                <div class="permission-form-heading">
+                    <h4>Create Exception Policy</h4>
+                    <span>Policy, overrides, validity, approval state</span>
                 </div>
-                <form id="permissionCreateForm" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; align-items: end;">
-                    <div>
-                        <label for="permUserId" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">Faculty ID</label>
-                        <input id="permUserId" type="text" placeholder="FAC001" required style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
-                    </div>
-                    <div>
-                        <label for="permType" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">Permission Type</label>
-                        <select id="permType" required style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
-                            <option value="LP">LP - Late Arrival Permission</option>
-                            <option value="EP">EP - Early Exit Permission</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="permDate" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">Date</label>
-                        <input id="permDate" type="date" required style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
-                    </div>
-                    <div>
-                        <label for="permDefaultStatus" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">Initial Status</label>
-                        <select id="permDefaultStatus" style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
-                            <option value="Pending">Pending</option>
-                            <option value="Approved">Approved</option>
-                            <option value="Rejected">Rejected</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="permWindowMode" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">Permission Window</label>
-                        <select id="permWindowMode" style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
-                            <option value="TIME_RANGE">Time Range</option>
-                            <option value="FULL_DAY">Full Day</option>
-                            <option value="CUSTOM_DAYS">Custom Days</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="permStartTime" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">Start Time</label>
-                        <input id="permStartTime" type="time" style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
-                    </div>
-                    <div>
-                        <label for="permEndTime" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">End Time</label>
-                        <input id="permEndTime" type="time" style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
-                    </div>
-                    <div id="permCustomDaysWrap" style="grid-column: 1 / -1; display: none;">
-                        <label for="permCustomDays" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">Custom Days (comma-separated dates)</label>
-                        <input id="permCustomDays" type="text" placeholder="2026-04-03, 2026-04-05, 2026-04-10" style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem;">
-                    </div>
-                    <div style="grid-column: 1 / -1;">
-                        <label for="permReason" style="display: block; margin-bottom: 0.35rem; color: #334155; font-size: 0.8rem; font-weight: 700;">Reason from Faculty</label>
-                        <textarea id="permReason" placeholder="Example: Health issue, family emergency, transport delay." rows="2" style="width: 100%; padding: 0.62rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; resize: vertical;"></textarea>
-                    </div>
-                    <div style="grid-column: 1 / -1; display: flex; justify-content: flex-end;">
-                        <button type="submit" class="action-btn-primary" style="padding: 0.62rem 1rem;">
-                            <i class="fa-solid fa-shield-check" style="margin-right: 0.45rem;"></i>
-                            Save Permission
-                        </button>
+                <form id="permissionCreateForm">
+                    <div class="permission-form-grid">
+                        <div class="perm-span-3">
+                            <label for="permUserId">Faculty ID</label>
+                            <input id="permUserId" type="text" placeholder="FAC001" required>
+                        </div>
+                        <div class="perm-span-3">
+                            <label for="permType">Exception Type</label>
+                            <select id="permType" required>
+                                <option value="late_arrival">Late Arrival</option>
+                                <option value="early_departure">Early Leave</option>
+                                <option value="extended_campus_exit">Extended Campus Exit</option>
+                                <option value="half_day_morning">Half Day (Morning)</option>
+                                <option value="half_day_afternoon">Half Day (Afternoon)</option>
+                                <option value="full_day_absence">Full Day Leave</option>
+                                <option value="work_from_home">Work From Home</option>
+                                <option value="outdoor_duty">Outdoor Duty</option>
+                                <option value="exam_duty">Exam Duty</option>
+                                <option value="on_duty">On Duty</option>
+                                <option value="forgot_check_in">Forgot Check-in</option>
+                                <option value="forgot_checkout">Forgot Checkout</option>
+                                <option value="device_problem">Device Problem</option>
+                                <option value="gps_failure">GPS Failure</option>
+                                <option value="face_failure">Face Recognition Failure</option>
+                                <option value="internet_failure">Internet Failure</option>
+                                <option value="emergency">Emergency</option>
+                                <option value="custom">Custom Permission</option>
+                            </select>
+                        </div>
+                        <div class="perm-span-3" id="permCustomTypeWrap" style="display: none;">
+                            <label for="permCustomType">Custom Label</label>
+                            <input id="permCustomType" type="text" placeholder="Guest lecture duty">
+                        </div>
+                        <div class="perm-span-3">
+                            <label for="permPolicyResult">Attendance Result</label>
+                            <select id="permPolicyResult">
+                                <option value="Present">Present</option>
+                                <option value="Half Day Present">Half Day Present</option>
+                                <option value="Leave Approved">Leave Approved</option>
+                                <option value="Present (WFH)">Present (WFH)</option>
+                                <option value="Outdoor Duty">Outdoor Duty</option>
+                                <option value="On Duty">On Duty</option>
+                                <option value="Manual Override">Manual Override</option>
+                                <option value="Needs Admin Review">Needs Admin Review</option>
+                            </select>
+                        </div>
+                        <div class="perm-span-2">
+                            <label for="permPriority">Priority</label>
+                            <select id="permPriority">
+                                <option value="Normal">Normal</option>
+                                <option value="High">High</option>
+                                <option value="Critical">Critical</option>
+                            </select>
+                        </div>
+                        <div class="perm-span-2">
+                            <label for="permDate">Valid Date</label>
+                            <input id="permDate" type="date" required>
+                        </div>
+                        <div class="perm-span-2">
+                            <label for="permDefaultStatus">Initial Status</label>
+                            <select id="permDefaultStatus">
+                                <option value="Pending">Pending</option>
+                                <option value="Approved">Approved</option>
+                                <option value="Rejected">Rejected</option>
+                            </select>
+                        </div>
+                        <div class="perm-span-2">
+                            <label for="permWindowMode">Validity Window</label>
+                            <select id="permWindowMode">
+                                <option value="TIME_RANGE">Time Range</option>
+                                <option value="FULL_DAY">Full Day</option>
+                                <option value="CUSTOM_DAYS">Custom Days</option>
+                            </select>
+                        </div>
+                        <div class="perm-span-2">
+                            <label for="permStartTime">Start Time</label>
+                            <input id="permStartTime" type="time">
+                        </div>
+                        <div class="perm-span-2">
+                            <label for="permEndTime">End Time</label>
+                            <input id="permEndTime" type="time">
+                        </div>
+                        <div id="permCustomDaysWrap" class="perm-span-12" style="display: none;">
+                            <label for="permCustomDays">Custom Dates</label>
+                            <input id="permCustomDays" type="text" placeholder="2026-07-22, 2026-07-24">
+                        </div>
+
+                        <div class="permission-rule-panel">
+                            <div class="permission-policy-preview">
+                                <p class="permission-panel-title"><i class="fa-solid fa-diagram-project"></i> Policy Preview</p>
+                                <div class="policy-preview-grid">
+                                    <div class="policy-preview-card">
+                                        <span>Result</span>
+                                        <strong id="permPreviewResult">Present</strong>
+                                    </div>
+                                    <div class="policy-preview-card">
+                                        <span>Required Marks</span>
+                                        <strong id="permPreviewMarks">2 marks</strong>
+                                    </div>
+                                    <div class="policy-preview-card">
+                                        <span>Location</span>
+                                        <strong id="permPreviewLocation">Default campus rules</strong>
+                                    </div>
+                                    <div class="policy-preview-card">
+                                        <span>Time Rule</span>
+                                        <strong id="permPreviewTime">Selected window</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="permission-override-box">
+                                <p class="permission-panel-title"><i class="fa-solid fa-toggle-on"></i> Override Rules</p>
+                                <div class="permission-rule-toggles">
+                                    <label class="permission-rule-toggle"><input type="checkbox" id="permRequireFace" data-policy-rule="Require face"> Require Face</label>
+                                    <label class="permission-rule-toggle"><input type="checkbox" id="permIgnoreGps" data-policy-rule="Ignore GPS"> Ignore GPS</label>
+                                    <label class="permission-rule-toggle"><input type="checkbox" id="permIgnoreRadius" data-policy-rule="Ignore radius"> Ignore Radius</label>
+                                    <label class="permission-rule-toggle"><input type="checkbox" id="permIgnoreWifi" data-policy-rule="Ignore WiFi"> Ignore WiFi</label>
+                                    <label class="permission-rule-toggle"><input type="checkbox" id="permMorningRequired" data-policy-rule="Morning mark required"> Morning Mark</label>
+                                    <label class="permission-rule-toggle"><input type="checkbox" id="permEveningRequired" data-policy-rule="Evening mark required"> Evening Mark</label>
+                                    <label class="permission-rule-toggle"><input type="checkbox" id="permOneMarkEnough" data-policy-rule="One mark enough"> One Mark Enough</label>
+                                    <label class="permission-rule-toggle"><input type="checkbox" id="permManualApproval" data-policy-rule="Manual approval"> Manual Approval</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="perm-span-6">
+                            <label for="permReason">Reason From Faculty</label>
+                            <textarea id="permReason" placeholder="Health issue, university duty, transport delay, device problem..." rows="3"></textarea>
+                        </div>
+                        <div class="perm-span-6">
+                            <label for="permAdminNote">Admin Audit Note</label>
+                            <textarea id="permAdminNote" placeholder="Documents checked, principal approval, manual attendance conditions..." rows="3"></textarea>
+                        </div>
+                        <div class="perm-span-12" style="display: flex; justify-content: flex-end;">
+                            <button type="submit" class="action-btn-primary" style="padding: 0.68rem 1.05rem; border-radius: 10px;">
+                                <i class="fa-solid fa-shield-check" style="margin-right: 0.45rem;"></i>
+                                Save Exception Policy
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>
 
-            <div style="padding: 1rem 1.5rem; border-bottom: 1px solid #e2e8f0; background: #ffffff;">
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.65rem;">
-                    <div>
-                        <label for="permFilterStatus" style="display: block; margin-bottom: 0.3rem; color: #475569; font-size: 0.75rem; font-weight: 700;">Filter by Status</label>
-                        <select id="permFilterStatus" style="width: 100%; padding: 0.55rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem;">
-                            <option value="">All</option>
-                            <option value="Pending">Pending</option>
-                            <option value="Approved">Approved</option>
-                            <option value="Rejected">Rejected</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="permFilterType" style="display: block; margin-bottom: 0.3rem; color: #475569; font-size: 0.75rem; font-weight: 700;">Filter by Type</label>
-                        <select id="permFilterType" style="width: 100%; padding: 0.55rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem;">
-                            <option value="">All</option>
-                            <option value="LP">Late Arrival Permission</option>
-                            <option value="EP">Early Exit Permission</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="permFilterUserId" style="display: block; margin-bottom: 0.3rem; color: #475569; font-size: 0.75rem; font-weight: 700;">Filter by Faculty ID</label>
-                        <input id="permFilterUserId" type="text" placeholder="FAC001" style="width: 100%; padding: 0.55rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem;">
-                    </div>
-                    <div>
-                        <label for="permFilterDate" style="display: block; margin-bottom: 0.3rem; color: #475569; font-size: 0.75rem; font-weight: 700;">Filter by Date</label>
-                        <input id="permFilterDate" type="date" style="width: 100%; padding: 0.55rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem;">
-                    </div>
-                    <div>
-                        <label for="permFilterWindow" style="display: block; margin-bottom: 0.3rem; color: #475569; font-size: 0.75rem; font-weight: 700;">Filter by Window</label>
-                        <select id="permFilterWindow" style="width: 100%; padding: 0.55rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.86rem;">
-                            <option value="">All</option>
-                            <option value="TIME_RANGE">Time Range</option>
-                            <option value="FULL_DAY">Full Day</option>
-                            <option value="CUSTOM_DAYS">Custom Days</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
 
-            <div class="table-responsive compact-mobile">
-                <table class="premium-table permission-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Faculty</th>
-                            <th>Type</th>
-                            <th>Date</th>
-                            <th>Window</th>
-                            <th>Reason</th>
-                            <th>Status</th>
-                            <th style="text-align: right; padding-right: 2.6rem;">Admin Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="permissionTableBody">
-                        <tr>
-                            <td colspan="8" style="text-align: center; padding: 1.8rem !important; color: #64748b;">No permission records yet.</td>
-                        </tr>
-                    </tbody>
-                </table>
+
+            
+<div class="nxadm-root">
+<div class="nxadm-page-wrap">
+ 
+  <!-- ============ PERMISSION ANALYTICS ============ -->
+  <section id="permissionAnalyticsSection" style="margin-bottom: 2rem;">
+      <div class="nxadm-section-header">
+          <div>
+              <h1>Permission Analytics</h1>
+              <p>Top exception categories and automated abuse detection.</p>
+          </div>
+      </div>
+      <div style="display: flex; gap: 1.5rem; overflow-x: auto; padding-bottom: 1rem; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; margin: 0 -1.5rem; padding-left: 1.5rem; padding-right: 1.5rem;">
+          <div style="flex: 0 0 85%; min-width: 300px; max-width: 100%; scroll-snap-align: center; background: white; border-radius: 12px; padding: 1.5rem; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+              <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; color: #0f172a;">Top Permissions (Last 30 Days)</h3>
+              <div id="analyticsTopPermissions" style="display: flex; flex-direction: column; gap: 1rem;">
+                  <div style="color: #64748b; font-size: 0.9rem;">Loading...</div>
+              </div>
+          </div>
+          <div style="flex: 0 0 85%; min-width: 300px; max-width: 100%; scroll-snap-align: center; background: white; border-radius: 12px; padding: 1.5rem; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+              <h3 style="margin: 0 0 1rem 0; font-size: 1.1rem; color: #0f172a;">Potential Flags</h3>
+              <div id="analyticsAbuseFlags" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                  <div style="color: #64748b; font-size: 0.9rem;">Loading...</div>
+              </div>
+          </div>
+      </div>
+  </section>
+
+  <!-- ============ TABLE 1: EXCEPTION POLICIES ============ -->
+  <section>
+    <div class="nxadm-section-header">
+      <div>
+        <h1>Exception Policies</h1>
+        <p>Faculty-level overrides currently applied to attendance and location rules.</p>
+      </div>
+      <span class="nxadm-count-pill" id="nxadmPermissionCountPill">0 active</span>
+    </div>
+    
+    <div class="permission-filter-panel" style="margin-bottom: 1.5rem;">
+        <div class="permission-filter-grid">
+            <div>
+                <label for="permFilterStatus">Filter by Status</label>
+                <select id="permFilterStatus">
+                    <option value="">All</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Rejected">Rejected</option>
+                </select>
+            </div>
+            <div>
+                <label for="permFilterType">Filter by Type</label>
+                <select id="permFilterType">
+                    <option value="">All</option>
+                    <option value="late_arrival">Late Arrival</option>
+                    <option value="early_departure">Early Leave</option>
+                    <option value="extended_campus_exit">Extended Campus Exit</option>
+                    <option value="half_day_morning">Half Day (Morning)</option>
+                    <option value="half_day_afternoon">Half Day (Afternoon)</option>
+                    <option value="full_day_absence">Full Day Leave</option>
+                    <option value="work_from_home">Work From Home</option>
+                    <option value="outdoor_duty">Outdoor Duty</option>
+                    <option value="exam_duty">Exam Duty</option>
+                    <option value="on_duty">On Duty</option>
+                    <option value="forgot_check_in">Forgot Check-in</option>
+                    <option value="forgot_checkout">Forgot Checkout</option>
+                    <option value="device_problem">Device Problem</option>
+                    <option value="gps_failure">GPS Failure</option>
+                    <option value="face_failure">Face Recognition Failure</option>
+                    <option value="internet_failure">Internet Failure</option>
+                    <option value="emergency">Emergency</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+            <div>
+                <label for="permFilterUserId">Filter by Faculty ID</label>
+                <input id="permFilterUserId" type="text" placeholder="FAC001">
+            </div>
+            <div>
+                <label for="permFilterDate">Filter by Date</label>
+                <input id="permFilterDate" type="date">
+            </div>
+            <div>
+                <label for="permFilterWindow">Filter by Window</label>
+                <select id="permFilterWindow">
+                    <option value="">All</option>
+                    <option value="TIME_RANGE">Time Range</option>
+                    <option value="FULL_DAY">Full Day</option>
+                    <option value="CUSTOM_DAYS">Custom Days</option>
+                </select>
+            </div>
+            <div>
+                <label for="permFilterValidity">Filter by Validity</label>
+                <select id="permFilterValidity">
+                    <option value="active">Active & Upcoming</option>
+                    <option value="expired">Expired</option>
+                    <option value="">All</option>
+                </select>
             </div>
         </div>
     </div>
-
-        <div id="activitySection" class="glass-card section-card" style="padding: 0; overflow: hidden;">
-            
-            <div style="padding: 1.5rem; border-bottom: 1px solid #e2e8f0; background: #ffffff; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                <h3 style="margin: 0; font-size: 1.15rem; color: #0f172a;">Recent Attendance Activity</h3>
-                
-                <div style="position: relative; width: 100%; max-width: 300px;">
-                    <i class="fa-solid fa-search" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.9rem;"></i>
-                    <input type="text" placeholder="Search by name or ID..." style="width: 100%; padding: 0.6rem 1rem 0.6rem 2.5rem; border: 1px solid #cbd5e1; border-radius: 50px; font-size: 0.9rem; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#cbd5e1'">
-                </div>
-            </div>
-            
-            <div class="table-responsive compact-mobile">
-                <table class="premium-table activity-table">
-                    <thead>
-                        <tr>
-                            <th>User ID</th>
-                            <th>Full Name</th>
-                            <th>Role</th>
-                            <th>Date</th>
-                            <th>Check-In</th>
-                            <th>Check-Out</th>
-                            <th>Status</th>
-                            <th style="text-align: right; padding-right: 3rem;">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="attendanceTableBody">
-                        <tr>
-                            <td colspan="6" style="text-align: center; padding: 3rem !important; color: #64748b;">
-                                <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 1.5rem; color: #3b82f6; margin-bottom: 0.75rem;"></i><br>
-                                Syncing live data...
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+ 
+    <div class="nxadm-table-card">
+      <div class="nxadm-table-responsive" id="nxadmPermissionScroll">
+        <table class="nxadm-table">
+          <thead>
+            <tr>
+              <th class="nxadm-sticky-col">ID</th>
+              <th>Faculty</th>
+              <th>Exception Policy</th>
+              <th>Validity</th>
+              <th class="nxadm-col-numeric">Overrides</th>
+              <th>Outcome</th>
+              <th>Status</th>
+              <th class="nxadm-th-actions">Admin Action</th>
+            </tr>
+          </thead>
+          <tbody id="permissionTableBody">
+            <!-- Data will be loaded via JS -->
+          </tbody>
+        </table>
+      </div>
+      <div class="nxadm-scroll-slider" id="nxadmPermissionSlider">
+        <span class="nxadm-scroll-slider-label">Scroll</span>
+        <div class="nxadm-scroll-slider-track" id="nxadmPermissionTrack">
+          <div class="nxadm-scroll-slider-thumb" id="nxadmPermissionThumb"></div>
         </div>
+      </div>
+    </div>
+  </section>
+ 
+  <!-- ============ TABLE 2: RECENT CHECK-INS ============ -->
+  <section>
+    <div class="nxadm-section-header">
+      <div>
+        <h1>Recent Check-Ins</h1>
+        <p>Staff attendance log — most recent entries first.</p>
+      </div>
+      <span class="nxadm-count-pill" id="nxadmCheckinCountPill">0 records</span>
+    </div>
+ 
+    <div class="nxadm-table-card">
+      <div class="nxadm-table-responsive" id="nxadmCheckinScroll">
+        <table class="nxadm-table">
+          <thead>
+            <tr>
+              <th class="nxadm-sticky-col">Staff ID</th>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Date</th>
+              <th>Day</th>
+              <th>Period</th>
+              <th>Check-In</th>
+              <th>Check-In Status</th>
+              <th>Check-Out</th>
+              <th>Check-Out Status</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="checkInTableBody">
+            <!-- Data will be loaded via JS -->
+          </tbody>
+        </table>
+      </div>
+      <div class="nxadm-scroll-slider" id="nxadmCheckinSlider">
+        <span class="nxadm-scroll-slider-label">Scroll</span>
+        <div class="nxadm-scroll-slider-track" id="nxadmCheckinTrack">
+          <div class="nxadm-scroll-slider-thumb" id="nxadmCheckinThumb"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+ 
+</div>
+</div>
+
+
+        </div>
+    </div>
+
     <script>
         const menuToggle = document.querySelector('.menu-toggle');
         const navMenu = document.querySelector('.nav-menu');
@@ -526,10 +1228,17 @@
 
         async function handleFacultyRegistration(e) {
             e.preventDefault();
-            const user_id = document.getElementById('facultyUserId').value;
-            const name = document.getElementById('facultyName').value;
+            const user_id = document.getElementById('facultyUserId').value.trim();
+            const name = document.getElementById('facultyName').value.trim();
             const password = document.getElementById('facultyPassword').value;
             const confirmPassword = document.getElementById('facultyConfirmPassword').value;
+            const userIdHelper = document.getElementById('facultyUserIdHelper');
+
+            const validateUserIdPolicy = (value) => {
+                const candidate = String(value || '').trim();
+                if (!candidate) return 'Faculty ID is required.';
+                return null;
+            };
 
             const validatePasswordPolicy = (pwd) => {
                 if (pwd.length < 8 || pwd.length > 64) return 'Password must be 8-64 characters.';
@@ -543,6 +1252,16 @@
                 }
                 return null;
             };
+
+            const userIdError = validateUserIdPolicy(user_id);
+            if (userIdHelper) {
+                userIdHelper.textContent = userIdError || (user_id ? 'Looks good.' : '3-20 chars, start with a letter, include at least one number.');
+                userIdHelper.style.color = userIdError ? '#b91c1c' : (user_id ? '#15803d' : '#64748b');
+            }
+            if (userIdError) {
+                alert(userIdError);
+                return;
+            }
 
             if (password !== confirmPassword) {
                 alert('Passwords do not match!');
@@ -600,7 +1319,7 @@
                     permissionFormToggle.setAttribute('aria-expanded', String(isOpen));
                     permissionFormToggle.innerHTML = isOpen
                         ? '<i class="fa-solid fa-chevron-up"></i> Hide Form'
-                        : '<i class="fa-solid fa-pen-to-square"></i> Add Permission';
+                        : '<i class="fa-solid fa-pen-to-square"></i> Add Policy';
                 });
             }
 
@@ -611,6 +1330,13 @@
             const facultyPwd = document.getElementById('facultyPassword');
             const toggleFacultyPwd = document.getElementById('toggleFacultyPassword');
             const facultyPwdStrength = document.getElementById('facultyPasswordStrength');
+            const facultyUserId = document.getElementById('facultyUserId');
+
+            const validateUserIdPolicy = (value) => {
+                const candidate = String(value || '').trim();
+                if (!candidate) return 'Faculty ID is required.';
+                return null;
+            };
 
             const scorePassword = (pwd) => {
                 let score = 0;
@@ -630,6 +1356,17 @@
                 facultyPwdStrength.textContent = `Strength: ${label}`;
                 facultyPwdStrength.style.color = color;
             };
+
+            if (facultyUserId) {
+                facultyUserId.addEventListener('input', (e) => {
+                    const helper = document.getElementById('facultyUserIdHelper');
+                    if (!helper) return;
+                    const message = validateUserIdPolicy(e.target.value);
+                    helper.textContent = message || 'Looks good.';
+                    helper.style.color = String(e.target.value || '').trim() ? '#15803d' : '#64748b';
+                    renderStrength(facultyPwd?.value || '');
+                });
+            }
 
             if (facultyPwd) {
                 facultyPwd.addEventListener('input', (e) => renderStrength(e.target.value));
@@ -661,7 +1398,8 @@
             <form id="facultyRegForm" onsubmit="handleFacultyRegistration(event)">
                 <div style="margin-bottom: 1.25rem;">
                     <label style="display: block; margin-bottom: 0.5rem; color: #0f172a; font-weight: 600;">Faculty ID</label>
-                    <input type="text" id="facultyUserId" placeholder="e.g., FAC001" required style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                    <input type="text" id="facultyUserId" placeholder="Register with faculty ID" required style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                    <small id="facultyUserIdHelper" style="display:block; margin-top:0.35rem; color:#64748b; font-size:0.78rem;">Use the faculty ID exactly as assigned.</small>
                 </div>
 
                 <div style="margin-bottom: 1.25rem;">
@@ -697,6 +1435,582 @@
             </form>
         </div>
     </div>
+
+    <!-- TEMPLATE APPROVAL MODAL -->
+    <div id="templateApprovalModal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(4px); padding: 1rem;">
+        <div style="background: #ffffff; width: 100%; max-width: 500px; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15); display: flex; flex-direction: column; max-height: 90vh; overflow: hidden; border: 1px solid #e2e8f0; animation: modalIn 0.3s ease;">
+            
+            <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
+                <div>
+                    <h2 id="taModalTitle" style="margin: 0; font-size: 1.25rem; color: #0f172a; font-weight: 700;">Request Review</h2>
+                    <p style="margin: 0.25rem 0 0 0; color: #64748b; font-size: 0.85rem;">Review details and set time window.</p>
+                </div>
+                <button onclick="document.getElementById('templateApprovalModal').style.display='none'" style="background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 1.5rem; transition: color 0.2s;" onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#94a3b8'">&times;</button>
+            </div>
+
+            <div style="padding: 1.5rem; overflow-y: auto; flex: 1; background: #ffffff;">
+                
+                <!-- Request Summary -->
+                <div style="margin-bottom: 1.5rem; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; background: #fafafa;">
+                    <h4 style="margin: 0 0 0.75rem 0; color: #334155; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Faculty Request</h4>
+                    <div style="display: grid; grid-template-columns: 80px 1fr; gap: 0.5rem; font-size: 0.9rem;">
+                        <div style="color: #64748b; font-weight: 600;">Faculty</div><div id="taReqFaculty" style="color: #0f172a;">--</div>
+                        <div style="color: #64748b; font-weight: 600;">Date</div><div id="taReqDate" style="color: #0f172a;">--</div>
+                        <div style="color: #64748b; font-weight: 600;">Time</div><div id="taReqTime" style="color: #0f172a;">--</div>
+                        <div style="color: #64748b; font-weight: 600;">Reason</div><div id="taReqReason" style="color: #0f172a;">--</div>
+                        <div style="color: #64748b; font-weight: 600;">Proof</div><div id="taReqProof" style="color: #0f172a;">--</div>
+                    </div>
+                </div>
+
+                <!-- Template Policy Read Only -->
+                <div style="margin-bottom: 1.5rem; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; background: #f8fafc;">
+                    
+                    <h4 style="margin: 0 0 0.75rem 0; color: #334155; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">System Behaviour</h4>
+                    <div id="taPolicyRules" style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem; color: #475569; margin-bottom: 1.25rem;">
+                        <!-- Populated dynamically -->
+                    </div>
+
+                    <h4 style="margin: 0 0 0.75rem 0; color: #334155; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Attendance Progress</h4>
+                    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.75rem; font-size: 0.85rem; margin-bottom: 1.25rem;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="color: #64748b;">Morning:</span>
+                            <span id="taProgMorning" style="color: #0f172a; font-weight: 600;">Pending</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px dashed #e2e8f0;">
+                            <span style="color: #64748b;">Evening:</span>
+                            <span id="taProgEvening" style="color: #0f172a; font-weight: 600;">Pending</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: #64748b; font-weight: 600;">Final Day Status:</span>
+                            <span id="taProgFinal" style="color: #0f172a; font-weight: 700;">Pending</span>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.75rem; border-top: 1px dashed #cbd5e1;">
+                        <h4 style="margin: 0; color: #334155; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Attendance Type</h4>
+                        <div id="taModifier" style="background: #eef2ff; color: #4f46e5; padding: 0.2rem 0.5rem; border-radius: 4px; border: 1px solid #c7d2fe; font-weight: 700; font-size: 0.9rem;">--</div>
+                    </div>
+                </div>
+
+                <!-- Editable Fields -->
+                <div>
+                    <h4 style="margin: 0 0 0.75rem 0; color: #334155; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Admin Decision</h4>
+                    
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                        <div style="flex: 1; display: none;">
+                            <label style="display: block; font-weight: 600; color: #334155; margin-bottom: 0.25rem; font-size: 0.85rem;">Valid From</label>
+                            <input type="time" id="taValidFrom" style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; outline: none;">
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="display: block; font-weight: 600; color: #334155; margin-bottom: 0.25rem; font-size: 0.85rem;">Allowed Until / Window</label>
+                            <input type="time" id="taValidUntil" style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; outline: none;">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #334155; margin-bottom: 0.25rem; font-size: 0.85rem;">Remarks</label>
+                        <input type="text" id="taRemarks" placeholder="Approved by HOD..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; outline: none;">
+                    </div>
+                </div>
+
+            </div>
+
+            <div style="padding: 1.25rem 1.5rem; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; justify-content: flex-end; gap: 0.75rem;">
+                <!-- We will add the reject button later if the user requests it fully integrated. For now we use the dashboard.js functionality which approves via this modal. 
+                     If they want a 'Reject' button inside the modal, we can add it calling a reject API endpoint. But dashboard.js currently only has template submission logic for Approval here. -->
+                <button onclick="document.getElementById('templateApprovalModal').style.display='none'" style="padding: 0.6rem 1.25rem; background: #ffffff; border: 1px solid #dc2626; border-radius: 6px; color: #dc2626; font-weight: 600; cursor: pointer;">Cancel / Reject</button>
+                <button onclick="submitTemplatePolicy()" id="taSubmitBtn" style="padding: 0.6rem 1.5rem; background: #10b981; border: none; border-radius: 6px; color: white; font-weight: 600; cursor: pointer; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);">Approve</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ADVANCED POLICY BUILDER MODAL -->
+    <div id="policyBuilderModal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(4px); padding: 1rem;">
+        <div style="background: #ffffff; width: 100%; max-width: 800px; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15); display: flex; flex-direction: column; max-height: 90vh; overflow: hidden; border: 1px solid #e2e8f0; animation: modalIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);">
+            
+            <div style="padding: 1.5rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
+                <div>
+                    <h2 style="margin: 0; font-size: 1.4rem; color: #0f172a; font-weight: 700;">Advanced Policy Builder</h2>
+                    <p style="margin: 0.25rem 0 0 0; color: #64748b; font-size: 0.9rem;">Override rules and inject attendance modifiers without faculty requests.</p>
+                </div>
+                <button onclick="closePolicyBuilder()" style="background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 1.5rem; transition: color 0.2s;" onmouseover="this.style.color='#0f172a'" onmouseout="this.style.color='#94a3b8'">&times;</button>
+            </div>
+
+            <div style="padding: 1.5rem; overflow-y: auto; flex: 1; background: #ffffff;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+                    
+                    <!-- Left Column: Assignment & Presets -->
+                    <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                        <div>
+                            <label style="display: block; font-weight: 600; color: #334155; margin-bottom: 0.5rem; font-size: 0.9rem;">Assign to Faculty</label>
+                            <select id="pbUserSelect" style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; outline: none; background: #f8fafc; color: #0f172a; font-family: inherit;">
+                                <option value="">Select Faculty...</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; color: #334155; margin-bottom: 0.5rem; font-size: 0.9rem;">Target Date</label>
+                            <input type="date" id="pbDate" style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; outline: none; background: #f8fafc; color: #0f172a; font-family: inherit;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; color: #334155; margin-bottom: 0.5rem; font-size: 0.9rem;">Quick Preset (Optional)</label>
+                            <select id="pbPresetSelect" onchange="applyPolicyPreset(this.value)" style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; outline: none; background: #f8fafc; color: #0f172a; font-family: inherit;">
+                                <option value="">Custom Setup...</option>
+                                <option value="LP">Late Arrival Permission</option>
+                                <option value="EP">Early Departure Permission</option>
+                                <option value="HD_M">Half Day (Morning)</option>
+                                <option value="HD_A">Half Day (Afternoon)</option>
+                                <option value="OD">On Duty (External)</option>
+                                <option value="WFH">Work From Home</option>
+                                <option value="ML">Medical Leave</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; color: #334155; margin-bottom: 0.5rem; font-size: 0.9rem;">Base Modifier [Tag]</label>
+                            <input type="text" id="pbModifier" placeholder="e.g. LP, EP, WFH, OD" style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; outline: none; background: #f8fafc; color: #0f172a; font-family: inherit; font-weight: 700; text-transform: uppercase;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; color: #334155; margin-bottom: 0.5rem; font-size: 0.9rem;">Valid From</label>
+                            <input type="datetime-local" id="pbValidFrom" style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; outline: none; background: #f8fafc; color: #0f172a; font-family: inherit;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; color: #334155; margin-bottom: 0.5rem; font-size: 0.9rem;">Valid Until</label>
+                            <input type="datetime-local" id="pbValidUntil" style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; outline: none; background: #f8fafc; color: #0f172a; font-family: inherit;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; color: #334155; margin-bottom: 0.5rem; font-size: 0.9rem;">Priority</label>
+                            <select id="pbPriority" style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; outline: none; background: #f8fafc; color: #0f172a; font-family: inherit;">
+                                <option value="10">Normal</option>
+                                <option value="20">High</option>
+                                <option value="30">Critical</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; font-weight: 600; color: #334155; margin-bottom: 0.5rem; font-size: 0.9rem;">Internal Notes</label>
+                            <textarea id="pbInternalNotes" placeholder="Admin remarks (hidden from faculty)" style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; outline: none; background: #f8fafc; color: #0f172a; font-family: inherit; resize: vertical; min-height: 60px;"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Rule Overrides -->
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem;">
+                        <h4 style="margin: 0 0 1rem 0; color: #0f172a; font-size: 1rem;">Rule Overrides & Modifiers</h4>
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            
+                            <div>
+                                <label style="display: block; font-weight: 600; color: #334155; margin-bottom: 0.5rem; font-size: 0.9rem;">Final Attendance Status</label>
+                                <select id="pbAttendanceStatus" style="width: 100%; padding: 0.75rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; outline: none; background: #ffffff; color: #0f172a;">
+                                    <option value="FD">Full Day (FD)</option>
+                                    <option value="HD">Half Day (HD)</option>
+                                    <option value="AB">Absent (AB)</option>
+                                    <option value="LV">Leave (LV)</option>
+                                </select>
+                            </div>
+
+                            <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; padding-top: 0.5rem; border-top: 1px dashed #cbd5e1;">
+                                <span style="font-size: 0.95rem; color: #334155;">Face verification required.</span>
+                                <input type="checkbox" id="pbReqFace" checked style="accent-color: #3b82f6; width: 1.1rem; height: 1.1rem;">
+                            </label>
+                            <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+                                <span style="font-size: 0.95rem; color: #334155;">Attendance may be marked outside campus.</span>
+                                <input type="checkbox" id="pbReqGps" style="accent-color: #3b82f6; width: 1.1rem; height: 1.1rem;">
+                            </label>
+                            <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+                                <span style="font-size: 0.95rem; color: #334155;">Attendance may be marked outside geofence.</span>
+                                <input type="checkbox" id="pbReqGeofence" style="accent-color: #3b82f6; width: 1.1rem; height: 1.1rem;">
+                            </label>
+                            
+                            <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer; padding-top: 0.5rem; border-top: 1px dashed #cbd5e1;">
+                                <span style="font-size: 0.95rem; color: #334155;">Morning mark required.</span>
+                                <input type="checkbox" id="pbReqMorning" checked style="accent-color: #3b82f6; width: 1.1rem; height: 1.1rem;">
+                            </label>
+                            <label style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+                                <span style="font-size: 0.95rem; color: #334155;">Evening mark required.</span>
+                                <input type="checkbox" id="pbReqEvening" checked style="accent-color: #3b82f6; width: 1.1rem; height: 1.1rem;">
+                            </label>
+
+                            <div style="margin-top: 0.5rem; padding-top: 1rem; border-top: 1px dashed #cbd5e1;">
+                                <label style="display: block; font-size: 0.9rem; color: #334155; margin-bottom: 0.25rem;">Allowed Until (Morning Deadline)</label>
+                                <input type="time" id="pbMorningDeadline" style="padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; width: 100%; outline: none; background: #ffffff;">
+                            </div>
+                            <div style="margin-top: 0.5rem;">
+                                <label style="display: block; font-size: 0.9rem; color: #334155; margin-bottom: 0.25rem;">Allowed From (Evening Deadline)</label>
+                                <input type="time" id="pbEveningDeadline" style="padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; width: 100%; outline: none; background: #ffffff;">
+                            </div>
+                        </div>
+                    </div>
+
+                </div> <!-- End of top grid -->
+
+                <!-- Policy Preview & Conflict Alert Section -->
+                <div id="pbConflictAlert" style="display: none; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; flex-direction: column; gap: 0.5rem;">
+                    <div style="color: #991b1b; font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fas fa-exclamation-triangle"></i> Conflict Detected!
+                    </div>
+                    <div id="pbConflictText" style="color: #7f1d1d; font-size: 0.9rem;"></div>
+                    <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                        <button onclick="resolveConflict('replace')" style="padding: 0.5rem 1rem; background: #dc2626; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">Replace Old</button>
+                        <button onclick="resolveConflict('merge')" style="padding: 0.5rem 1rem; background: #2563eb; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">Merge Both</button>
+                        <button onclick="closePolicyBuilder()" style="padding: 0.5rem 1rem; background: #e2e8f0; color: #475569; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">Cancel</button>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem;">
+                    <!-- Policy Preview -->
+                    <div style="background: #f1f5f9; border-radius: 8px; padding: 1rem; border: 1px solid #cbd5e1;">
+                        <h5 style="margin: 0 0 0.75rem 0; color: #334155; font-size: 0.9rem; font-weight: 700;">Effective Policy Preview</h5>
+                        <div id="pbPreviewContent" style="font-family: monospace; font-size: 0.85rem; color: #0f172a; white-space: pre-wrap; background: #ffffff; padding: 0.75rem; border-radius: 6px; border: 1px solid #e2e8f0; max-height: 200px; overflow-y: auto;">
+                            Select options to generate preview...
+                        </div>
+                    </div>
+                    
+                    <!-- Policy Simulator -->
+                    <div style="background: #eef2ff; border-radius: 8px; padding: 1rem; border: 1px solid #c7d2fe;">
+                        <h5 style="margin: 0 0 0.75rem 0; color: #3730a3; font-size: 0.9rem; font-weight: 700;">Policy Simulator</h5>
+                        <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+                            <div style="flex: 1;">
+                                <label style="font-size: 0.75rem; color: #4f46e5; font-weight: 600;">Simulated In</label>
+                                <input type="time" id="pbSimIn" value="09:40" style="width: 100%; padding: 0.4rem; border: 1px solid #a5b4fc; border-radius: 4px; outline: none;">
+                            </div>
+                            <div style="flex: 1;">
+                                <label style="font-size: 0.75rem; color: #4f46e5; font-weight: 600;">Simulated Out</label>
+                                <input type="time" id="pbSimOut" value="16:00" style="width: 100%; padding: 0.4rem; border: 1px solid #a5b4fc; border-radius: 4px; outline: none;">
+                            </div>
+                        </div>
+                        <button onclick="runPolicySimulation()" style="width: 100%; padding: 0.5rem; background: #4f46e5; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; margin-bottom: 0.75rem;">Run Simulation</button>
+                        <div id="pbSimResult" style="background: #ffffff; padding: 0.5rem; border-radius: 6px; border: 1px solid #a5b4fc; font-weight: 700; color: #3730a3; text-align: center; font-size: 1.1rem; min-height: 38px;">
+                            --
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div style="padding: 1.25rem 1.5rem; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; justify-content: flex-end; gap: 1rem;">
+                <button onclick="closePolicyBuilder()" style="padding: 0.75rem 1.5rem; background: transparent; border: 1px solid #cbd5e1; border-radius: 8px; color: #475569; font-weight: 600; cursor: pointer; transition: background 0.2s;">Cancel</button>
+                <button onclick="submitAdvancedPolicy(window.currentPermissionDecisionId)" id="pbSubmitBtn" style="padding: 0.75rem 2rem; background: #2563eb; border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2); transition: background 0.2s;" onmouseover="this.style.background='#1d4ed8'" onmouseout="this.style.background='#2563eb'">Approve & Apply Policy</button>
+            </div>
+        </div>
+    </div>
+    
+    <style>
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.95) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+    </style>
+    
+    <script>
+        function openPolicyBuilder() {
+            // Populate users
+            fetch('/api/users')
+                .then(r => r.json())
+                .then(data => {
+                    if(data.success) {
+                        const select = document.getElementById('pbUserSelect');
+                        select.innerHTML = '<option value="">Select Faculty...</option>';
+                        data.users.forEach(u => {
+                            if(u.role === 'faculty') {
+                                select.innerHTML += `<option value="${u.user_id}">${u.name} (${u.user_id})</option>`;
+                            }
+                        });
+                    }
+                });
+                
+            document.getElementById('pbDate').valueAsDate = new Date();
+            document.getElementById('policyBuilderModal').style.display = 'flex';
+        }
+
+        function closePolicyBuilder() {
+            document.getElementById('policyBuilderModal').style.display = 'none';
+        }
+
+        function applyPolicyPreset(preset) {
+            const mod = document.getElementById('pbModifier');
+            const reqFace = document.getElementById('pbReqFace');
+            const reqGps = document.getElementById('pbReqGps');
+            const reqGeo = document.getElementById('pbReqGeofence');
+            const flexTime = document.getElementById('pbFlexTiming');
+            const autoPres = document.getElementById('pbAutoPresent');
+            const deadline = document.getElementById('pbMorningDeadline');
+
+            // Reset
+            reqFace.checked = true;
+            reqGps.checked = true;
+            reqGeo.checked = true;
+            flexTime.checked = false;
+            autoPres.checked = false;
+            deadline.value = "";
+            mod.value = preset;
+
+            switch(preset) {
+                case 'LP':
+                    deadline.value = "11:30";
+                    break;
+                case 'EP':
+                    // Just set modifier, rules are normal check-in
+                    break;
+                case 'HD_M':
+                case 'HD_A':
+                    flexTime.checked = true;
+                    break;
+                case 'OD':
+                    reqGps.checked = false;
+                    reqGeo.checked = false;
+                    flexTime.checked = true;
+                    break;
+                case 'WFH':
+                    reqGps.checked = false;
+                    reqGeo.checked = false;
+                    break;
+                case 'ML':
+                    reqFace.checked = false;
+                    reqGps.checked = false;
+                    reqGeo.checked = false;
+                    autoPres.checked = true;
+                    flexTime.checked = true;
+                    break;
+            }
+        }
+
+        async function submitAdvancedPolicy(permissionId = null) {
+            const user_id = document.getElementById('pbUserSelect').value;
+            const date = document.getElementById('pbDate').value;
+            const modifier = document.getElementById('pbModifier').value;
+            const btn = document.getElementById('pbSubmitBtn');
+
+            if (!permissionId && (!user_id || !date || !modifier)) {
+                alert("Please select a user, date, and provide a modifier.");
+                return;
+            }
+
+            const rules = {
+                require_face: document.getElementById('pbReqFace').checked,
+                require_gps: document.getElementById('pbReqGps').checked,
+                require_geofence: document.getElementById('pbReqGeofence').checked,
+                flexible_timing: document.getElementById('pbFlexTiming') ? document.getElementById('pbFlexTiming').checked : false,
+                auto_mark_present: document.getElementById('pbAutoPresent') ? document.getElementById('pbAutoPresent').checked : false,
+                morning_deadline: document.getElementById('pbMorningDeadline').value,
+                require_morning_mark: document.getElementById('pbReqMorning').checked,
+                require_evening_mark: document.getElementById('pbReqEvening').checked,
+                evening_deadline: document.getElementById('pbEveningDeadline').value,
+                attendance_status: document.getElementById('pbAttendanceStatus').value
+            };
+
+            const payload = {
+                admin_id: localStorage.getItem('user_id'),
+                user_ids: [user_id],
+                date: date,
+                modifier: modifier,
+                rules_override: rules,
+                valid_from: document.getElementById('pbValidFrom').value,
+                valid_until: document.getElementById('pbValidUntil').value,
+                priority: parseInt(document.getElementById('pbPriority').value) || 10,
+                internal_notes: document.getElementById('pbInternalNotes').value,
+                reason: "Granted via Advanced Policy Builder",
+                decision: 'Approved'
+            };
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+            try {
+                let url = '/api/admin/grant_policy';
+                if (permissionId) {
+                    url = `/api/admin/permissions/${permissionId}/decision`;
+                }
+                
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if(data.success) {
+                    closePolicyBuilder();
+                    if (window.fetchPermissions) {
+                        window.fetchPermissions(localStorage.getItem('user_id'));
+                    }
+                    if (window.showPermissionFlash) {
+                        window.showPermissionFlash('Policy applied successfully.', 'success');
+                    } else {
+                        alert("Policy applied successfully.");
+                    }
+                } else {
+                    alert(data.message || "Failed to grant policy.");
+                }
+            } catch(e) {
+                alert("An error occurred.");
+                console.error(e);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = permissionId ? 'Approve & Apply Policy' : 'Grant Policy';
+            }
+        }
+
+        // Feature: Live Policy Preview
+        function generatePolicyPayload() {
+            return {
+                attendance_status: document.getElementById('pbAttendanceStatus').value,
+                require_face: document.getElementById('pbReqFace').checked,
+                require_gps: document.getElementById('pbReqGps').checked,
+                require_geofence: document.getElementById('pbReqGeofence').checked,
+                require_morning_mark: document.getElementById('pbReqMorning').checked,
+                require_evening_mark: document.getElementById('pbReqEvening').checked,
+                morning_deadline: document.getElementById('pbMorningDeadline').value || null,
+                evening_deadline: document.getElementById('pbEveningDeadline').value || null
+            };
+        }
+
+        function updatePolicyPreview() {
+            const preview = document.getElementById('pbPreviewContent');
+            if(!preview) return;
+            const rules = generatePolicyPayload();
+            const mod = document.getElementById('pbModifier').value;
+            const prio = document.getElementById('pbPriority').value;
+            
+            let html = `<b>Modifier:</b> ${mod || 'None'}\n`;
+            html += `<b>Priority:</b> ${prio}\n`;
+            html += `<b>Final Status:</b> ${rules.attendance_status}\n\n`;
+            html += `<b>Face Required:</b> ${rules.require_face ? 'YES' : 'NO'}\n`;
+            html += `<b>GPS Required:</b> ${rules.require_gps ? 'YES' : 'NO'}\n`;
+            html += `<b>Geofence Required:</b> ${rules.require_geofence ? 'YES' : 'NO'}\n`;
+            html += `<b>Morning Mark:</b> ${rules.require_morning_mark ? 'YES' : 'NO'}\n`;
+            html += `<b>Evening Mark:</b> ${rules.require_evening_mark ? 'YES' : 'NO'}\n`;
+            
+            if(rules.morning_deadline) html += `<b>Override Morning:</b> ${rules.morning_deadline}\n`;
+            if(rules.evening_deadline) html += `<b>Override Evening:</b> ${rules.evening_deadline}\n`;
+            
+            preview.innerHTML = html;
+        }
+
+        // Attach event listeners to all inputs in the modal to update preview
+        document.addEventListener('DOMContentLoaded', () => {
+            const inputs = document.querySelectorAll('#policyBuilderModal input, #policyBuilderModal select');
+            inputs.forEach(input => {
+                input.addEventListener('input', updatePolicyPreview);
+                input.addEventListener('change', updatePolicyPreview);
+            });
+            
+            document.getElementById('pbDate').addEventListener('change', checkPolicyConflicts);
+            document.getElementById('pbUserSelect').addEventListener('change', checkPolicyConflicts);
+        });
+        
+        async function checkPolicyConflicts() {
+            const date = document.getElementById('pbDate').value;
+            const userId = document.getElementById('pbUserSelect').value;
+            const alertBox = document.getElementById('pbConflictAlert');
+            const alertText = document.getElementById('pbConflictText');
+            
+            if (!date || !userId) {
+                alertBox.style.display = 'none';
+                return;
+            }
+            
+            try {
+                // We'll reuse the GET permissions endpoint (admin_list_permissions or similar) 
+                // Or we can just use the user permissions endpoint
+                const res = await fetch(`/api/permissions/user/${userId}`);
+                const data = await res.json();
+                if (data.success && data.permissions) {
+                    const conflicts = data.permissions.filter(p => p.date === date && p.status === 'Approved' && p.id !== parseInt(window.currentPermissionDecisionId || 0));
+                    
+                    if (conflicts.length > 0) {
+                        const mods = conflicts.map(c => c.modifier || c.type).join(', ');
+                        alertText.innerHTML = `This faculty already has an approved policy for <b>${date}</b>: <b>${mods}</b>.`;
+                        alertBox.style.display = 'flex';
+                        window.currentConflictIds = conflicts.map(c => c.id);
+                    } else {
+                        alertBox.style.display = 'none';
+                    }
+                }
+            } catch (e) {
+                console.error("Conflict check failed", e);
+            }
+        }
+
+        // Feature: Policy Simulator
+        async function runPolicySimulation() {
+            const btn = document.querySelector('#pbSimResult').previousElementSibling;
+            const resultBox = document.getElementById('pbSimResult');
+            
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...';
+            
+            try {
+                const res = await fetch('/api/admin/simulate_policy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        admin_id: localStorage.getItem('user_id'),
+                        effective_policy: generatePolicyPayload(),
+                        modifier: document.getElementById('pbModifier').value,
+                        time_in: document.getElementById('pbSimIn').value,
+                        time_out: document.getElementById('pbSimOut').value
+                    })
+                });
+                
+                const data = await res.json();
+                if(data.success) {
+                    resultBox.innerHTML = `Result: ${data.result}`;
+                    resultBox.style.color = '#15803d';
+                    resultBox.style.borderColor = '#15803d';
+                } else {
+                    resultBox.innerHTML = `Error`;
+                    resultBox.style.color = '#dc2626';
+                    resultBox.style.borderColor = '#dc2626';
+                }
+            } catch(e) {
+                resultBox.innerHTML = 'Failed to simulate';
+            } finally {
+                btn.innerHTML = 'Run Simulation';
+            }
+        }
+
+        // Feature: Conflict Resolution
+        async function resolveConflict(action) {
+            document.getElementById('pbConflictAlert').style.display = 'none';
+            if (action === 'replace') {
+                if (window.currentConflictIds) {
+                    // Delete the conflicting permissions
+                    for (const cid of window.currentConflictIds) {
+                        try {
+                            await fetch(`/api/admin/permissions/${cid}`, {
+                                method: 'DELETE',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({admin_id: localStorage.getItem('user_id')})
+                            });
+                        } catch(e) {}
+                    }
+                }
+            } else if (action === 'merge') {
+                // For merge, we just proceed. The backend uses the highest priority.
+                // We can bump priority automatically
+                const prioInput = document.getElementById('pbPriority');
+                prioInput.value = parseInt(prioInput.value || 10) + 1;
+                updatePolicyPreview();
+            }
+        }
+    </script>
+    <!-- Attendance Decision Timeline Modal -->
+    <div id="decisionTimelineModal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(4px); padding: 1rem;">
+        <div style="background: #ffffff; width: 100%; max-width: 500px; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15); display: flex; flex-direction: column; max-height: 90vh; overflow: hidden; border: 1px solid #e2e8f0; animation: modalIn 0.3s ease;">
+            
+            <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
+                <div>
+                    <h2 style="margin: 0; font-size: 1.25rem; color: #0f172a; font-weight: 700;">Request Review</h2>
+                    <p style="margin: 0.25rem 0 0 0; color: #64748b; font-size: 0.85rem;">Evaluate and finalize the attendance exception.</p>
+                </div>
+                <div style="display: flex; gap: 0.75rem; align-items: center;">
+                    <button id="taViewTimelineBtn" onclick="openDecisionTimeline()" style="background: white; border: 1px solid #cbd5e1; padding: 0.4rem 0.75rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600; color: #475569; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;"><i class="fa-solid fa-timeline"></i> Timeline</button>
+                    <button onclick="document.getElementById('templateApprovalModal').style.display='none'" style="background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 1.5rem; transition: color 0.2s;">&times;</button>
+                </div>
+            </div>
+
+            <div style="padding: 1.5rem; overflow-y: auto; flex: 1; background: #ffffff;">
+                <div class="timeline" id="decisionTimelineContent">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
-
