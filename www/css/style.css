@@ -155,7 +155,6 @@
 
     .logo-icon {
         /* remove fixed dimensions to let logo breathe */
-        background: var(--accent-gradient);
         color: white;
         /* width: 36px; height: 36px; removed */
         display: flex;
@@ -2019,7 +2018,7 @@
 
         .nav-menu {
             position: fixed;
-            top: 100px;
+            top: 70px;
             left: 0;
             right: 0;
             width: 100%;

@@ -39,20 +39,6 @@
             min-height: 100vh;
         }
 
-        .navbar {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(203, 213, 225, 0.2);
-            padding: 1rem 2rem;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
         .navbar-brand {
             display: flex;
             align-items: center;
@@ -68,19 +54,6 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-        }
-
-        .logo-icon img {
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-        }
-
-        .nav-menu {
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            gap: 2rem;
         }
 
         .navbar-nav {
@@ -587,22 +560,6 @@
                 grid-template-columns: 1fr 1fr;
             }
 
-            .nav-menu {
-                position: absolute;
-                top: calc(100% + 8px);
-                left: 1rem;
-                right: 1rem;
-                display: none;
-                flex-direction: column;
-                gap: 0.85rem;
-                background: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-radius: 12px;
-                padding: 0.9rem;
-                box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
-                z-index: 120;
-            }
-
             .nav-menu.active {
                 display: flex;
             }
@@ -638,15 +595,6 @@
                 font-size: 1.05rem;
             }
 
-            .logo-icon img {
-                width: 34px;
-                height: 34px;
-            }
-
-            .nav-menu {
-                left: 0.75rem;
-                right: 0.75rem;
-            }
 
             main {
                 padding: 0.75rem;
@@ -704,34 +652,26 @@
 </head>
 <body>
     <nav class="navbar">
-        <a href="faculty_dashboard.html" class="navbar-brand">
+        <a href="admin_dashboard.html" class="navbar-brand">
             <div class="logo-icon">
                 <img src="../assets/Bits-logo.png" alt="BITS Logo">
             </div>
-            <span>Faculty Portal</span>
         </a>
-
-        <button class="menu-toggle" id="facultyMenuToggle" aria-label="Toggle navigation menu" aria-expanded="false">
-            <i class="fa-solid fa-bars"></i>
-        </button>
-
+        
+        <div class="mobile-nav-actions" style="display: flex; align-items: center; justify-content: center; gap: 1rem;"><a href="faculty_approvals.html" class="notification-bell" id="facultyApprovalsBell" style="position: relative; color: #1e293b; text-decoration: none; font-size: 1.5rem; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-bell"></i><span id="pendingApprovalBadge" style="position: absolute; top: -5px; right: -8px; background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 50%; font-size: 0.75rem; font-weight: bold; width: 18px; height: 18px; display: none; align-items: center; justify-content: center;">0</span></a><button class="menu-toggle" aria-label="Toggle navigation"><i class="fa-solid fa-bars"></i></button></div>
+        
         <div class="nav-menu">
             <ul class="navbar-nav">
-                <li><a href="scan.html" class="nav-link"><i class="fas fa-camera"></i> Mark Attendance</a></li>
+                <li><a href="admin_dashboard.html" class="nav-link">Dashboard</a></li>
             </ul>
             <div class="nav-actions">
-                <!-- Tracking Status Badge -->
-                <div id="trackingStatusBadge" class="tracking-status-badge" title="Location tracking active - notification is persistent">
-                    <span class="tracking-dot"></span>
-                    <span class="tracking-label">📍 Tracking On</span>
-                </div>
-                
-                <a href="../index.html" class="action-btn-danger" onclick="handleLogout(); return false;">
+                <a href="#" class="action-btn-danger" onclick="appLogout(); return false;">
                     <i class="fa-solid fa-right-from-bracket"></i> Logout
                 </a>
             </div>
         </div>
     </nav>
+
 
     <div id="policyAlert" style="display: none;"></div>
 
