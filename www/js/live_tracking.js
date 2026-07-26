@@ -298,57 +298,95 @@ function updateDashboardMetrics(data) {
     const rosterContainer = document.getElementById("activeUserRoster");
     rosterContainer.innerHTML = "";
 
-    (data.map_points || []).forEach(p => {
-        // Count ALL users for metrics, not just those with coordinates
-        const hasNetwork = p.device_status && p.device_status.network_on !== false;
-        const hasLocation = p.device_status && p.device_status.location_on !== false;
-        const isStale = p.status === 'STALE' || p.status === 'OFFLINE';
+    let online = 0;
+    let offline = 0;
+    let gpsOff = 0;
+    let mockLoc = 0;
+    let lowBatt = 0;
+    let stopped = 0;
 
-        // A user is "active" (online) if their heartbeat is fresh
-        if (hasNetwork && !isStale) {
-            activeDevices++;
-        }
+    const allUsers = [...(data.map_points || []), ...(data.inactive_users || [])];
+
+    allUsers.forEach(p => {
+        // A user is "online" if their presence_state is ONLINE and network is active
+        const hasNetwork = p.device_status && p.device_status.network_on !== false;
         
-        // Count inside/outside based on their last known location, regardless of offline status
-        if (p.in_bounds) {
-            inside++;
+        if (hasNetwork && p.presence_state === 'ONLINE') {
+            online++;
         } else {
+            offline++;
+        }
+
+        // Count inside/outside based on their location_state
+        if (p.location_state === 'INSIDE_CAMPUS') {
+            inside++;
+        } else if (p.location_state === 'OUTSIDE_CAMPUS' || p.location_state === 'OUT_OF_GEOFENCE') {
             outside++;
         }
 
-        const isFaulty = !p.in_bounds;
+        if (p.device_state === 'GPS_OFF') gpsOff++;
+        if (p.device_state === 'MOCK_LOCATION') mockLoc++;
+        if (p.device_state === 'LOW_BATTERY') lowBatt++;
+        if (p.tracking_status === 'STOPPED' || p.tracking_status === 'PAUSED') stopped++;
+
+        const isStale = !hasNetwork || p.presence_state === 'OFFLINE';
+        const isFaulty = p.location_state === 'OUTSIDE_CAMPUS' || p.device_state === 'MOCK_LOCATION' || p.device_state === 'GPS_OFF';
         
         // Apply filter
-        if (currentRosterFilter === 'outside' && !isFaulty) return;
-        if (currentRosterFilter === 'inside' && isFaulty) return;
+        if (currentRosterFilter === 'outside' && p.location_state !== 'OUTSIDE_CAMPUS' && p.location_state !== 'OUT_OF_GEOFENCE') return;
+        if (currentRosterFilter === 'inside' && p.location_state !== 'INSIDE_CAMPUS') return;
+        if (currentRosterFilter === 'offline' && !isStale) return;
+        if (currentRosterFilter === 'gps_off' && p.device_state !== 'GPS_OFF') return;
+        if (currentRosterFilter === 'mock' && p.device_state !== 'MOCK_LOCATION') return;
+        if (currentRosterFilter === 'battery' && p.device_state !== 'LOW_BATTERY') return;
+        if (currentRosterFilter === 'stopped' && p.tracking_status !== 'STOPPED' && p.tracking_status !== 'PAUSED') return;
 
         const row = document.createElement("div");
         row.className = `user-row ${isFaulty ? "faulty" : ""}`;
         // If offline, make the row look slightly faded
-        if (isStale || !hasNetwork) {
+        if (isStale || !hasNetwork || p.status === 'OFFLINE') {
             row.style.opacity = "0.6";
         }
-        row.onclick = () => focusOnUser(p.user_id);
+        
+        // Let's store stringified data in dataset so we can pull it in the profile overlay
+        row.dataset.profileStr = JSON.stringify(p);
+        
+        row.onclick = () => {
+            focusOnUser(p.user_id);
+            openProfileOverlay(p);
+        };
         
         const userInitial = (p.name || "U")[0].toUpperCase();
         
-        let statusString = isFaulty ? "Out of Campus" : "Inside Campus";
-        if (isStale || !hasNetwork) {
-            statusString = `<b>[OFFLINE]</b> ${statusString}`;
+        let statusString = p.location_state || 'UNKNOWN';
+        if (p.location_state === 'INSIDE_CAMPUS') statusString = "Inside Campus";
+        else if (p.location_state === 'OUTSIDE_CAMPUS' || p.location_state === 'OUT_OF_GEOFENCE') statusString = "Out of Campus";
+        else if (p.location_state === 'UNKNOWN') statusString = "Locating...";
+        
+        if (p.activity_state === 'LUNCH_BREAK') statusString += " (Lunch Break)";
+        
+        if (p.presence_state === 'OFFLINE') statusString = "Offline";
+        
+        if (p.device_state === 'GPS_OFF') statusString = "GPS Disabled";
+        else if (p.device_state === 'MOCK_LOCATION') statusString = "Mock Location";
+        else if (p.tracking_status === 'STOPPED') statusString = `Stopped (${p.pause_reason || 'Unknown'})`;
+        
+        if (!hasNetwork && p.presence_state !== 'OFFLINE') {
+            statusString = `<b>[STALE]</b> ${statusString}`;
         }
         
         row.innerHTML = `
-            <div class="u-info">
+            <div class="u-info" style="flex: 1; min-width: 0;">
                 <div class="u-avatar">${userInitial}</div>
-                <div class="u-details">
-                    <span class="u-name">${p.name || "Unknown"}</span>
+                <div class="u-details" style="overflow: hidden; white-space: nowrap; text-overflow: ellipsis; flex: 1;">
+                    <span class="u-name" style="display: block; overflow: hidden; text-overflow: ellipsis;">${p.name || "Unknown"}</span>
                     <span class="u-status">
-                        <div class="status-dot ${isFaulty ? "out" : "in"}"></div>
+                        <div class="status-dot ${p.status === 'OFFLINE' || isStale || !hasNetwork ? "gray" : (isFaulty ? "out" : "in")}"></div>
                         ${statusString}
                     </span>
                 </div>
             </div>
-            <i class="fa-solid fa-chevron-right" style="color: var(--text-tertiary); font-size: 0.8rem;"></i>
+            <i class="fa-solid fa-chevron-right" style="color: var(--text-tertiary); font-size: 0.8rem; margin-left: 12px; flex-shrink: 0;"></i>
         `;
         
         if (isFaulty) {
@@ -364,13 +402,16 @@ function updateDashboardMetrics(data) {
         rosterContainer.innerHTML = `<div style="text-align: center; color: var(--text-tertiary); font-size: 0.85rem; padding: 20px;">No users match the selected filter</div>`;
     }
 
-    const valOutside = document.getElementById("valOutside");
-    if (valOutside) valOutside.textContent = outside;
+    if (document.getElementById("valOnline")) document.getElementById("valOnline").textContent = online;
+    if (document.getElementById("valOffline")) document.getElementById("valOffline").textContent = offline;
+    if (document.getElementById("valOutside")) document.getElementById("valOutside").textContent = outside;
+    if (document.getElementById("valInside")) document.getElementById("valInside").textContent = inside;
+    if (document.getElementById("valGpsOff")) document.getElementById("valGpsOff").textContent = gpsOff;
+    if (document.getElementById("valMock")) document.getElementById("valMock").textContent = mockLoc;
+    if (document.getElementById("valBattery")) document.getElementById("valBattery").textContent = lowBatt;
+    if (document.getElementById("valStopped")) document.getElementById("valStopped").textContent = stopped;
     
-    const valInside = document.getElementById("valInside");
-    if (valInside) valInside.textContent = inside;
-    
-    document.getElementById("rosterCount").textContent = `${activeDevices} Online`;
+    document.getElementById("rosterCount").textContent = `${online} Online`;
     document.getElementById("lastUpdatedStr").textContent = new Date().toLocaleTimeString([], {hour: "2-digit", minute:"2-digit", second:"2-digit"});
     
     const outsideCard = document.getElementById("cardViolations");
@@ -424,3 +465,75 @@ function sendPresenceHeartbeat(adminId) {
 window.addEventListener("beforeunload", () => {
     if (pollInterval) clearInterval(pollInterval);
 });
+
+// === Profile Slider Logic ===
+
+function openProfileOverlay(p) {
+    document.getElementById("profName").textContent = p.name || "Unknown";
+    document.getElementById("profId").textContent = p.user_id;
+    document.getElementById("profRole").textContent = p.role || "User";
+    
+    // Avatar
+    const userInitial = (p.name || "U")[0].toUpperCase();
+    document.getElementById("profAvatar").textContent = userInitial;
+    
+    // Network & Battery
+    const hasNetwork = p.device_status && p.device_status.network_on !== false;
+    document.getElementById("profNetwork").textContent = hasNetwork ? (p.device_status.network_type || "Connected") : "Offline";
+    document.getElementById("profNetwork").style.color = hasNetwork ? "#0f172a" : "#ef4444";
+    
+    if (p.device_status && p.device_status.battery_level !== undefined && p.device_status.battery_level !== null) {
+        document.getElementById("profBattery").textContent = `🔋 ${p.device_status.battery_level}%`;
+    } else {
+        document.getElementById("profBattery").textContent = "N/A";
+    }
+
+    // Location & App
+    if (p.device_status && p.device_status.gps_accuracy) {
+        document.getElementById("profGps").textContent = `Active (±${Math.round(p.device_status.gps_accuracy)}m)`;
+    } else {
+        document.getElementById("profGps").textContent = p.device_status && p.device_status.location_on === false ? "Disabled" : "N/A";
+    }
+    
+    if (p.tracking_status === 'STOPPED' || p.status === 'OFFLINE') {
+        document.getElementById("profAppState").innerHTML = `<span style="color:#ef4444;font-weight:700;">STOPPED</span>`;
+    } else {
+        document.getElementById("profAppState").innerHTML = `<span style="color:#10b981;font-weight:700;">ACTIVE</span>`;
+    }
+
+    // Bounds Status
+    if (p.in_bounds === false) {
+        document.getElementById("profPhysical").innerHTML = `<span style="background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:12px;font-size:0.75rem;font-weight:700;">OUT OF BOUNDS</span>`;
+    } else if (p.in_bounds === true) {
+        document.getElementById("profPhysical").innerHTML = `<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:12px;font-size:0.75rem;font-weight:700;">IN BOUNDS</span>`;
+    } else {
+        document.getElementById("profPhysical").textContent = "N/A";
+    }
+
+    // Attendance & Permissions
+    if (p.today_attendance) {
+        document.getElementById("profTimeIn").textContent = p.today_attendance.time_in ? p.today_attendance.time_in : "--";
+        document.getElementById("profTimeOut").textContent = p.today_attendance.time_out ? p.today_attendance.time_out : "--";
+    } else {
+        document.getElementById("profTimeIn").textContent = "--";
+        document.getElementById("profTimeOut").textContent = "--";
+    }
+
+    document.getElementById("profPerms").textContent = p.today_permission ? p.today_permission : "None";
+
+    const overlay = document.getElementById("profileOverlay");
+    overlay.style.display = "block";
+    
+    // trigger reflow
+    void overlay.offsetWidth;
+    
+    overlay.classList.add("active");
+}
+
+function closeProfile() {
+    const overlay = document.getElementById("profileOverlay");
+    overlay.classList.remove("active");
+    setTimeout(() => {
+        overlay.style.display = "none";
+    }, 300); // Wait for transition
+}

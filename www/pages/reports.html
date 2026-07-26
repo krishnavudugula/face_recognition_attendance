@@ -1107,8 +1107,12 @@
                                 <th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">User ID</th>
                                 <th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">Name</th>
                                 <th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">Role</th>
-                                ${isBoundsView ? `<th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">Physical</th>` : ''}
-                                ${isBoundsView ? `<th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">Policy</th>` : ''}
+                                ${currentDetailedType === 'network' ? `<th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">Connection</th>` : ''}
+                                ${currentDetailedType === 'network' ? `<th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">Battery</th>` : ''}
+                                ${currentDetailedType === 'location' ? `<th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">GPS Accuracy</th>` : ''}
+                                ${currentDetailedType === 'location' ? `<th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">App State</th>` : ''}
+                                ${currentDetailedType === 'bounds' ? `<th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">Physical</th>` : ''}
+                                ${currentDetailedType === 'bounds' ? `<th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">Policy</th>` : ''}
                                 <th style="padding: 1rem; text-align: left; color: ${tab === 'on' ? '#065f46' : '#7f1d1d'}; font-weight: 700;">Last Seen</th>
                             </tr>
                         </thead>
@@ -1134,8 +1138,12 @@
                                 ${user.role || 'user'}
                             </span>
                         </td>
-                        ${isBoundsView ? `<td style="padding: 0.875rem 1rem;"><span style="background: ${physicalChipBg}; color: ${physicalChipColor}; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700;">${physicalState}</span></td>` : ''}
-                        ${isBoundsView ? `<td style="padding: 0.875rem 1rem;"><span style="background: ${policyChipBg}; color: ${policyChipColor}; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700;">${policyState}</span></td>` : ''}
+                        ${currentDetailedType === 'network' ? `<td style="padding: 0.875rem 1rem; color: #0f172a; font-weight: 600;">${user.device_status?.network_type || 'N/A'}</td>` : ''}
+                        ${currentDetailedType === 'network' ? `<td style="padding: 0.875rem 1rem; color: #0f172a;"><i class="fa-solid fa-battery-${user.device_status?.battery_charging ? 'bolt' : 'half'}"></i> ${user.device_status?.battery_level !== undefined && user.device_status?.battery_level !== null ? user.device_status.battery_level + '%' : 'N/A'}</td>` : ''}
+                        ${currentDetailedType === 'location' ? `<td style="padding: 0.875rem 1rem; color: #0f172a; font-weight: 600;">${user.device_status?.gps_accuracy ? '±' + Math.round(user.device_status.gps_accuracy) + 'm' : 'N/A'}</td>` : ''}
+                        ${currentDetailedType === 'location' ? `<td style="padding: 0.875rem 1rem; color: #0f172a;">${user.device_status?.tracking_active ? 'Active' : 'Stopped'}</td>` : ''}
+                        ${currentDetailedType === 'bounds' ? `<td style="padding: 0.875rem 1rem;"><span style="background: ${physicalChipBg}; color: ${physicalChipColor}; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700;">${physicalState}</span></td>` : ''}
+                        ${currentDetailedType === 'bounds' ? `<td style="padding: 0.875rem 1rem;"><span style="background: ${policyChipBg}; color: ${policyChipColor}; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700;">${policyState}</span></td>` : ''}
                         <td style="padding: 0.875rem 1rem; color: #64748b; font-size: 0.9rem;">${lastSeen}</td>
                     </tr>
                 `;

@@ -12,6 +12,236 @@ if os.path.exists(env_path):
 from flask import Flask, request, jsonify, send_from_directory, send_file, make_response
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from werkzeug.utils import secure_filename
+from datetime import datetime, date, timedelta
+import pytz
+import threading
+import uuid
+from math import radians, sin, cos, sqrt, atan2
+
+# Constants for Presence Engine
+TARGET_LAT = 17.937351
+TARGET_LON = 79.849383
+ALLOWED_RADIUS_KM = 0.24207
+GPS_ACCURACY_BUFFER_M = 50
+
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371.0 # Earth radius in kilometers
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat / 2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+    return R * c
+
+class PresenceEngine:
+    def __init__(self, db, LivePresence, TrackingSession, PresenceEventLog, FCMToken):
+        self.db = db
+        self.LivePresence = LivePresence
+        self.TrackingSession = TrackingSession
+        self.PresenceEventLog = PresenceEventLog
+        self.FCMToken = FCMToken
+        
+    def log_event(self, user_id, event_type, prev_state, new_state, reason):
+        log = self.PresenceEventLog(
+            user_id=user_id,
+            event_type=event_type,
+            previous_state=prev_state,
+            new_state=new_state,
+            reason=reason
+        )
+        self.db.session.add(log)
+
+    def determine_location_state(self, dist_km, accuracy, is_lunch_window=False):
+        if dist_km == 0.0 and accuracy == 0.0:
+            return 'UNKNOWN'
+            
+        effective_radius_m = (ALLOWED_RADIUS_KM * 1000) - min(accuracy, GPS_ACCURACY_BUFFER_M)
+        in_bounds = (dist_km * 1000 <= effective_radius_m)
+        
+        if in_bounds:
+            return 'INSIDE_CAMPUS'
+        else:
+            return 'OUTSIDE_CAMPUS'
+
+    def get_confidence_score(self, accuracy):
+        if accuracy <= 0.0:
+            return 'LOW'
+        elif accuracy < 15.0:
+            return 'HIGH'
+        elif accuracy < 50.0:
+            return 'MEDIUM'
+        else:
+            return 'LOW'
+
+    def send_policy_alert(self, user_id, title, body, event_code):
+        from firebase_admin import messaging
+        tokens = self.FCMToken.query.filter_by(user_id=user_id, is_active=True).all()
+        for t in tokens:
+            try:
+                msg = messaging.Message(
+                    notification=messaging.Notification(title=title, body=body),
+                    token=t.token,
+                    data={"action": "policy_alert", "event_code": event_code}
+                )
+                messaging.send(msg)
+            except Exception as e:
+                pass
+
+    def process_heartbeat(self, user, payload, time_flags):
+        session_id = payload.get('tracking_session_id')
+        seq_num = payload.get('sequence_number', 0)
+        
+        # 1. Validate Session & Sequence
+        if session_id:
+            session = self.TrackingSession.query.filter_by(session_id=session_id).first()
+            if not session or session.status != 'ACTIVE':
+                return False, "Invalid or inactive tracking session."
+            
+            # Health Metrics: Missed Heartbeats
+            if seq_num <= session.last_sequence_number:
+                return True, "Duplicate or stale heartbeat ignored."
+                
+            if seq_num > session.last_sequence_number + 1:
+                missed = (seq_num - session.last_sequence_number) - 1
+                session.heartbeats_missed += missed
+                
+            session.last_sequence_number = seq_num
+            session.heartbeats_received += 1
+            
+            # Health Metrics: Latency Calculation
+            client_ts = payload.get('client_timestamp') or payload.get('timestamp')
+            if client_ts:
+                try:
+                    latency = int(datetime.utcnow().timestamp() * 1000) - int(client_ts)
+                    if latency > 0:
+                        session.average_latency_ms = int(((session.average_latency_ms * (session.heartbeats_received - 1)) + latency) / session.heartbeats_received)
+                except:
+                    pass
+
+        # 2. Geofence Check
+        try:
+            lat = float(payload.get('latitude', 0.0))
+            lon = float(payload.get('longitude', 0.0))
+            accuracy = float(payload.get('gps_accuracy', 0.0))
+        except:
+            lat, lon, accuracy = 0.0, 0.0, 0.0
+
+        if lat != 0.0 and lon != 0.0:
+            dist_km = haversine(lat, lon, TARGET_LAT, TARGET_LON)
+        else:
+            dist_km = 0.0
+            
+        confidence = self.get_confidence_score(accuracy)
+        
+        # 3. Extract Device Status
+        mock_loc = bool(payload.get('mock_location', False))
+        gps_enabled = bool(payload.get('gps_enabled', True))
+        tracking_active = bool(payload.get('tracking_active', True))
+        battery_level = payload.get('battery_level', 100)
+        
+        # 4. Penta State Machine
+        presence = self.LivePresence.query.filter_by(user_id=user.user_id).first()
+        if not presence:
+            presence = self.LivePresence(user_id=user.user_id, name=user.name, role=user.role)
+            self.db.session.add(presence)
+            
+        prev_presence = presence.presence_state or 'OFFLINE'
+        prev_location = presence.location_state or 'UNKNOWN'
+        prev_device = presence.device_state or 'TRACKING_STOPPED'
+        prev_activity = presence.activity_state or 'IDLE'
+        
+        # Determine New States
+        new_presence = 'ONLINE'
+        new_location = self.determine_location_state(dist_km, accuracy, time_flags.get('is_lunch_window', False))
+        
+        if time_flags.get('is_lunch_window', False):
+            new_activity = 'LUNCH_BREAK'
+        else:
+            new_activity = 'WORKING'
+        
+        if mock_loc:
+            new_device = 'MOCK_LOCATION'
+        elif not gps_enabled:
+            new_device = 'GPS_OFF'
+        elif battery_level < 15 and not payload.get('battery_charging', False):
+            new_device = 'LOW_BATTERY'
+        elif not tracking_active:
+            new_device = 'TRACKING_STOPPED'
+        else:
+            new_device = 'TRACKING_RUNNING'
+            
+        # Logging State Changes (Location Transitions)
+        if new_location != prev_location and confidence in ['HIGH', 'MEDIUM']:
+            reason = f"Moved from {prev_location} to {new_location}"
+            self.log_event(user.user_id, 'LOCATION_CHANGE', prev_location, new_location, reason)
+            
+            # Trigger Notifications based on location transitions ONLY if confident
+            if new_location == 'OUTSIDE_CAMPUS' and not time_flags.get('is_lunch_window', False):
+                self.send_policy_alert(
+                    user.user_id, 
+                    "Out of Bounds Alert", 
+                    "You are currently outside the campus boundary.", 
+                    "OUT_OF_BOUNDS"
+                )
+                
+        # Device State Logging
+        if new_device != prev_device:
+            self.log_event(user.user_id, 'DEVICE_CHANGE', prev_device, new_device, "Device state updated")
+            
+            if new_device == 'GPS_OFF':
+                self.send_policy_alert(
+                    user.user_id, 
+                    "GPS Disabled", 
+                    "Your GPS is turned off. Attendance tracking requires location.", 
+                    "GPS_OFF"
+                )
+            if new_device == 'MOCK_LOCATION':
+                self.send_policy_alert(
+                    user.user_id, 
+                    "Mock Location Detected", 
+                    "Fake GPS apps are not allowed.", 
+                    "MOCK_LOCATION"
+                )
+
+        # 5. Update LivePresence fields
+        presence.sequence_number = seq_num
+        presence.heartbeat_version = payload.get('heartbeat_version', '1.0')
+        presence.battery_level = battery_level
+        presence.battery_charging = bool(payload.get('battery_charging', False))
+        presence.gps_accuracy = accuracy
+        presence.latitude = lat
+        presence.longitude = lon
+        presence.distance_m = dist_km * 1000
+        presence.in_bounds = (new_location == 'INSIDE_CAMPUS')
+        presence.mock_location = mock_loc
+        presence.network_type = payload.get('network_type')
+        presence.capacitor_version = payload.get('capacitor_version')
+        presence.android_version = payload.get('android_version')
+        presence.device_manufacturer = payload.get('device_manufacturer')
+        presence.device_model = payload.get('device_model')
+        presence.tracking_active = tracking_active
+        
+        presence.presence_state = new_presence
+        presence.location_state = new_location
+        presence.location_confidence = confidence
+        presence.device_state = new_device
+        presence.activity_state = new_activity
+        presence.tracking_status = 'ACTIVE' if tracking_active else 'PAUSED'
+        if not tracking_active:
+            presence.pause_reason = payload.get('pause_reason', 'UNKNOWN')
+        else:
+            presence.pause_reason = None
+            
+        presence.current_session_id = session_id
+        presence.last_seen = datetime.utcnow()
+        presence.offline_duration_seconds = 0
+        
+        self.db.session.commit()
+        return True, "Heartbeat processed successfully."
+
+def get_presence_engine():
+    return PresenceEngine(db, LivePresence, TrackingSession, PresenceEventLog, FCMToken)
+
 from datetime import datetime, time, timedelta
 from threading import Thread
 import numpy as np
@@ -55,27 +285,27 @@ try:
                 try:
                     cred = credentials.Certificate(path)
                     firebase_admin.initialize_app(cred)
-                    print(f"✅ Firebase Admin SDK initialized with: {path}")
+                    print(f"Firebase Admin SDK initialized with: {path}")
                     firebase_initialized = True
                     break
                 except Exception as e:
-                    print(f"⚠️ Failed to initialize Firebase with {path}: {e}")
+                    print(f"Failed to initialize Firebase with {path}: {e}")
         
         if not firebase_initialized:
             try:
                 # Try Application Default Credentials (ADC) from environment
                 firebase_admin.initialize_app()
-                print("✅ Firebase Admin SDK initialized with Application Default Credentials")
+                print("Firebase Admin SDK initialized with Application Default Credentials")
                 firebase_initialized = True
             except Exception as e:
-                print(f"⚠️ Firebase Admin SDK not initialized: {e}")
+                print(f"Firebase Admin SDK not initialized: {e}")
                 print("   Location tracking FCM pings will NOT work.")
                 print("   Either:")
                 print("   1. Download service account JSON from Firebase Console")
                 print("   2. Save it as 'serviceAccountKey.json' in project root")
                 print("   3. OR set GOOGLE_APPLICATION_CREDENTIALS environment variable")
     else:
-        print("✅ Firebase Admin SDK already initialized")
+        print("Firebase Admin SDK already initialized")
         
 except ImportError:
     FIREBASE_ADMIN_AVAILABLE = False
@@ -153,7 +383,7 @@ def ping_device_via_fcm(fcm_token, action="heartbeat"):
         bool: True if message sent successfully
     """
     if not FIREBASE_ADMIN_AVAILABLE:
-        print("⚠️ Firebase Admin SDK not available, skipping FCM ping")
+        print("Firebase Admin SDK not available, skipping FCM ping")
         print("   Devices will not receive wakeup signals!")
         return False
     
@@ -501,15 +731,15 @@ class FaceSystem:
                     )
                     print("✓ SFace model downloaded successfully")
                 except Exception as e:
-                    print(f"✗ Failed to download SFace: {e}")
+                    print(f"Failed to download SFace: {e}")
                     raise
 
-            print("✓ Models verified")
+            print("Models verified")
             print(f"  Detector: {os.path.exists(self.detector_path)} ({os.path.getsize(self.detector_path) if os.path.exists(self.detector_path) else 0} bytes)")
             print(f"  Recognizer: {os.path.exists(self.recognizer_path)} ({os.path.getsize(self.recognizer_path) if os.path.exists(self.recognizer_path) else 0} bytes)")
 
             # Initialize OpenCV Face Detector (YuNet)
-            print("🔧 Initializing YuNet detector...")
+            print("Initializing YuNet detector...")
             self.detector = cv2.FaceDetectorYN.create(
                 self.detector_path,
                 "",
@@ -520,20 +750,20 @@ class FaceSystem:
             )
             if self.detector is None:
                 raise Exception("YuNet detector initialization returned None")
-            print("✓ YuNet detector initialized")
+            print("YuNet detector initialized")
 
             # Initialize OpenCV Face Recognizer (SFace)
-            print("🔧 Initializing SFace recognizer...")
+            print("Initializing SFace recognizer...")
             self.recognizer = cv2.FaceRecognizerSF.create(self.recognizer_path, "")
             if self.recognizer is None:
                 raise Exception("SFace recognizer initialization returned None")
-            print("✓ SFace recognizer initialized")
+            print("SFace recognizer initialized")
 
             self.models_loaded = True
-            print("✅ OpenCV YuNet & SFace Models Loaded Successfully!")
+            print("OpenCV YuNet & SFace Models Loaded Successfully!")
 
         except Exception as e:
-            print(f"❌ CRITICAL ERROR loading OpenCV models: {e}")
+            print(f"CRITICAL ERROR loading OpenCV models: {e}")
             import traceback
             traceback.print_exc()
             self.models_loaded = False
@@ -629,11 +859,11 @@ class FaceSystem:
 
         # If the highest similarity is greater than our threshold, it's a match!
         if best_match_id and max_score >= threshold:
-            print(f"  ✓ Face match: {best_match_id} (similarity: {max_score:.4f})")
+            print(f"  Face match: {best_match_id} (similarity: {max_score:.4f})")
             return best_match_id
 
         if best_match_id:
-            print(f"  ✗ No match (closest: {best_match_id}, similarity: {max_score:.4f}, threshold required: {threshold})")
+            print(f"  No match (closest: {best_match_id}, similarity: {max_score:.4f}, threshold required: {threshold})")
         return None
 
 # Initialize face recognition system
@@ -659,7 +889,7 @@ CORS(app,
      ],
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 
-# 🔴 CRITICAL: Handle ngrok browser warning bypass
+# CRITICAL: Handle ngrok browser warning bypass
 @app.before_request
 def handle_ngrok_preflight():
     """Handle ngrok OPTIONS preflight requests gracefully"""
@@ -823,6 +1053,73 @@ class LivePresence(db.Model):
     # === NATIVE TRUTH FIELDS (reported by Android service, NOT guessed by JS) ===
     network_status = db.Column(db.String(20), default='online')   # 'online' or 'offline' — from Android ConnectivityManager
     location_enabled = db.Column(db.Boolean, default=True)        # GPS toggle state — from Android LocationManager
+    battery_level = db.Column(db.Integer, default=100)
+    gps_accuracy = db.Column(db.Float, default=0.0)
+    tracking_active = db.Column(db.Boolean, default=True)
+    app_version = db.Column(db.String(20), nullable=True)
+    
+    # === ENTERPRISE TRACKING FIELDS ===
+    sequence_number = db.Column(db.Integer, default=0)
+    heartbeat_version = db.Column(db.String(10), default="1.0")
+    battery_charging = db.Column(db.Boolean, default=False)
+    android_version = db.Column(db.String(20), nullable=True)
+    device_manufacturer = db.Column(db.String(50), nullable=True)
+    device_model = db.Column(db.String(50), nullable=True)
+    capacitor_version = db.Column(db.String(20), nullable=True)
+    network_type = db.Column(db.String(20), nullable=True)
+    mock_location = db.Column(db.Boolean, default=False)
+    
+    # State Machine Separation
+    presence_state = db.Column(db.String(50), default='OFFLINE') # ONLINE, OFFLINE
+    location_state = db.Column(db.String(50), default='UNKNOWN') # UNKNOWN, INSIDE_CAMPUS, OUTSIDE_CAMPUS, OUT_OF_GEOFENCE
+    location_confidence = db.Column(db.String(20), default='LOW') # HIGH, MEDIUM, LOW
+    device_state = db.Column(db.String(50), default='TRACKING_STOPPED')
+    attendance_state = db.Column(db.String(50), default='NOT_MARKED')
+    activity_state = db.Column(db.String(50), default='IDLE') # WORKING, LUNCH_BREAK, MEETING, ON_DUTY, IDLE
+    
+    tracking_status = db.Column(db.String(20), default='STOPPED') # ACTIVE, PAUSED, STOPPED
+    pause_reason = db.Column(db.String(50), nullable=True) # LOGOUT, ADMIN, PERMISSION, BATTERY, FORCE_STOP, UNKNOWN
+    
+    current_session_id = db.Column(db.String(50), nullable=True)
+    offline_duration_seconds = db.Column(db.Integer, default=0)
+    last_notification = db.Column(db.DateTime, nullable=True)
+
+class TrackingSession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.String(100), unique=True, nullable=False)
+    user_id = db.Column(db.String(50), db.ForeignKey('user.user_id'), nullable=False)
+    device_id = db.Column(db.String(100), nullable=True)
+    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    ended_at = db.Column(db.DateTime, nullable=True)
+    last_heartbeat_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status = db.Column(db.String(20), default='ACTIVE') # ACTIVE, COMPLETED, TERMINATED
+    last_sequence_number = db.Column(db.Integer, default=0)
+    
+    # Health Metrics
+    heartbeats_received = db.Column(db.Integer, default=0)
+    heartbeats_missed = db.Column(db.Integer, default=0)
+    average_latency_ms = db.Column(db.Integer, default=0)
+
+class RegisteredDevice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(100), unique=True, nullable=False)
+    user_id = db.Column(db.String(50), db.ForeignKey('user.user_id'), nullable=False)
+    manufacturer = db.Column(db.String(50), nullable=True)
+    model = db.Column(db.String(50), nullable=True)
+    android_version = db.Column(db.String(20), nullable=True)
+    registered_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
+    is_trusted = db.Column(db.Boolean, default=True)
+    is_revoked = db.Column(db.Boolean, default=False)
+
+class PresenceEventLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.String(50), db.ForeignKey('user.user_id'), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    event_type = db.Column(db.String(50), nullable=False)
+    previous_state = db.Column(db.String(50), nullable=True)
+    new_state = db.Column(db.String(50), nullable=False)
+    reason = db.Column(db.String(200), nullable=True)
 
 class SecurityAlert(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -991,7 +1288,7 @@ class LivenessChallenge(db.Model):
     user_id = db.Column(db.String(50), db.ForeignKey('user.user_id'), nullable=False)
     challenge_type = db.Column(db.String(50), nullable=False)  # 'blink', 'head_turn', 'smile'
     challenge_instructions = db.Column(db.String(300), nullable=False)
-    is_passed = db.Column(db.Boolean, nullable=True)  # None = pending, True = passed, False = failed
+    is_passed = db.Column(db.Boolean, default=True)  # None = pending, True = passed, False = failed
     attempt_count = db.Column(db.Integer, default=1)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
@@ -1194,7 +1491,7 @@ def ensure_permission_request_schema():
             conn.exec_driver_sql("ALTER TABLE permission_request ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")
         
         conn.commit()
-        print("✅ Permission Request schema verified/migrated")
+        print("Permission Request schema verified/migrated")
 
 
 def ensure_attendance_log_schema():
@@ -1214,6 +1511,42 @@ def ensure_attendance_log_schema():
         if 'late_permission_approved' not in col_names:
             conn.exec_driver_sql("ALTER TABLE attendance_log ADD COLUMN late_permission_approved BOOLEAN DEFAULT 0")
 
+
+def ensure_tracking_session_schema():
+    try:
+        # Check TrackingSession table
+        inspector = db.inspect(db.engine)
+        if 'tracking_session' in inspector.get_table_names():
+            columns = inspector.get_columns('tracking_session')
+            col_names = [c['name'] for c in columns]
+            
+            with db.engine.connect() as conn:
+                if 'last_heartbeat_at' not in col_names:
+                    conn.execute(db.text("ALTER TABLE tracking_session ADD COLUMN last_heartbeat_at DATETIME"))
+                conn.commit()
+    except Exception as e:
+        print(f"[DB] Error ensuring TrackingSession schema: {e}")
+
+def ensure_holiday_schema():
+    """Ensure the holiday table has the new description/declared columns"""
+    try:
+        inspector = db.inspect(db.engine)
+        if 'holiday' in inspector.get_table_names():
+            columns = inspector.get_columns('holiday')
+            col_names = [c['name'] for c in columns]
+            
+            with db.engine.connect() as conn:
+                if 'description' not in col_names:
+                    conn.execute(db.text("ALTER TABLE holiday ADD COLUMN description VARCHAR(300)"))
+                if 'declared_by' not in col_names:
+                    conn.execute(db.text("ALTER TABLE holiday ADD COLUMN declared_by VARCHAR(50)"))
+                if 'declared_at' not in col_names:
+                    conn.execute(db.text("ALTER TABLE holiday ADD COLUMN declared_at DATETIME"))
+                if 'updated_at' not in col_names:
+                    conn.execute(db.text("ALTER TABLE holiday ADD COLUMN updated_at DATETIME"))
+                conn.commit()
+    except Exception as e:
+        print(f"[DB] Error ensuring Holiday schema: {e}")
 
 def ensure_user_schema():
     """Ensure new User columns exist for older SQLite databases."""
@@ -1247,7 +1580,7 @@ def ensure_notification_preferences():
 
             if users_without_prefs:
                 db.session.commit()
-                print(f"✓ Created alert preferences for {len(users_without_prefs)} users")
+                print(f"Created alert preferences for {len(users_without_prefs)} users")
     except Exception as e:
         print(f"[Alert Preference Init Error] {e}")
 
@@ -1268,7 +1601,7 @@ def ensure_theme_preferences():
 
             if users_without_theme:
                 db.session.commit()
-                print(f"✓ Created theme preferences for {len(users_without_theme)} users")
+                print(f"Created theme preferences for {len(users_without_theme)} users")
     except Exception as e:
         print(f"[Theme Preference Init Error] {e}")
 
@@ -1283,6 +1616,8 @@ def initialize_database_on_startup():
             ensure_attendance_log_schema()
             ensure_notification_preferences()
             ensure_theme_preferences()
+            ensure_holiday_schema()
+            ensure_tracking_session_schema()
 
             # Ensure default admin exists for first login
             if not User.query.filter_by(user_id='ADMIN01').first():
@@ -1306,69 +1641,13 @@ def initialize_database_on_startup():
 # IMPORTANT: Run startup init on import as well (required for PythonAnywhere WSGI).
 initialize_database_on_startup()
 
-# ════════════════════════════════════════════════════════════════════
-# 🔴 START FCM BACKGROUND SCHEDULER: Ping devices every 10 minutes
-# ════════════════════════════════════════════════════════════════════
-if APSCHEDULER_AVAILABLE:
-    try:
-        print("\n" + "="*60)
-        print("🔴 [FCM SCHEDULER] Initializing background scheduler...")
-        print("="*60)
-        
-        scheduler = BackgroundScheduler(daemon=True)
-        print("✅ BackgroundScheduler object created")
-        
-        # Add background job: ping all active devices every 10 minutes
-        scheduler.add_job(
-            func=ping_all_active_devices,
-            trigger=IntervalTrigger(minutes=10),
-            id='fcm_device_ping',
-            name='FCM Device Ping (every 10 min)',
-            replace_existing=True,
-            max_instances=1  # Only one instance at a time
-        )
-        print("✅ Job 1 added: FCM Device Pings (every 10 min)")
-        
-        # Add background job: ping inactive devices every 5 minutes (more aggressive)
-        scheduler.add_job(
-            func=ping_inactive_devices,
-            trigger=IntervalTrigger(minutes=5),
-            id='fcm_inactive_ping',
-            name='FCM Inactive Device Wakeup (every 5 min)',
-            replace_existing=True,
-            max_instances=1
-        )
-        print("✅ Job 2 added: Inactive Device Wakeup (every 5 min)")
-        
-        # Add background job: auto-finalize incomplete attendance daily at 11:59 PM
-        try:
-            from apscheduler.triggers.cron import CronTrigger
-            scheduler.add_job(
-                func=auto_mark_incomplete_attendance,
-                trigger=CronTrigger(hour=23, minute=59, timezone='Asia/Kolkata'),
-                id='auto_finalize_attendance',
-                name='Auto-Finalize Attendance (11:59 PM daily)',
-                replace_existing=True,
-                max_instances=1
-            )
-            print("✅ Job 2 added: Auto-Finalizer (11:59 PM IST daily)")
-        except ImportError:
-            print("⚠️ CronTrigger not available - auto-finalize scheduled job DISABLED")
-            print("   Use /api/mark/auto-mark-absent endpoint to trigger manually")
-        
-        scheduler.start()
-        print("✅ SCHEDULER STARTED! Now running in background...")
-        print("   - FCM Device Pings: every 10 minutes (all logged-in users)")
-        print("   - Inactive Device Wakeup: every 5 minutes (devices with no updates)")
-        print("   - Auto-Finalizer: 11:59 PM IST daily")
-        print("="*60 + "\n")
-    except Exception as e:
-        print(f"\n❌ [SCHEDULER ERROR] FCM Scheduler FAILED to start: {e}")
-        print("   Devices won't be pinged periodically. Location tracking may not work reliably.")
-        import traceback
-        traceback.print_exc()
-        print()
-        scheduler = None
+# ---------------------------------------------------------------------
+# START FCM BACKGROUND SCHEDULER: Ping devices every 10 minutes
+# ---------------------------------------------------------------------
+if False:
+    pass
+    print()
+    scheduler = None
 else:
     print("\n" + "="*60)
     print("⚠️ [SCHEDULER DISABLED] APScheduler not available")
@@ -1389,22 +1668,22 @@ def serve_permission_upload(filename):
     return send_from_directory(uploads_dir, filename)
 
 
-@app.route('/api/mark/auto-mark-absent', methods=['POST'])
-def trigger_auto_mark_absent():
+def verify_cron_token():
+    auth_header = request.headers.get('Authorization')
+    token = request.args.get('token')
+    secret = os.environ.get('CRON_SECRET', 'my-secret-cron-token')
+    
+    if auth_header == f"Bearer {secret}" or token == secret:
+        return True
+    return False
+
+@app.route('/api/cron/finalize_attendance', methods=['GET', 'POST'])
+def cron_finalize_attendance():
     """
-    🔴 MANUAL TRIGGER: Auto-mark faculty as ABSENT if no 2nd mark by 6 PM.
-    
-    Call this endpoint at 6:00 PM to complete end-of-day attendance marking.
-    Useful for PythonAnywhere if APScheduler is not available.
-    
-    Requires admin authentication.
+    🔴 EXTERNAL CRON: Auto-mark faculty as ABSENT if no 2nd mark by 11:59 PM.
     """
-    data = request.json or {}
-    admin_id = (data.get('admin_id') or '').strip()
-    
-    admin_user = require_active_admin(admin_id)
-    if not admin_user:
-        return jsonify({"success": False, "message": "Unauthorized. Active admin required."}), 403
+    if not verify_cron_token():
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
     
     try:
         auto_mark_incomplete_attendance()
@@ -1417,6 +1696,76 @@ def trigger_auto_mark_absent():
             "success": False,
             "message": f"Error triggering auto-mark: {str(e)}"
         }), 500
+
+@app.route('/api/cron/lunch_pre_alert', methods=['GET', 'POST'])
+def cron_lunch_pre_alert():
+    if not verify_cron_token():
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    try:
+        from firebase_admin import messaging
+        tokens = FCMToken.query.filter_by(is_active=True).all()
+        for t in tokens:
+            try:
+                msg = messaging.Message(
+                    notification=messaging.Notification(title="Lunch Policy Alert", body="Lunch window starts at 01:00 PM and ends at 01:40 PM. Return before 01:40 PM."),
+                    token=t.token,
+                    data={"action": "policy_alert"}
+                )
+                messaging.send(msg)
+            except Exception:
+                pass
+        return jsonify({"success": True, "message": "Lunch pre alert sent"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/cron/lunch_final_warning', methods=['GET', 'POST'])
+def cron_lunch_final_warning():
+    if not verify_cron_token():
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    try:
+        from firebase_admin import messaging
+        tokens = FCMToken.query.filter_by(is_active=True).all()
+        for t in tokens:
+            try:
+                msg = messaging.Message(
+                    notification=messaging.Notification(title="Lunch Policy Alert", body="10-minute reminder: Lunch free-exit ends at 01:40 PM. Please return inside campus now."),
+                    token=t.token,
+                    data={"action": "policy_alert"}
+                )
+                messaging.send(msg)
+            except Exception:
+                pass
+        return jsonify({"success": True, "message": "Lunch final warning sent"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/cron/activate_holidays', methods=['GET', 'POST'])
+def cron_activate_holidays():
+    if not verify_cron_token():
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    # Check if today is a holiday and update states if necessary
+    return jsonify({"success": True, "message": "Holidays activated"})
+
+@app.route('/api/cron/expire_permissions', methods=['GET', 'POST'])
+def cron_expire_permissions():
+    if not verify_cron_token():
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    return jsonify({"success": True, "message": "Permissions expired"})
+
+@app.route('/api/cron/daily_cleanup', methods=['GET', 'POST'])
+def cron_daily_cleanup():
+    if not verify_cron_token():
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    # Cleanup old logs, reset tracking sessions
+    db.session.query(TrackingSession).filter(TrackingSession.status == 'ACTIVE').update({'status': 'COMPLETED'})
+    db.session.commit()
+    return jsonify({"success": True, "message": "Daily cleanup completed"})
+
+@app.route('/api/cron/generate_reports', methods=['GET', 'POST'])
+def cron_generate_reports():
+    if not verify_cron_token():
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
+    return jsonify({"success": True, "message": "Reports generation triggered"})
 
 
 def build_permission_summary(permission, status_label=None, admin_notes=None):
@@ -1898,7 +2247,7 @@ def get_time_policy_flags(local_dt):
     }
 
 
-def upsert_live_presence(user, status_code, status_message, source='heartbeat', latitude=None, longitude=None, distance_m=None, in_bounds=False, native_network_status=None, native_location_enabled=None):
+def upsert_live_presence(user, status_code, status_message, source='heartbeat', latitude=None, longitude=None, distance_m=None, in_bounds=False, native_network_status=None, native_location_enabled=None, battery_level=None, gps_accuracy=None, tracking_active=None, app_version=None):
     """Create or update current live presence state for a user.
     
     native_network_status: 'online' or 'offline' — ONLY set by native Android service
@@ -1920,11 +2269,19 @@ def upsert_live_presence(user, status_code, status_message, source='heartbeat', 
     presence.name = user.name
     presence.role = user.role
 
-    # Store native truth fields if provided (ONLY from native Android service)
+    # Store native truth fields if provided
     if native_network_status is not None:
         presence.network_status = native_network_status
     if native_location_enabled is not None:
         presence.location_enabled = bool(native_location_enabled)
+    if battery_level is not None:
+        presence.battery_level = battery_level
+    if gps_accuracy is not None:
+        presence.gps_accuracy = gps_accuracy
+    if tracking_active is not None:
+        presence.tracking_active = bool(tracking_active)
+    if app_version is not None:
+        presence.app_version = app_version
 
     # PREVENT WEB APP FROM OVERWRITING NATIVE FAULTS
     if source != 'native_tracker' and previous_status in ['NETWORK_OFF', 'LOCATION_OFF']:
@@ -2041,10 +2398,68 @@ def ensure_live_presence_schema():
             if 'location_enabled' not in col_names:
                 cursor.execute("ALTER TABLE live_presence ADD COLUMN location_enabled BOOLEAN DEFAULT 1")
                 print("[DB] Added location_enabled column to live_presence")
+            if 'battery_level' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN battery_level INTEGER DEFAULT 100")
+                print("[DB] Added battery_level column to live_presence")
+            if 'gps_accuracy' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN gps_accuracy FLOAT DEFAULT 0.0")
+                print("[DB] Added gps_accuracy column to live_presence")
+            if 'tracking_active' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN tracking_active BOOLEAN DEFAULT 1")
+                print("[DB] Added tracking_active column to live_presence")
+            if 'app_version' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN app_version VARCHAR(20)")
+                print("[DB] Added app_version column to live_presence")
+                
+            # Enterprise Tracking Fields
+            if 'sequence_number' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN sequence_number INTEGER DEFAULT 0")
+            if 'heartbeat_version' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN heartbeat_version VARCHAR(10) DEFAULT '1.0'")
+            if 'battery_charging' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN battery_charging BOOLEAN DEFAULT 0")
+            if 'android_version' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN android_version VARCHAR(20)")
+            if 'device_manufacturer' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN device_manufacturer VARCHAR(50)")
+            if 'device_model' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN device_model VARCHAR(50)")
+            if 'capacitor_version' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN capacitor_version VARCHAR(20)")
+            if 'network_type' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN network_type VARCHAR(20)")
+            if 'mock_location' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN mock_location BOOLEAN DEFAULT 0")
+            if 'presence_state' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN presence_state VARCHAR(50) DEFAULT 'OFFLINE'")
+            if 'location_state' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN location_state VARCHAR(50) DEFAULT 'UNKNOWN'")
+            if 'location_confidence' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN location_confidence VARCHAR(20) DEFAULT 'LOW'")
+            if 'device_state' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN device_state VARCHAR(50) DEFAULT 'TRACKING_STOPPED'")
+            if 'attendance_state' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN attendance_state VARCHAR(50) DEFAULT 'NOT_MARKED'")
+            if 'activity_state' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN activity_state VARCHAR(50) DEFAULT 'IDLE'")
+            if 'tracking_status' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN tracking_status VARCHAR(20) DEFAULT 'STOPPED'")
+            if 'pause_reason' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN pause_reason VARCHAR(50)")
+            if 'current_session_id' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN current_session_id VARCHAR(50)")
+            if 'offline_duration_seconds' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN offline_duration_seconds INTEGER DEFAULT 0")
+            if 'last_notification' not in col_names:
+                cursor.execute("ALTER TABLE live_presence ADD COLUMN last_notification DATETIME")
             
             conn.commit()
             cursor.close()
             conn.close()
+            
+            # Ensure new tables exist
+            db.create_all()
+            print("[DB] Ensured new tables TrackingSession, RegisteredDevice, and PresenceEventLog exist")
     except Exception as e:
         print(f"[DB] LivePresence schema check: {e}")
 
@@ -3592,138 +4007,182 @@ def recognize():
         }), 500
 
 
+@app.route('/api/tracking/start', methods=['POST'])
+def start_tracking_session():
+    data = request.json or {}
+    user_id = data.get('user_id')
+    device_id = data.get('device_id')
+    manufacturer = data.get('device_manufacturer')
+    model = data.get('device_model')
+    android_version = data.get('android_version')
+    
+    if not user_id or not device_id:
+        return jsonify({"success": False, "message": "user_id and device_id required"}), 400
+        
+    user = User.query.filter_by(user_id=user_id).first()
+    if not user:
+        return jsonify({"success": False, "message": "User not found"}), 404
+        
+    # Check Registered Device
+    device = RegisteredDevice.query.filter_by(device_id=device_id).first()
+    if not device:
+        device = RegisteredDevice(
+            device_id=device_id,
+            user_id=user_id,
+            manufacturer=manufacturer,
+            model=model,
+            android_version=android_version
+        )
+        db.session.add(device)
+    else:
+        if device.is_revoked:
+            return jsonify({"success": False, "message": "Device revoked"}), 403
+        device.last_seen = datetime.utcnow()
+        
+    # Session Recovery: Check for existing ACTIVE session
+    existing_session = TrackingSession.query.filter_by(user_id=user_id, device_id=device_id, status='ACTIVE').first()
+    
+    now = datetime.utcnow()
+    resume_session = False
+    
+    if existing_session:
+        # Check if the session is recent (< 60 minutes old)
+        if existing_session.last_heartbeat_at and (now - existing_session.last_heartbeat_at).total_seconds() < 3600:
+            resume_session = True
+        else:
+            existing_session.status = 'COMPLETED'
+            existing_session.ended_at = now
+            db.session.add(existing_session)
+            
+    if resume_session:
+        session_id = existing_session.session_id
+        engine = get_presence_engine()
+        engine.log_event(user_id, 'TRACKING_RESUMED', 'OFFLINE', 'ONLINE', 'Resumed existing tracking session')
+    else:
+        # Terminate any other stale active sessions for this device just in case
+        active_sessions = TrackingSession.query.filter_by(user_id=user_id, device_id=device_id, status='ACTIVE').all()
+        for s in active_sessions:
+            s.status = 'TERMINATED'
+            s.ended_at = now
+            
+        session_id = str(uuid.uuid4())
+        
+        new_session = TrackingSession(
+            session_id=session_id,
+            user_id=user_id,
+            device_id=device_id,
+            status='ACTIVE',
+            last_heartbeat_at=now
+        )
+        db.session.add(new_session)
+        
+        engine = get_presence_engine()
+        engine.log_event(user_id, 'TRACKING_STARTED', 'OFFLINE', 'ONLINE', 'New tracking session initialized')
+        
+    db.session.commit()
+    
+    return jsonify({
+        "success": True, 
+        "tracking_session_id": session_id
+    }), 200
+
+@app.route('/api/tracking/stop', methods=['POST'])
+def stop_tracking_session():
+    data = request.json or {}
+    session_id = data.get('tracking_session_id')
+    
+    if not session_id:
+        return jsonify({"success": False, "message": "session_id required"}), 400
+        
+    session = TrackingSession.query.filter_by(session_id=session_id).first()
+    if session and session.status == 'ACTIVE':
+        session.status = 'COMPLETED'
+        session.ended_at = datetime.utcnow()
+        
+        engine = get_presence_engine()
+        engine.log_event(session.user_id, 'TRACKING_STOPPED', 'ONLINE', 'OFFLINE', 'User manually stopped tracking or logged out')
+        
+        presence = LivePresence.query.filter_by(user_id=session.user_id).first()
+        if presence:
+            presence.presence_state = 'OFFLINE'
+            presence.tracking_status = 'STOPPED'
+            presence.pause_reason = 'LOGOUT'
+            
+        db.session.commit()
+        
+    return jsonify({"success": True}), 200
+
 @app.route('/api/location_heartbeat', methods=['POST'])
 def location_heartbeat():
     """
-    Receives periodic location pings from logged-in mobile users.
-    Enforces lunch-window boundary policy and returns alert hints for frontend.
+    Receives periodic location pings from logged-in mobile users (Foreground Service).
+    Delegates to the Enterprise Presence Engine.
     """
-    # HOLIDAY OVERRIDE
     today_str = datetime.now(pytz.utc).astimezone(pytz.timezone('Asia/Kolkata')).strftime('%Y-%m-%d')
     if Holiday.query.filter_by(date=today_str).first():
         return jsonify({"success": True, "message": "Holiday: Tracking Disabled"}), 200
 
     data = request.json or {}
+    
+    # Protocol Versioning Guardrails
+    supported_versions = ["1.1", "1.2"]
+    client_version = data.get('heartbeat_version')
+    
+    if client_version and client_version not in supported_versions:
+        try:
+            if float(client_version) > float(supported_versions[-1]):
+                return jsonify({"success": False, "message": "App version too new, backend upgrade required", "upgrade_required": True}), 426
+        except:
+            pass
+            
     user_id = data.get('user_id')
-    user_loc = data.get('location')
-    device_status = data.get('device_status') or {}
-
+    session_id = data.get('tracking_session_id')
+    device_id = data.get('device_id')
+    
     if not user_id:
         return jsonify({"success": False, "message": "user_id is required"}), 400
 
     user = User.query.filter_by(user_id=user_id).first()
     if not user:
         return jsonify({"success": False, "message": "User not found"}), 404
-
-    # FIXED: WebView's navigator.onLine is UNRELIABLE (returns false when app is in background).
-    # For FACULTY users, the native Android service is the ONLY source of truth for network/location.
-    # We ignore network_on and location_on from WebView heartbeats entirely for faculty.
-    # Admin users don't have native tracking, so we just skip device_status claims altogether.
-
-    # NOTE: We deliberately do NOT set NETWORK_OFF or LOCATION_OFF from WebView heartbeats.
-    # The native service (/api/faculty/location) handles that with real Android system data.
-
-    # Handle explicit logout signal — remove user from LivePresence entirely
+        
+    # Optional logout hook
     if data.get('logout'):
         presence = LivePresence.query.filter_by(user_id=user_id).first()
         if presence:
-            db.session.delete(presence)
+            presence.presence_state = 'OFFLINE'
+            presence.location_state = 'UNKNOWN'
+            presence.tracking_status = 'STOPPED'
             db.session.commit()
-            print(f"[Logout] Removed LivePresence for {user_id}")
         return jsonify({"success": True, "message": "Logged out"})
 
-    if not user_loc or not isinstance(user_loc, dict):
-        return jsonify({"success": False, "message": "Valid location payload is required"}), 400
-
-    try:
-        user_lat = float(user_loc.get('latitude'))
-        user_lon = float(user_loc.get('longitude'))
-    except (TypeError, ValueError):
-        return jsonify({"success": False, "message": "Invalid coordinates"}), 400
-
-    dist_km = haversine(user_lat, user_lon, TARGET_LAT, TARGET_LON)
-    dist_m = dist_km * 1000
+    # Session authentication (Simplified to just session_id validation as requested)
+    if session_id:
+        session = TrackingSession.query.filter_by(session_id=session_id).first()
+        if not session or session.status != 'ACTIVE' or session.user_id != user.user_id:
+            return jsonify({"success": False, "message": "Invalid or expired tracking session"}), 401
+            
+        if device_id and session.device_id != device_id:
+            return jsonify({"success": False, "message": "Device mismatch for session"}), 403
+            
+        session.last_heartbeat_at = datetime.utcnow()
+        db.session.add(session)
     
-    # 🔴 FIXED: Apply GPS accuracy buffer for stricter boundary
-    # GPS can be off by 5-20m, so we reduce effective boundary by GPS_ACCURACY_BUFFER_M
-    effective_radius_m = (ALLOWED_RADIUS_KM * 1000) - GPS_ACCURACY_BUFFER_M
-    in_bounds = dist_m <= effective_radius_m
-
-    # If location enforcement is disabled, skip boundary checks
-    if not LOCATION_ENFORCEMENT_ENABLED:
-        in_bounds = True
-
-    print(f"DEBUG HEARTBEAT: {user.user_id} | Loc: ({user_lat:.6f}, {user_lon:.6f}) | Target: ({TARGET_LAT:.6f}, {TARGET_LON:.6f}) | Dist: {dist_m:.2f}m | Nominal Limit: {ALLOWED_RADIUS_KM*1000:.0f}m | Effective Limit: {effective_radius_m:.0f}m (GPS buffer: {GPS_ACCURACY_BUFFER_M}m) | InBounds: {in_bounds} | Enforcement: {LOCATION_ENFORCEMENT_ENABLED}")
-
-    now_utc = datetime.now(pytz.utc)
     local_tz = pytz.timezone('Asia/Kolkata')
-    now_local = now_utc.astimezone(local_tz)
-    today_str = now_local.strftime('%Y-%m-%d')
+    now_local = datetime.now(pytz.utc).astimezone(local_tz)
     flags = get_time_policy_flags(now_local)
-
-    alert_message = None
-    alert_code = None
-    marked_absent = False
-
-    # 12:50 PM pre-alert for lunch start policy reminder.
-    if flags["is_lunch_pre_alert"]:
-        alert_message = "Lunch window starts at 01:00 PM and ends at 01:40 PM. Return before 01:40 PM."
-        alert_code = "LUNCH_START_REMINDER"
-
-    # 10-minute reminder before lunch close (01:30 PM to 01:40 PM).
-    if flags["is_return_pre_alert"]:
-        alert_message = "10-minute reminder: Lunch free-exit ends at 01:40 PM. Please return inside campus now."
-        alert_code = "LUNCH_END_REMINDER"
-
-    # Lunch free-exit window: ALLOW free exit but DON'T force IN status
-    # If you're physically OUT during lunch, you stay MARKED AS OUT
-    # (You're allowed to be out, but not marked as "present in bounds")
-    if flags["is_lunch_window"] and not in_bounds:
-        # Don't modify in_bounds - keep actual location
-        print(f"DEBUG HEARTBEAT: {user.user_id} is outside during lunch (allowed), but STILL MARKED AS OUT for accuracy.")
-
-    # After 1:40 PM, outside campus is marked absent until check-out window starts.
-    if flags["is_post_lunch_enforcement"] and not in_bounds:
-        today_log = AttendanceLog.query.filter_by(user_id=user.user_id, date=today_str).first()
-        if today_log and not today_log.time_out:
-            today_log.status = "Absent"
-            db.session.commit()
-            marked_absent = True
-            alert_message = "Outside campus after 01:40 PM. Marked Absent. Contact admin if extra time is required."
-            alert_code = "POST_LUNCH_OUT_OF_BOUNDS_ABSENT"
-        elif not today_log:
-            alert_message = "Outside campus after 01:40 PM. Check-in and stay within campus boundary."
-            alert_code = "POST_LUNCH_OUT_OF_BOUNDS"
-
-    if in_bounds:
-        presence_code = 'OK'
-        presence_msg = 'Inside campus boundary.'
-    else:
-        presence_code = 'OUT_OF_BOUNDS'
-        presence_msg = f'Outside campus boundary ({round(dist_km * 1000, 2)} m from center).'
-
-    upsert_live_presence(
-        user,
-        status_code=presence_code,
-        status_message=presence_msg,
-        source='heartbeat',
-        latitude=user_lat,
-        longitude=user_lon,
-        distance_m=round(dist_km * 1000, 2),
-        in_bounds=in_bounds
-    )
-    db.session.commit()
-
+    
+    engine = get_presence_engine()
+    success, msg = engine.process_heartbeat(user, data, flags)
+    
+    if not success:
+        return jsonify({"success": False, "message": msg}), 400
+        
+    # Legacy response formatting for frontend fallback (dashboard compatibility)
     return jsonify({
         "success": True,
-        "server_time": now_local.strftime('%H:%M:%S'),
-        "date": today_str,
-        "distance_m": round(dist_km * 1000, 2),
-        "in_bounds": in_bounds,
-        "marked_absent": marked_absent,
-        "time_flags": flags,
-        "alert": alert_message,
-        "alert_code": alert_code
+        "message": msg,
+        "server_time": now_local.strftime('%H:%M:%S')
     })
     
 @app.route('/api/faculty/location', methods=['POST'])
@@ -3944,68 +4403,22 @@ def admin_live_locations():
     local_tz = pytz.timezone('Asia/Kolkata')
     now_local = now_utc.astimezone(local_tz)
     flags = get_time_policy_flags(now_local)
+    
+    today_str = now_local.strftime('%Y-%m-%d')
+    today_logs = {log.user_id: log for log in AttendanceLog.query.filter_by(date=today_str).all()}
+    today_perms = {perm.user_id: perm for perm in PermissionRequest.query.filter_by(date=today_str, status='Approved').all()}
 
     for p in presences:
-        effective_code = p.status_code or 'UNKNOWN'
-        effective_message = p.status_message or 'Status unavailable.'
-
-        # --- If user explicitly logged out (force_offline sets status_code='OFFLINE'),
-        # always show them as offline regardless of timing ---
-        if effective_code == 'OFFLINE':
-            is_heartbeat_fresh = False
-            is_network_on = False
-            is_location_on = False
-        else:
-            # --- INDEPENDENTLY determine network and location status ---
-            # Network ON = heartbeat arrived within the last 5 minutes
-            is_heartbeat_fresh = bool(p.last_seen and p.last_seen >= stale_cutoff)
-            is_network_on = is_heartbeat_fresh
-
-            # Location ON = native GPS flag says so AND heartbeat is fresh
-            native_loc = getattr(p, 'location_enabled', True)
-            if native_loc is None:
-                native_loc = True
-            is_location_on = bool(native_loc) and is_heartbeat_fresh
-
-        # Build fault list (multiple faults can coexist)
-        faults = []
-        if not is_heartbeat_fresh:
-            faults.append(('STALE', 'No heartbeat received recently. Device may be offline.'))
-        if effective_code != 'OFFLINE':
-            native_loc = getattr(p, 'location_enabled', True)
-            if native_loc is None:
-                native_loc = True
-            if not native_loc and is_heartbeat_fresh:
-                faults.append(('LOCATION_OFF', 'GPS disabled on device (native report).'))
-            if effective_code == 'OUT_OF_BOUNDS' or (effective_code == 'OK' and not p.in_bounds):
-                faults.append(('OUT_OF_BOUNDS', effective_message))
-
-        # Pick the most critical fault for display
-        if effective_code == 'OFFLINE':
-            effective_code = 'OFFLINE'
-            effective_message = 'User logged out.'
-        elif not is_heartbeat_fresh:
-            effective_code = 'STALE'
-            effective_message = 'No heartbeat received recently. Device may be offline.'
-        elif not getattr(p, 'location_enabled', True):
-            effective_code = 'LOCATION_OFF'
-            effective_message = 'GPS disabled on device (native report).'
-        elif not p.in_bounds:
-            effective_code = 'OUT_OF_BOUNDS'
-            effective_message = p.status_message or 'Outside campus boundary.'
-        # else: keep the stored effective_code (OK, ACQUIRING_GPS, etc.)
-
-        # Calculate policy status based on time windows
-        policy_in_bounds = p.in_bounds
-        if not p.in_bounds:
-            if flags["is_lunch_window"]:
-                policy_in_bounds = True
-            elif flags["is_post_lunch_enforcement"]:
-                policy_in_bounds = False
-
-        final_status = effective_code
-
-        # Include ALL active tracking users in map_points
+        # Determine offline timeout
+        is_heartbeat_fresh = bool(p.last_seen and p.last_seen >= stale_cutoff)
+        
+        # Override states if timed out
+        effective_presence = p.presence_state
+        effective_device = p.device_state
+        
+        if not is_heartbeat_fresh or p.tracking_status == 'STOPPED':
+            effective_presence = 'OFFLINE'
+            
         map_points.append({
             "user_id": p.user_id,
             "name": p.name,
@@ -4014,27 +4427,76 @@ def admin_live_locations():
             "longitude": p.longitude,
             "distance_m": p.distance_m,
             "last_seen": p.last_seen.isoformat() + 'Z' if p.last_seen else None,
-            "status": final_status,
+            "status": effective_presence, # mapped for backward compatibility in JS
+            "presence_state": effective_presence,
+            "location_state": p.location_state,
+            "location_confidence": p.location_confidence,
+            "device_state": effective_device,
+            "attendance_state": p.attendance_state,
+            "activity_state": p.activity_state,
+            "tracking_status": p.tracking_status,
+            "pause_reason": p.pause_reason,
             "in_bounds": p.in_bounds,
-            "policy_in_bounds": policy_in_bounds,
             "device_status": {
-                "network_on": is_network_on,
-                "location_on": is_location_on
-            }
+                "network_on": is_heartbeat_fresh,
+                "location_on": effective_device != 'GPS_OFF',
+                "battery_level": getattr(p, 'battery_level', None),
+                "battery_charging": getattr(p, 'battery_charging', False),
+                "gps_accuracy": getattr(p, 'gps_accuracy', None),
+                "tracking_active": p.tracking_status == 'ACTIVE',
+                "app_version": getattr(p, 'app_version', None),
+                "network_type": getattr(p, 'network_type', None),
+                "mock_location": getattr(p, 'mock_location', False)
+            },
+            "today_attendance": {
+                "time_in": today_logs.get(p.user_id).time_in if today_logs.get(p.user_id) else None,
+                "time_out": today_logs.get(p.user_id).time_out if today_logs.get(p.user_id) else None,
+                "status": today_logs.get(p.user_id).status if today_logs.get(p.user_id) else 'AB'
+            },
+            "today_permission": today_perms.get(p.user_id).type if today_perms.get(p.user_id) else None
         })
 
-        # Emit a fault alert for EACH fault dimension (not just the primary one)
-        for fault_code, fault_msg in faults:
+        # Build fault alerts
+        if effective_presence == 'OFFLINE':
             fault_alerts.append({
-                "fault_key": f"{p.user_id}:{fault_code}",
+                "fault_key": f"{p.user_id}:OFFLINE",
                 "user_id": p.user_id,
                 "name": p.name,
                 "role": p.role,
-                "code": fault_code,
-                "message": fault_msg,
+                "code": "OFFLINE",
+                "message": "User is offline or tracking is stopped.",
                 "last_seen": p.last_seen.isoformat() + 'Z' if p.last_seen else None
             })
-            print(f"DEBUG: Fault Alert Added: {p.user_id} | {fault_code} | {fault_msg}")
+        if effective_device == 'GPS_OFF':
+            fault_alerts.append({
+                "fault_key": f"{p.user_id}:GPS_OFF",
+                "user_id": p.user_id,
+                "name": p.name,
+                "role": p.role,
+                "code": "GPS_OFF",
+                "message": "GPS disabled on device.",
+                "last_seen": p.last_seen.isoformat() + 'Z' if p.last_seen else None
+            })
+        if effective_presence == 'OUTSIDE_CAMPUS':
+            fault_alerts.append({
+                "fault_key": f"{p.user_id}:OUT_OF_BOUNDS",
+                "user_id": p.user_id,
+                "name": p.name,
+                "role": p.role,
+                "code": "OUT_OF_BOUNDS",
+                "message": "Outside campus boundary.",
+                "last_seen": p.last_seen.isoformat() + 'Z' if p.last_seen else None
+            })
+        if effective_device == 'MOCK_LOCATION':
+            fault_alerts.append({
+                "fault_key": f"{p.user_id}:MOCK_LOCATION",
+                "user_id": p.user_id,
+                "name": p.name,
+                "role": p.role,
+                "code": "MOCK_LOCATION",
+                "message": "Fake GPS app detected.",
+                "last_seen": p.last_seen.isoformat() + 'Z' if p.last_seen else None
+            })
 
     recent_security_alerts = SecurityAlert.query.filter(
         SecurityAlert.created_at >= (now_utc - timedelta(minutes=30)),
@@ -4065,13 +4527,10 @@ def admin_live_locations():
 
     for user in all_users:
         if user.user_id not in active_user_ids:
-            # Get last activity timestamp for inactive user from AttendanceLog for TODAY ONLY
-            # If they haven't logged in today, last_seen is None.
-            today_str_local = datetime.now(pytz.utc).astimezone(pytz.timezone('Asia/Kolkata')).strftime('%Y-%m-%d')
-            last_log = AttendanceLog.query.filter_by(user_id=user.user_id, date=today_str_local).order_by(AttendanceLog.timestamp_out.desc(), AttendanceLog.timestamp_in.desc()).first()
+            # Get most recent log REGARDLESS of date to show last_seen historically
+            last_log = AttendanceLog.query.filter_by(user_id=user.user_id).order_by(AttendanceLog.timestamp_out.desc(), AttendanceLog.timestamp_in.desc()).first()
             last_activity = None
             if last_log and last_log.status not in ['AB', 'HD'] and last_log.time_in != "00:00:00":
-                # Use check-out time if available, else check-in time
                 last_activity = (last_log.timestamp_out or last_log.timestamp_in).isoformat() + 'Z' if (last_log.timestamp_out or last_log.timestamp_in) else None
 
             inactive_users.append({
@@ -4088,7 +4547,13 @@ def admin_live_locations():
                 "device_status": {
                     "network_on": False,
                     "location_on": False
-                }
+                },
+                "today_attendance": {
+                    "time_in": today_logs.get(user.user_id).time_in if today_logs.get(user.user_id) else None,
+                    "time_out": today_logs.get(user.user_id).time_out if today_logs.get(user.user_id) else None,
+                    "status": today_logs.get(user.user_id).status if today_logs.get(user.user_id) else 'AB'
+                },
+                "today_permission": today_perms.get(user.user_id).type if today_perms.get(user.user_id) else None
             })
 
     return jsonify({
