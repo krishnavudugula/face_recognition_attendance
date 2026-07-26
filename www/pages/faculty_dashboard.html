@@ -39,6 +39,20 @@
             min-height: 100vh;
         }
 
+        .navbar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(203, 213, 225, 0.2);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
         .navbar-brand {
             display: flex;
             align-items: center;
@@ -54,6 +68,31 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+        }
+
+       
+    .logo-icon {
+        /* remove fixed dimensions to let logo breathe */
+        color: white;
+        /* width: 36px; height: 36px; removed */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        padding: 0.75rem; /* Increased padding */
+    }
+
+    .logo-icon img {
+        height: 50px; /* Default height */
+        width: auto;
+        transform: scale(1.1); /* Slightly larger logo */    
+    }
+
+        .nav-menu {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 2rem;
         }
 
         .navbar-nav {
@@ -560,6 +599,22 @@
                 grid-template-columns: 1fr 1fr;
             }
 
+            .nav-menu {
+                position: absolute;
+                top: calc(100% + 8px);
+                left: 1rem;
+                right: 1rem;
+                display: none;
+                flex-direction: column;
+                gap: 0.85rem;
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 0.9rem;
+                box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+                z-index: 120;
+            }
+
             .nav-menu.active {
                 display: flex;
             }
@@ -595,6 +650,18 @@
                 font-size: 1.05rem;
             }
 
+            .logo-icon {
+            padding: 0.25rem;
+        }
+
+        .logo-icon img {
+            height: 50px !important; /* Smaller logo on mobile */
+        }
+
+            .nav-menu {
+                left: 0.75rem;
+                right: 0.75rem;
+            }
 
             main {
                 padding: 0.75rem;
@@ -652,26 +719,28 @@
 </head>
 <body>
     <nav class="navbar">
-        <a href="admin_dashboard.html" class="navbar-brand">
+        <a href="faculty_dashboard.html" class="navbar-brand">
             <div class="logo-icon">
                 <img src="../assets/Bits-logo.png" alt="BITS Logo">
             </div>
         </a>
-        
-        <div class="mobile-nav-actions" style="display: flex; align-items: center; justify-content: center; gap: 1rem;"><a href="faculty_approvals.html" class="notification-bell" id="facultyApprovalsBell" style="position: relative; color: #1e293b; text-decoration: none; font-size: 1.5rem; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-bell"></i><span id="pendingApprovalBadge" style="position: absolute; top: -5px; right: -8px; background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 50%; font-size: 0.75rem; font-weight: bold; width: 18px; height: 18px; display: none; align-items: center; justify-content: center;">0</span></a><button class="menu-toggle" aria-label="Toggle navigation"><i class="fa-solid fa-bars"></i></button></div>
-        
+
+        <button class="menu-toggle" id="facultyMenuToggle" aria-label="Toggle navigation menu" aria-expanded="false">
+            <i class="fa-solid fa-bars"></i>
+        </button>
+
         <div class="nav-menu">
             <ul class="navbar-nav">
-                <li><a href="admin_dashboard.html" class="nav-link">Dashboard</a></li>
+                <li><a href="scan.html" class="nav-link"><i class="fas fa-camera"></i> Mark Attendance</a></li>
+                <li><a href="holidays.html" class="nav-link"><i class="fa-solid fa-gift"></i> Holidays</a></li>
             </ul>
             <div class="nav-actions">
-                <a href="#" class="action-btn-danger" onclick="appLogout(); return false;">
+                <a href="../index.html" class="action-btn-danger" onclick="handleLogout(); return false;">
                     <i class="fa-solid fa-right-from-bracket"></i> Logout
                 </a>
             </div>
         </div>
     </nav>
-
 
     <div id="policyAlert" style="display: none;"></div>
 
@@ -694,12 +763,18 @@
         </section>
 
         <!-- Action Section -->
-        <section class="action-section">
+        <section class="action-section" id="actionSection">
             <h3>Mark Your Attendance</h3>
             <p>Use advanced face recognition to mark your check-in and check-out</p>
             <a href="scan.html" class="scan-btn">
                 <i class="fa-solid fa-face-smile-wink"></i> Scan Face Now
             </a>
+        </section>
+
+        <!-- Holiday Banner -->
+        <section class="action-section" id="holidayBanner" style="display: none; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border: none; box-shadow: 0 10px 25px rgba(37, 99, 235, 0.3);">
+            <h3 style="color: white; font-size: 1.8rem; margin-bottom: 0.5rem;"><i class="fa-solid fa-gift"></i> Holiday Today: <span id="holidayNameDisplay"></span></h3>
+            <p style="color: rgba(255,255,255,0.9); font-size: 1.1rem; margin-bottom: 0;">Attendance is not required today.</p>
         </section>
 
         <!-- Statistics Grid -->
@@ -905,6 +980,24 @@
             const viewUserId = params.get('view_user');
             
             const displayUserId = viewUserId || (user.user_id || user.id);
+
+            // Fetch Holiday Status
+            fetch(window.buildApiUrl ? window.buildApiUrl('/api/today_holiday') : '/api/today_holiday')
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.is_holiday) {
+                        const actionSec = document.getElementById('actionSection');
+                        const holBanner = document.getElementById('holidayBanner');
+                        const holName = document.getElementById('holidayNameDisplay');
+                        
+                        if (actionSec) actionSec.style.display = 'none';
+                        if (holBanner) {
+                            holBanner.style.display = 'block';
+                            if (holName) holName.textContent = data.name;
+                        }
+                    }
+                })
+                .catch(e => console.error('Holiday check failed', e));
 
             // Fetch the user data to display
             if (viewUserId) {

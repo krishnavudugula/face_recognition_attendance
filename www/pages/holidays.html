@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Holidays Management - FaceAttend</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="../js/back-button-native.js"></script>
+    <script src="../js/route-persistence.js"></script>
+    <script src="../js/location-tracking-plugin.js"></script>
+    <script src="../js/config.js"></script>
+    <script src="../js/session-persistence.js" defer></script>
+    <script src="../js/main.js" defer></script>
+    <script src="../js/holidays.js" defer></script>
+    <style>
+        /* Holiday Specific Styles */
+        .admin-section {
+            animation: slideUp 0.6s ease-out;
+        }
+
+        .action-badges .action-btn-primary {
+            border-radius: 50px;
+            padding: 0.6rem 1.25rem;
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+
+        .holiday-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .holiday-table th {
+            text-align: left;
+            padding: 1rem;
+            color: #64748b;
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .holiday-row td {
+            padding: 1.25rem 1rem;
+            background: white;
+            border-top: 1px solid #e2e8f0;
+            border-bottom: 1px solid #e2e8f0;
+            vertical-align: middle;
+        }
+
+        .holiday-row td:first-child {
+            border-left: 1px solid #e2e8f0;
+            border-radius: 12px 0 0 12px;
+        }
+
+        .holiday-row td:last-child {
+            border-right: 1px solid #e2e8f0;
+            border-radius: 0 12px 12px 0;
+        }
+
+        .holiday-row:hover td {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+        }
+
+        .badge-public {
+            background: #eff6ff;
+            color: #2563eb;
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border: 1px solid #bfdbfe;
+        }
+
+        .badge-institutional {
+            background: #fdf4ff;
+            color: #c026d3;
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border: 1px solid #f5d0fe;
+        }
+
+        .badge-other {
+            background: #f1f5f9;
+            color: #475569;
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border: 1px solid #e2e8f0;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .btn-edit { color: #2563eb; }
+        .btn-edit:hover { background: #eff6ff; border-color: #bfdbfe; }
+        
+        .btn-delete { color: #ef4444; }
+        .btn-delete:hover { background: #fef2f2; border-color: #fecaca; }
+
+        /* Modal Styling */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(4px);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease-out;
+        }
+        .modal-overlay.active { display: flex; }
+        
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+            animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .modal-header {
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1.25rem;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .modal-body { padding: 2rem; }
+        
+        .form-group { margin-bottom: 1.5rem; }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #0f172a;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+        }
+
+        .modal-footer {
+            padding: 1.5rem 2rem;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            border-radius: 0 0 20px 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+        }
+
+        .btn-cancel {
+            padding: 0.75rem 1.5rem;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            color: #64748b;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-save {
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #2563eb, #8b5cf6);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(37,99,235,0.3);
+        }
+
+        /* Toast Notifications */
+        .toast {
+            position: fixed;
+            bottom: 2rem; right: 2rem;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            background: white;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+            display: flex; align-items: center; gap: 1rem;
+            z-index: 3000;
+            animation: slideIn 0.3s ease-out;
+            transition: all 0.3s;
+        }
+        .toast.success { border-left: 4px solid #10b981; background: #ecfdf5; }
+        .toast.error { border-left: 4px solid #ef4444; background: #fef2f2; }
+        
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            background: #f8fafc;
+            border: 2px dashed #e2e8f0;
+            border-radius: 16px;
+        }
+    </style>
+</head>
+<body class="dashboard-body">
+    
+    <nav class="navbar">
+        <a href="admin_dashboard.html" class="navbar-brand">
+            <div class="logo-icon">
+                <img src="../assets/Bits-logo.png" alt="BITS Logo">
+            </div>
+        </a>
+        
+        <div class="mobile-nav-actions" style="display: flex; align-items: center; justify-content: center; gap: 1rem;">
+            <a href="faculty_approvals.html" class="notification-bell" id="facultyApprovalsBell" style="position: relative; color: #1e293b; text-decoration: none; font-size: 1.5rem; display: flex; align-items: center; justify-content: center;">
+                <i class="fa-solid fa-bell"></i>
+                <span id="pendingApprovalBadge" style="position: absolute; top: -5px; right: -8px; background: transparent; color: #ef4444; border: 1px solid #ef4444; border-radius: 50%; font-size: 0.75rem; font-weight: bold; width: 18px; height: 18px; display: none; align-items: center; justify-content: center;">0</span>
+            </a>
+            <button class="menu-toggle" aria-label="Toggle navigation"><i class="fa-solid fa-bars"></i></button>
+        </div>
+        
+        <div class="nav-menu">
+            <ul class="navbar-nav" id="holidayNavLinks">
+                <li><a href="admin_dashboard.html" class="nav-link" id="navDashboardLink">Dashboard</a></li>
+                <li><a href="holidays.html" class="nav-link active">Holidays</a></li>
+            </ul>
+            <div class="nav-actions">
+                <a href="#" class="action-btn-danger" onclick="appLogout(); return false;">
+                    <i class="fa-solid fa-right-from-bracket"></i> Logout
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        
+        <div class="dashboard-header admin-section">
+            <div>
+                <h2 style="font-size: 2rem; color: #0f172a; margin: 0 0 0.25rem 0; letter-spacing: -0.02em;">
+                    <i class="fa-solid fa-calendar-check" style="color: #2563eb; margin-right: 0.75rem;"></i>Holidays Management
+                </h2>
+                <p style="color: #64748b; margin: 0; font-size: 1rem;">Manage institutional holidays and non-working days</p>
+            </div>
+            
+            <div class="action-badges" id="adminActionBadges">
+                <button class="action-btn-primary" onclick="openAddModal()">
+                    <i class="fa-solid fa-plus"></i> Add Holiday
+                </button>
+            </div>
+        </div>
+
+        <div class="glass-card admin-section">
+            <div style="padding: 1.5rem; overflow-x: auto;">
+                <table class="holiday-table" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Holiday Name</th>
+                            <th>Type</th>
+                            <th>Description</th>
+                            <th id="actionColumnHeader" style="width: 100px; text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="holidaysTableBody">
+                    </tbody>
+                </table>
+                
+                <div id="emptyState" class="empty-state">
+                    <i class="fa-regular fa-calendar-xmark" style="font-size: 3rem; color: #cbd5e1; margin-bottom: 1rem;"></i>
+                    <h3 style="color: #475569; margin: 0 0 0.5rem 0;">No Holidays Found</h3>
+                    <p id="emptyStateDesc" style="color: #94a3b8; margin: 0;">Click "Add Holiday" to create a new holiday record.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ADD/EDIT HOLIDAY MODAL -->
+    <div class="modal-overlay" id="holidayModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle"><i class="fa-solid fa-plus" style="color: #2563eb;"></i> Add Holiday</h3>
+                <button class="modal-close" onclick="closeHolidayModal()" style="background: none; border: none; font-size: 1.25rem; cursor: pointer; color: #64748b;"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="modal-body">
+                <form id="holidayForm" onsubmit="event.preventDefault(); saveHoliday();">
+                    <input type="hidden" id="holidayId">
+                    
+                    <div class="form-group">
+                        <label for="holidayDate">Date <span style="color: #ef4444;">*</span></label>
+                        <input type="date" id="holidayDate" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="holidayName">Holiday Name <span style="color: #ef4444;">*</span></label>
+                        <input type="text" id="holidayName" placeholder="e.g. Independence Day" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="holidayType">Holiday Type <span style="color: #ef4444;">*</span></label>
+                        <select id="holidayType" required>
+                            <option value="Public">Public Holiday</option>
+                            <option value="Institutional">Institutional Holiday</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="holidayDescription">Description</label>
+                        <textarea id="holidayDescription" rows="3" placeholder="Optional details..."></textarea>
+                    </div>
+                </form>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn-cancel" onclick="closeHolidayModal()">Cancel</button>
+                <button type="button" class="btn-save" onclick="saveHoliday()">Save Holiday</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const menuToggle = document.querySelector('.menu-toggle');
+        const navMenu = document.querySelector('.nav-menu');
+        
+        if (menuToggle && navMenu) {
+            menuToggle.addEventListener('click', () => {
+                navMenu.classList.toggle('active');
+                const icon = menuToggle.querySelector('i');
+                if (navMenu.classList.contains('active')) {
+                    icon.classList.remove('fa-bars');
+                    icon.classList.add('fa-times');
+                } else {
+                    icon.classList.remove('fa-times');
+                    icon.classList.add('fa-bars');
+                }
+            });
+        }
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const userRole = localStorage.getItem('user_role');
+            if (userRole === 'faculty') {
+                const dashLink = document.getElementById('navDashboardLink');
+                if (dashLink) dashLink.href = 'faculty_dashboard.html';
+                
+                const navLinks = document.getElementById('holidayNavLinks');
+                if (navLinks) {
+                    const scanLi = document.createElement('li');
+                    scanLi.innerHTML = '<a href="scan.html" class="nav-link">Mark Attendance</a>';
+                    navLinks.appendChild(scanLi);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

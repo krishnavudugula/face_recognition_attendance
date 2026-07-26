@@ -329,6 +329,32 @@ def auto_mark_incomplete_attendance():
             
             users = User.query.filter_by(role='faculty', is_active=True, registration_status='Approved').all()
             
+            # HOLIDAY OVERRIDE
+            holiday = Holiday.query.filter_by(date=today_str).first()
+            if holiday:
+                for user in users:
+                    log = AttendanceLog.query.filter_by(user_id=user.user_id, date=today_str).first()
+                    if not log:
+                        new_log = AttendanceLog(
+                            user_id=user.user_id,
+                            date=today_str,
+                            time_in="00:00:00",
+                            time_out="23:59:59",
+                            check_in_status="HOL",
+                            check_out_status="HOL",
+                            status="HOL",
+                            modifier=holiday.name,
+                            timestamp_in=now_utc,
+                            timestamp_out=now_utc
+                        )
+                        db.session.add(new_log)
+                    else:
+                        log.status = "HOL"
+                        log.modifier = holiday.name
+                db.session.commit()
+                print(f"🎉 [Auto-Finalizer] Today is {holiday.name}. Marked all {len(users)} faculty as HOL.")
+                return
+
             auto_marked_count = 0
             for user in users:
                 log = AttendanceLog.query.filter_by(user_id=user.user_id, date=today_str).first()
@@ -776,6 +802,10 @@ class Holiday(db.Model):
     date = db.Column(db.String(20), unique=True, nullable=False) # YYYY-MM-DD
     name = db.Column(db.String(100), nullable=False)
     type = db.Column(db.String(50), default="Public Holiday")
+    description = db.Column(db.String(300), nullable=True)
+    declared_by = db.Column(db.String(50), nullable=True)
+    declared_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class LivePresence(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -2050,9 +2080,22 @@ def migrate_db():
         for col, col_type in columns:
             try:
                 c.execute(f"ALTER TABLE permission_request ADD COLUMN {col} {col_type};")
-                results.append(f"Added {col}")
+                results.append(f"Added {col} to permission_request")
             except Exception as e:
-                results.append(f"Skipped {col}: {str(e)}")
+                results.append(f"Skipped {col} in permission_request: {str(e)}")
+
+        holiday_columns = [
+            ("description", "VARCHAR(300)"),
+            ("declared_by", "VARCHAR(50)"),
+            ("declared_at", "DATETIME"),
+            ("updated_at", "DATETIME")
+        ]
+        for col, col_type in holiday_columns:
+            try:
+                c.execute(f"ALTER TABLE holiday ADD COLUMN {col} {col_type};")
+                results.append(f"Added {col} to holiday")
+            except Exception as e:
+                results.append(f"Skipped {col} in holiday: {str(e)}")
         conn.commit()
         conn.close()
         return "<br>".join(results)
@@ -2366,8 +2409,7 @@ def send_otp_email(to_email, otp_code, action):
         server.quit()
         return True
     except Exception as e:
-        print(f"SMTP Email Error: {e}")
-        return False
+        return str(e)
 
 @app.route('/api/auth/forgot-help', methods=['POST'])
 def forgot_help():
@@ -2398,10 +2440,11 @@ def forgot_help():
     
     # Send Email
     sent = send_otp_email(email, otp_code, action)
-    if not sent:
-        return jsonify({"success": False, "message": "Failed to send email. Ensure SMTP is configured."}), 500
-        
-    return jsonify({"success": True, "message": "OTP sent successfully"})
+    if sent is True:
+        return jsonify({"success": True, "message": "OTP sent successfully"})
+    else:
+        # If sent is not True, it contains the error message string
+        return jsonify({"success": False, "message": f"SMTP Error: {sent}"}), 500
 
 @app.route('/api/auth/verify-otp', methods=['POST'])
 def verify_otp():
@@ -3555,6 +3598,11 @@ def location_heartbeat():
     Receives periodic location pings from logged-in mobile users.
     Enforces lunch-window boundary policy and returns alert hints for frontend.
     """
+    # HOLIDAY OVERRIDE
+    today_str = datetime.now(pytz.utc).astimezone(pytz.timezone('Asia/Kolkata')).strftime('%Y-%m-%d')
+    if Holiday.query.filter_by(date=today_str).first():
+        return jsonify({"success": True, "message": "Holiday: Tracking Disabled"}), 200
+
     data = request.json or {}
     user_id = data.get('user_id')
     user_loc = data.get('location')
@@ -4017,10 +4065,12 @@ def admin_live_locations():
 
     for user in all_users:
         if user.user_id not in active_user_ids:
-            # Get last activity timestamp for inactive user from AttendanceLog
-            last_log = AttendanceLog.query.filter_by(user_id=user.user_id).order_by(AttendanceLog.timestamp_out.desc(), AttendanceLog.timestamp_in.desc()).first()
+            # Get last activity timestamp for inactive user from AttendanceLog for TODAY ONLY
+            # If they haven't logged in today, last_seen is None.
+            today_str_local = datetime.now(pytz.utc).astimezone(pytz.timezone('Asia/Kolkata')).strftime('%Y-%m-%d')
+            last_log = AttendanceLog.query.filter_by(user_id=user.user_id, date=today_str_local).order_by(AttendanceLog.timestamp_out.desc(), AttendanceLog.timestamp_in.desc()).first()
             last_activity = None
-            if last_log:
+            if last_log and last_log.status not in ['AB', 'HD'] and last_log.time_in != "00:00:00":
                 # Use check-out time if available, else check-in time
                 last_activity = (last_log.timestamp_out or last_log.timestamp_in).isoformat() + 'Z' if (last_log.timestamp_out or last_log.timestamp_in) else None
 
@@ -4731,6 +4781,144 @@ def mark_attendance():
         }
     })
 
+# ============================================
+# HOLIDAY MANAGEMENT APIs
+# ============================================
+
+@app.route('/api/admin/holidays', methods=['GET'])
+def get_holidays():
+    holidays = Holiday.query.order_by(Holiday.date.desc()).all()
+    return jsonify({
+        "success": True,
+        "holidays": [{
+            "id": h.id,
+            "date": h.date,
+            "name": h.name,
+            "type": h.type,
+            "description": h.description,
+            "declared_by": h.declared_by,
+            "declared_at": h.declared_at.isoformat() if h.declared_at else None,
+            "updated_at": h.updated_at.isoformat() if h.updated_at else None
+        } for h in holidays]
+    })
+
+@app.route('/api/admin/holidays', methods=['POST'])
+def add_holiday():
+    data = request.json or {}
+    admin_id = (data.get('admin_id') or '').strip()
+    date_str = (data.get('date') or '').strip()
+    name = (data.get('name') or '').strip()
+    htype = (data.get('type') or 'Public Holiday').strip()
+    desc = (data.get('description') or '').strip()
+    
+    if not date_str or not name:
+        return jsonify({"success": False, "message": "Date and Name are required"}), 400
+        
+    admin_user = require_active_admin(admin_id)
+    if not admin_user:
+        return jsonify({"success": False, "message": "Unauthorized. Active admin required."}), 403
+        
+    # Check duplicate
+    existing = Holiday.query.filter_by(date=date_str).first()
+    if existing:
+        return jsonify({"success": False, "message": f"A holiday ({existing.name}) already exists for this date."}), 400
+        
+    new_hol = Holiday(
+        date=date_str,
+        name=name,
+        type=htype,
+        description=desc,
+        declared_by=admin_id,
+        declared_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+    db.session.add(new_hol)
+    
+    # Audit Log
+    audit = AuditLog(
+        admin_id=admin_id,
+        action=f"Declared Holiday: {name} on {date_str}",
+        timestamp=datetime.utcnow(),
+        reason=desc
+    )
+    db.session.add(audit)
+    db.session.commit()
+    
+    return jsonify({"success": True, "message": "Holiday declared successfully"})
+
+@app.route('/api/admin/holidays/<int:holiday_id>', methods=['PUT'])
+def update_holiday(holiday_id):
+    data = request.json or {}
+    admin_id = (data.get('admin_id') or '').strip()
+    
+    admin_user = require_active_admin(admin_id)
+    if not admin_user:
+        return jsonify({"success": False, "message": "Unauthorized."}), 403
+        
+    hol = Holiday.query.get(holiday_id)
+    if not hol:
+        return jsonify({"success": False, "message": "Holiday not found"}), 404
+        
+    new_date = (data.get('date') or '').strip()
+    if new_date and new_date != hol.date:
+        existing = Holiday.query.filter_by(date=new_date).first()
+        if existing:
+            return jsonify({"success": False, "message": "Another holiday exists on that date."}), 400
+        hol.date = new_date
+        
+    hol.name = (data.get('name') or hol.name).strip()
+    hol.type = (data.get('type') or hol.type).strip()
+    if 'description' in data:
+        hol.description = (data.get('description') or '').strip()
+        
+    hol.updated_at = datetime.utcnow()
+    
+    audit = AuditLog(
+        admin_id=admin_id,
+        action=f"Updated Holiday: {hol.name}",
+        timestamp=datetime.utcnow()
+    )
+    db.session.add(audit)
+    db.session.commit()
+    
+    return jsonify({"success": True, "message": "Holiday updated successfully"})
+
+@app.route('/api/admin/holidays/<int:holiday_id>', methods=['DELETE'])
+def delete_holiday(holiday_id):
+    data = request.json or {}
+    admin_id = (data.get('admin_id') or '').strip()
+    
+    admin_user = require_active_admin(admin_id)
+    if not admin_user:
+        return jsonify({"success": False, "message": "Unauthorized."}), 403
+        
+    hol = Holiday.query.get(holiday_id)
+    if not hol:
+        return jsonify({"success": False, "message": "Holiday not found"}), 404
+        
+    hol_name = hol.name
+    hol_date = hol.date
+    
+    db.session.delete(hol)
+    
+    audit = AuditLog(
+        admin_id=admin_id,
+        action=f"Deleted Holiday: {hol_name} on {hol_date}",
+        timestamp=datetime.utcnow()
+    )
+    db.session.add(audit)
+    db.session.commit()
+    
+    return jsonify({"success": True, "message": "Holiday deleted successfully"})
+
+@app.route('/api/today_holiday', methods=['GET'])
+def today_holiday():
+    today_str = datetime.now(pytz.utc).astimezone(pytz.timezone('Asia/Kolkata')).strftime('%Y-%m-%d')
+    hol = Holiday.query.filter_by(date=today_str).first()
+    if hol:
+        return jsonify({"is_holiday": True, "name": hol.name, "type": hol.type, "description": hol.description})
+    return jsonify({"is_holiday": False})
+
 # 6. Get Dashboard Data
 @app.route('/api/admin/dashboard_tables', methods=['GET'])
 def admin_dashboard_tables():
@@ -4970,7 +5158,7 @@ def get_analytics_data():
 
         # Default to last 30 days if not provided
         if not start_date_str or not end_date_str:
-            today = datetime.now()
+            today = datetime.now(pytz.utc).astimezone(pytz.timezone('Asia/Kolkata'))
             start_date = today - pd.Timedelta(days=30)
             start_date_str = start_date.strftime('%Y-%m-%d')
             end_date_str = today.strftime('%Y-%m-%d')
@@ -5389,7 +5577,7 @@ def export_report():
             )
 
         # Fetch logs
-        logs = base_query.order_by(AttendanceLog.date.desc(), AttendanceLog.timestamp_in.desc()).all()
+        logs = base_query.order_by(AttendanceLog.date.desc(), AttendanceLog.user_id.asc()).all()
 
         # Apply latest filter
         if filter_latest and logs:
@@ -5630,6 +5818,11 @@ def evaluate_sessions(log):
     Evaluates a single AttendanceLog and returns:
     (Morning Session, Evening Session, Day Status, Exception Name)
     """
+    # 1. Holiday Check
+    holiday = Holiday.query.filter_by(date=log.date).first()
+    if holiday:
+        return 'Waived', 'Waived', 'HOL', holiday.name
+
     mod = log.modifier
     
     # Morning Logic
@@ -5637,7 +5830,7 @@ def evaluate_sessions(log):
     if morning_waived:
         morning = 'Waived'
     else:
-        morning = 'Present' if (log.time_in or log.status in ['FD', 'Present', 'Late Permission', 'HD']) else 'Absent'
+        morning = 'Present' if (log.time_in and log.time_in != "00:00:00" or log.status in ['FD', 'Present', 'Late Permission', 'HD']) else 'Absent'
         
     # Evening Logic
     evening_waived = mod in ['EP', 'HD-A', 'LV', 'ML', 'EMG']
@@ -5646,10 +5839,13 @@ def evaluate_sessions(log):
     else:
         # Evening is present if time_out exists or if FD status was achieved. 
         # (Assuming missing evening results in HD or AB)
-        evening = 'Present' if (log.time_out or log.status == 'FD') else 'Absent'
+        evening = 'Present' if (log.time_out and log.time_out != "23:59:59" or log.status == 'FD') else 'Absent'
 
     # Day Status Logic
-    if mod in ['LV', 'ML', 'EMG'] or log.status == 'LV':
+    if log.status in ['AB', 'HD']:
+        # Always respect explicitly saved absence/half-day statuses (especially auto-marked)
+        day_status = log.status
+    elif mod in ['LV', 'ML', 'EMG'] or log.status == 'LV':
         day_status = 'LV'
     elif morning in ['Present', 'Waived'] and evening in ['Present', 'Waived'] and not (morning == 'Waived' and evening == 'Waived'):
         day_status = 'FD'
@@ -5679,6 +5875,7 @@ def generate_summary_report(logs, start_dt, end_dt, include_timestamps=True):
                 'HD': 0,
                 'AB': 0,
                 'LV': 0,
+                'HOL': 0,
                 'total_records': 0
             }
 
@@ -5716,6 +5913,7 @@ def generate_summary_report(logs, start_dt, end_dt, include_timestamps=True):
             'HD': data['HD'],
             'AB': data['AB'],
             'LV': data['LV'],
+            'HOL': data['HOL'],
             'Attendance %': f"{attendance_pct}%"
         }
         report_data.append(row)
@@ -5948,7 +6146,7 @@ def get_users():
     # EXCLUDE ADMIN
     users = User.query.filter(User.user_id != 'ADMIN01').all()
     user_list = []
-    today = datetime.now().strftime('%Y-%m-%d')
+    today = datetime.now(pytz.utc).astimezone(pytz.timezone('Asia/Kolkata')).strftime('%Y-%m-%d')
 
     for u in users:
         # Check today's status
@@ -5992,7 +6190,7 @@ def get_user_details(user_id):
         if not user:
             return jsonify({"success": False, "message": "User not found"}), 404
 
-        today = datetime.now().strftime('%Y-%m-%d')
+        today = datetime.now(pytz.utc).astimezone(pytz.timezone('Asia/Kolkata')).strftime('%Y-%m-%d')
         log = AttendanceLog.query.filter_by(user_id=user_id, date=today).first()
         status = log.status if log else "Absent"
 
@@ -6181,7 +6379,7 @@ def mark_absent():
     try:
         data = request.json or {}
         user_id = data.get('user_id')
-        date = data.get('date') or datetime.now().strftime('%Y-%m-%d')
+        date = data.get('date') or datetime.now(pytz.utc).astimezone(pytz.timezone('Asia/Kolkata')).strftime('%Y-%m-%d')
         admin_id = (data.get('admin_id') or '').strip()
 
         admin_user = require_active_admin(admin_id)
@@ -7528,7 +7726,7 @@ def get_assistant_messages(connection_id):
                 "sender_id": msg.sender_id,
                 "content": msg.content,
                 "is_read": msg.is_read,
-                "created_at": msg.created_at.isoformat() if msg.created_at else None
+                "created_at": msg.created_at.isoformat() + 'Z' if msg.created_at else None
             })
             
         if reader_id:
@@ -7568,7 +7766,7 @@ def send_assistant_message():
                 "id": new_msg.id,
                 "sender_id": new_msg.sender_id,
                 "content": new_msg.content,
-                "created_at": new_msg.created_at.isoformat() if new_msg.created_at else None
+                "created_at": new_msg.created_at.isoformat() + 'Z' if new_msg.created_at else None
             }
         }), 200
     except Exception as e:

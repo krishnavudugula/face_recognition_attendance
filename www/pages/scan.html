@@ -729,6 +729,17 @@
     </div>
 
     <script>
+        // HOLIDAY CHECK
+        fetch(window.buildApiUrl ? window.buildApiUrl('/api/today_holiday') : '/api/today_holiday')
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.is_holiday) {
+                    alert(`Holiday Today: ${data.name}. Attendance is not required.`);
+                    window.location.href = 'faculty_dashboard.html';
+                }
+            })
+            .catch(e => console.error('Holiday check failed', e));
+
         // Update time display every second
         setInterval(() => {
             const now = new Date();

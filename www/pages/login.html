@@ -48,7 +48,8 @@
                     <p>Please enter your details to sign in.</p>
                 </div>
 
-                <div class="toggle-container">
+                <div class="toggle-container" id="loginToggleContainer">
+                    <div class="slider-bg" id="toggleSliderBg"></div>
                     <button type="button" class="toggle-btn active" id="loginToggle">Login</button>
                     <button type="button" class="toggle-btn" id="registerToggle">Faculty Register</button>
                 </div>
@@ -230,7 +231,6 @@
             color: rgba(255, 255, 255, 0.85);
             max-width: 480px;
             font-weight: 400;
-            margin-top: 18rem;
         }
 
         .stats-card {
@@ -287,27 +287,46 @@
             font-size: 0.95rem;
         }
 
-        /* The Pill Toggle */
+        /* The Pill Toggle with Slider */
         .toggle-container {
             display: flex;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
+            position: relative;
+            background: #f1f5f9;
             border-radius: 12px;
-            padding: 0.25rem;
+            padding: 0.35rem;
             margin-bottom: 2rem;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+            z-index: 1;
+        }
+
+        .slider-bg {
+            position: absolute;
+            top: 0.35rem;
+            left: 0.35rem;
+            width: calc(50% - 0.35rem);
+            height: calc(100% - 0.7rem);
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: -1;
+        }
+
+        .toggle-container.register-active .slider-bg {
+            transform: translateX(100%);
         }
 
         .toggle-btn {
             flex: 1;
             text-align: center;
             padding: 0.75rem;
+            border: none;
+            background: transparent;
             border-radius: 8px;
-            font-size: 0.9rem;
-            font-weight: 600;
+            font-size: 0.95rem;
+            font-weight: 700;
             color: #64748b;
-            text-decoration: none;
-            transition: all 0.2s;
+            cursor: pointer;
+            transition: color 0.3s;
         }
 
         .toggle-btn:hover {
@@ -315,8 +334,7 @@
         }
 
         .toggle-btn.active {
-            color: #2563eb;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            color: #0f172a;
         }
 
         /* Inputs */
@@ -817,6 +835,7 @@
             document.getElementById('registerForm').style.display = 'none';
             document.getElementById('loginToggle').classList.add('active');
             document.getElementById('registerToggle').classList.remove('active');
+            document.getElementById('loginToggleContainer').classList.remove('register-active');
         });
 
         document.getElementById('registerToggle').addEventListener('click', function() {
@@ -824,6 +843,7 @@
             document.getElementById('registerForm').style.display = 'block';
             document.getElementById('loginToggle').classList.remove('active');
             document.getElementById('registerToggle').classList.add('active');
+            document.getElementById('loginToggleContainer').classList.add('register-active');
         });
 
         document.getElementById('backToLogin').addEventListener('click', function(e) {
@@ -1147,6 +1167,17 @@
                         btnSendOtp.textContent = 'Send OTP';
                     }
                 });
+                
+                // Add Enter key support
+                const emailInput = document.getElementById('helpEmailInput');
+                if (emailInput) {
+                    emailInput.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            btnSendOtp.click();
+                        }
+                    });
+                }
             }
 
             if (btnVerifyOtp) {
@@ -1189,6 +1220,17 @@
                         btnVerifyOtp.textContent = 'Verify OTP';
                     }
                 });
+                
+                // Add Enter key support
+                const otpInput = document.getElementById('helpOtpInput');
+                if (otpInput) {
+                    otpInput.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            btnVerifyOtp.click();
+                        }
+                    });
+                }
             }
 
             if (btnSaveNewPwd) {
@@ -1239,7 +1281,7 @@
                     if (helpModal) helpModal.style.display = 'none';
                 });
             }
-        })();
+        });
         // Login submit and password toggle are handled by ../js/main.js
     </script>
 </body>
