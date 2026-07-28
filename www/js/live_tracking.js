@@ -352,7 +352,6 @@ function updateDashboardMetrics(data) {
         row.dataset.profileStr = JSON.stringify(p);
         
         row.onclick = () => {
-            focusOnUser(p.user_id);
             openProfileOverlay(p);
         };
         
@@ -386,7 +385,12 @@ function updateDashboardMetrics(data) {
                     </span>
                 </div>
             </div>
-            <i class="fa-solid fa-chevron-right" style="color: var(--text-tertiary); font-size: 0.8rem; margin-left: 12px; flex-shrink: 0;"></i>
+            <div style="display: flex; align-items: center; gap: 12px; margin-left: 12px; flex-shrink: 0;">
+                <div title="Locate on map" onclick="event.stopPropagation(); focusOnUser('${p.user_id}');" style="width: 32px; height: 32px; border-radius: 50%; background: rgba(37,99,235,0.1); color: var(--brand-blue); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;">
+                    <i class="fa-solid fa-location-crosshairs"></i>
+                </div>
+                <i class="fa-solid fa-chevron-right" style="color: var(--text-tertiary); font-size: 0.8rem;"></i>
+            </div>
         `;
         
         if (isFaulty) {
@@ -469,6 +473,11 @@ window.addEventListener("beforeunload", () => {
 // === Profile Slider Logic ===
 
 function openProfileOverlay(p) {
+    // Pan the map to the user's location if available
+    if (p.latitude && p.longitude && p.latitude !== 0 && p.longitude !== 0 && liveMap) {
+        liveMap.flyTo([p.latitude, p.longitude], 17, { duration: 1.5 });
+    }
+
     document.getElementById("profName").textContent = p.name || "Unknown";
     document.getElementById("profId").textContent = p.user_id;
     document.getElementById("profRole").textContent = p.role || "User";
