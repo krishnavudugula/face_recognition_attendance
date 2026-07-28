@@ -956,6 +956,7 @@ class AttendanceLog(db.Model):
     timestamp_in = db.Column(db.DateTime, default=datetime.utcnow) # UTC for cooldown calc
     timestamp_out = db.Column(db.DateTime, nullable=True) # UTC
     status = db.Column(db.String(20), nullable=False) # 'On-Time', 'Late', etc.
+    processing_state = db.Column(db.String(30), nullable=True) # MORNING_CAPTURED, EVENING_CAPTURED
     modifier = db.Column(db.String(20), nullable=True) # e.g. 'LP', 'EP', 'OD', 'WFH'
     late_permission_approved = db.Column(db.Boolean, default=False)
 
@@ -1459,6 +1460,18 @@ def normalize_time_hhmm(raw_time):
             continue
     return None
 
+def format_12h(time_str):
+    if not time_str or time_str in ["--:--", "-", "—"]:
+        return time_str
+    try:
+        parsed = datetime.strptime(time_str.strip(), "%H:%M:%S")
+        return parsed.strftime("%I:%M %p")
+    except ValueError:
+        try:
+            parsed = datetime.strptime(time_str.strip(), "%H:%M")
+            return parsed.strftime("%I:%M %p")
+        except ValueError:
+            return time_str
 
 def ensure_permission_request_schema():
     """Ensure new PermissionRequest columns exist for older SQLite databases."""
@@ -1510,6 +1523,8 @@ def ensure_attendance_log_schema():
             conn.exec_driver_sql("ALTER TABLE attendance_log ADD COLUMN check_out_period VARCHAR(40)")
         if 'late_permission_approved' not in col_names:
             conn.exec_driver_sql("ALTER TABLE attendance_log ADD COLUMN late_permission_approved BOOLEAN DEFAULT 0")
+        if 'processing_state' not in col_names:
+            conn.exec_driver_sql("ALTER TABLE attendance_log ADD COLUMN processing_state VARCHAR(30)")
 
 
 def ensure_tracking_session_schema():
@@ -1650,7 +1665,7 @@ if False:
     scheduler = None
 else:
     print("\n" + "="*60)
-    print("⚠️ [SCHEDULER DISABLED] APScheduler not available")
+    print("[SCHEDULER DISABLED] APScheduler not available")
     print("   Devices will only report location when they detect a change (manual heartbeat)")
     print("   Install apscheduler to enable periodic FCM pings: pip install apscheduler")
     print("="*60 + "\n")
@@ -2056,7 +2071,7 @@ def submit_permission_request():
 
 
 def classify_first_mark(scan_dt, permission=None):
-    """Return first-mark status for the day based on configured time windows and permission overrides."""
+    """Return first-mark AttendanceDecision based on time windows and permission overrides."""
     t = scan_dt.time()
     
     rules = {}
@@ -2066,10 +2081,8 @@ def classify_first_mark(scan_dt, permission=None):
         rules = get_effective_policy(permission)
                 
     if rules.get("allow_flexible_time"):
-        st = rules.get("attendance_status", "FD")
-        return {"allowed": True, "status": st, "modifier": modifier, "period": "Flexible", "message": f"Check-In: {st} (Flexible Timing)"}
+        return {"allowed": True, "morning_status": "PRESENT", "evening_status": "PENDING", "modifier": modifier, "reason_code": "FLEXIBLE_TIME"}
 
-    # Default morning deadline is 9:35 AM
     morning_deadline = time(9, 35)
     if rules.get("morning_deadline"):
         try:
@@ -2079,41 +2092,28 @@ def classify_first_mark(scan_dt, permission=None):
             pass
 
     if t < time(9, 0) and not rules.get("allow_flexible_time"):
-        return {
-            "allowed": False,
-            "status": None,
-            "modifier": None,
-            "period": "00:00-09:00",
-            "message": "Attendance is not taken between 12:00 AM and 9:00 AM."
-        }
+        return {"allowed": False, "morning_status": None, "evening_status": None, "modifier": None, "reason_code": "TOO_EARLY"}
         
-    if t < morning_deadline:
-        return {"allowed": True, "status": "FD", "modifier": modifier, "period": f"09:00-{morning_deadline.strftime('%H:%M')}", "message": f"Check-In: FD"}
+    if t <= morning_deadline:
+        return {"allowed": True, "morning_status": "PRESENT", "evening_status": "PENDING", "modifier": modifier, "reason_code": "ON_TIME"}
         
-    if t < time(10, 30):
-        return {"allowed": True, "status": "FD", "modifier": modifier or "LP", "period": f"{morning_deadline.strftime('%H:%M')}-10:30", "message": "Check-In: FD (Late)"}
-    if t < time(12, 40):
-        return {"allowed": True, "status": "AB", "modifier": modifier, "period": "10:30-12:40", "message": "Check-In: AB (Too Late)"}
-    if t < time(13, 40):
-        return {"allowed": True, "status": "HD", "modifier": modifier, "period": "12:40-13:40", "message": "Check-In: HD"}
-    if t < time(15, 10):
-        return {"allowed": True, "status": "AB", "modifier": modifier, "period": "13:40-15:10", "message": "Check-In: AB"}
-    if t < time(16, 10):
-        return {"allowed": True, "status": "FD", "modifier": modifier or "EP", "period": "15:10-16:10", "message": "Check-In: FD (Early)"}
+    if t <= TIME_WINDOWS["MORNING_LATE"]:
+        return {"allowed": True, "morning_status": "PRESENT", "evening_status": "PENDING", "modifier": modifier or "LP", "reason_code": "LATE_ARRIVAL"}
+        
+    if t <= TIME_WINDOWS["LUNCH_START"]:
+        return {"allowed": True, "morning_status": "ABSENT", "evening_status": "PENDING", "modifier": modifier, "reason_code": "MISSED_MORNING"}
+        
+    if t <= TIME_WINDOWS["LUNCH_END"]:
+        return {"allowed": True, "morning_status": "ABSENT", "evening_status": "PENDING", "modifier": modifier, "reason_code": "HALF_DAY_START"}
+        
+    if permission:
+        return {"allowed": True, "morning_status": "ABSENT", "evening_status": "PENDING", "modifier": modifier, "reason_code": "ALLOWED_BY_POLICY"}
+        
+    return {"allowed": False, "morning_status": None, "evening_status": None, "modifier": None, "reason_code": "WINDOW_CLOSED"}
 
-    return {
-        "allowed": False,
-        "status": None,
-        "modifier": None,
-        "period": "16:10-24:00",
-        "message": "First marking is closed in evening window. Evening marking is only for second mark."
-    }
-
-
-def classify_second_mark(first_status, scan_dt, permission=None):
-    """Return second-mark final status for the day based on first status, time window, and permissions."""
+def classify_second_mark(log, scan_dt, permission=None):
+    """Return second-mark AttendanceDecision based on time window and permissions."""
     t = scan_dt.time()
-    first_status = (first_status or "").strip()
     
     rules = {}
     modifier = None
@@ -2122,64 +2122,39 @@ def classify_second_mark(first_status, scan_dt, permission=None):
         rules = get_effective_policy(permission)
 
     if rules.get("allow_flexible_time"):
-        st = rules.get("attendance_status", "FD")
-        return {
-            "allowed": True,
-            "final_status": st,
-            "out_status": st,
-            "modifier": modifier,
-            "period": "Flexible",
-            "message": f"Check-Out: {st} (Flexible Timing)"
-        }
+        return {"allowed": True, "evening_status": "PRESENT", "modifier": modifier, "reason_code": "FLEXIBLE_TIME"}
 
-    if time(12, 40) <= t < time(13, 40) and first_status == "FD":
-        return {
-            "allowed": True,
-            "final_status": "HD",
-            "out_status": "HD",
-            "modifier": modifier,
-            "period": "12:40-13:40",
-            "message": "Check-Out: HD"
-        }
+    if TIME_WINDOWS["LUNCH_START"] <= t < TIME_WINDOWS["LUNCH_END"]:
+        return {"allowed": True, "evening_status": "ABSENT", "modifier": modifier or "EP", "reason_code": "EARLY_LEAVE_LUNCH"}
+        
+    if TIME_WINDOWS["LUNCH_END"] <= t < TIME_WINDOWS["EVENING_START"]:
+        return {"allowed": True, "evening_status": "ABSENT", "modifier": modifier or "EP", "reason_code": "EARLY_LEAVE"}
 
-    if time(16, 10) <= t:
-        if first_status == "FD":
-            return {
-                "allowed": True,
-                "final_status": "FD",
-                "out_status": "FD",
-                "modifier": modifier,
-                "period": "16:10-24:00",
-                "message": "Check-Out: FD"
-            }
+    if TIME_WINDOWS["EVENING_START"] <= t:
+        return {"allowed": True, "evening_status": "PRESENT", "modifier": modifier, "reason_code": "ON_TIME"}
 
-        if first_status in {"AB", "HD"}:
-            return {
-                "allowed": True,
-                "final_status": "HD",
-                "out_status": "HD",
-                "modifier": modifier,
-                "period": "16:10-24:00",
-                "message": "Check-Out: Half Day"
-            }
+    return {"allowed": False, "evening_status": None, "modifier": None, "reason_code": "INVALID_PERIOD"}
 
-        return {
-            "allowed": True,
-            "final_status": "HD",
-            "out_status": "HD",
-            "modifier": modifier,
-            "period": "16:10-24:00",
-            "message": "Check-Out: Half Day"
-        }
-
+def get_first_mark_message(reason_code):
     return {
-        "allowed": False,
-        "final_status": None,
-        "out_status": None,
-        "modifier": None,
-        "period": None,
-        "message": "Second mark ignored in this period."
-    }
+        "FLEXIBLE_TIME": "Check-In: ON TIME (Flexible Timing)",
+        "TOO_EARLY": "Too early for check-in. Starts at 09:00",
+        "ON_TIME": "Check-In: ON TIME",
+        "LATE_ARRIVAL": "Check-In: LATE",
+        "MISSED_MORNING": "Check-In: ABSENT (Missed Morning)",
+        "HALF_DAY_START": "Check-In: ABSENT (Half Day Start)",
+        "ALLOWED_BY_POLICY": "Check-In: ALLOWED (Permission)",
+        "WINDOW_CLOSED": "Check-in window is closed"
+    }.get(reason_code, "Check-In")
+
+def get_second_mark_message(reason_code):
+    return {
+        "FLEXIBLE_TIME": "Check-Out: ON TIME (Flexible Timing)",
+        "EARLY_LEAVE_LUNCH": "Check-Out: ABSENT (Early Leave During Lunch)",
+        "EARLY_LEAVE": "Check-Out: ABSENT (Early Leave)",
+        "ON_TIME": "Check-Out: PRESENT",
+        "INVALID_PERIOD": "Cannot check out at this time"
+    }.get(reason_code, "Check-Out")
 
 def check_attendance_status(user_id, scan_time, type, late_permission_approved=False):
     """
@@ -3917,20 +3892,21 @@ def recognize():
                          msg = f"Wait {int(min_gap-time_diff)}s to Checkout"
                          log_type = "cooldown"
                     else:
-                        second = classify_second_mark(today_log.check_in_status or today_log.status, now_local, approved_permission)
+                        second = classify_second_mark(today_log, now_local, approved_permission)
+                        msg = get_second_mark_message(second.get("reason_code"))
                         if not second["allowed"]:
                             log_type = "ignored"
-                            msg = second["message"]
                         else:
                             log_type = 'OUT'
                             today_log.time_out = time_str
                             today_log.timestamp_out = now_utc
-                            today_log.check_out_status = second["out_status"]
-                            today_log.check_out_period = second["period"]
-                            today_log.status = second["final_status"]
-                            today_log.modifier = second.get("modifier")
+                            today_log.check_out_status = second["evening_status"]
+                            today_log.check_out_period = second.get("reason_code")
+                            today_log.processing_state = "EVENING_CAPTURED"
+
+                            if second.get("modifier"):
+                                today_log.modifier = second.get("modifier")
                             db.session.commit()
-                            msg = second["message"]
             else:
                 first = classify_first_mark(now_local, approved_permission)
                 if not first["allowed"]:
@@ -3954,18 +3930,19 @@ def recognize():
                     date=today_str,
                     time_in=time_str,
                     time_out=None,
-                    check_in_status=first["status"],
-                    check_in_period=first["period"],
-                    check_out_status=None,
+                    check_in_status=first["morning_status"],
+                    check_in_period=first.get("reason_code"),
+                    check_out_status=first["evening_status"],
                     check_out_period=None,
                     timestamp_in=now_utc,
-                    status=first["status"],
+                    status="Pending",
+                    processing_state="MORNING_CAPTURED",
                     modifier=first.get("modifier"),
                     late_permission_approved=bool(approved_permission)
                 )
                 db.session.add(new_log)
                 db.session.commit()
-                msg = first["message"]
+                msg = get_first_mark_message(first.get("reason_code"))
                 log_type = 'IN'
 
             return jsonify({
@@ -5193,18 +5170,20 @@ def mark_attendance():
             return jsonify({"success": False, "message": "User already completed attendance for today"}), 400
         else:
              # Check out using configured second-mark rules
-             second = classify_second_mark(today_log.check_in_status or today_log.status, now_local, approved_permission)
+             second = classify_second_mark(today_log, now_local, approved_permission)
+             msg = get_second_mark_message(second.get("reason_code"))
              if not second["allowed"]:
-                 return jsonify({"success": False, "message": second["message"]}), 400
+                 return jsonify({"success": False, "message": msg}), 400
 
              log_type = 'OUT'
              today_log.time_out = time_str
              today_log.timestamp_out = now_utc
-             today_log.check_out_status = second["out_status"]
-             today_log.check_out_period = second["period"]
-             today_log.status = second["final_status"]
-             today_log.modifier = second.get("modifier")
-             msg = second["message"]
+             today_log.check_out_status = second["evening_status"]
+             today_log.check_out_period = second.get("reason_code")
+             today_log.processing_state = "EVENING_CAPTURED"
+
+             if second.get("modifier"):
+                 today_log.modifier = second.get("modifier")
              db.session.commit()
     else:
         # Check in using configured first-mark rules
@@ -5496,8 +5475,8 @@ def get_dashboard(role, user_id):
                 "name": u.name if u else "Unknown",
                 "role": u.role if u else "-",
                 "date": log.date,
-                "time_in": log.time_in,
-                "time_out": log.time_out if log.time_out else "-",
+                "time_in": format_12h(log.time_in) if log.time_in else "-",
+                "time_out": format_12h(log.time_out) if log.time_out else "-",
                 "status": log.status
             })
 
@@ -5527,8 +5506,8 @@ def get_dashboard(role, user_id):
 
             logs_data.append({
                 "date": l.date,
-                "time_in": l.time_in,
-                "time_out": l.time_out if l.time_out else "-",
+                "time_in": format_12h(l.time_in) if l.time_in else "-",
+                "time_out": format_12h(l.time_out) if l.time_out else "-",
                 "duration": duration_str,
                 "status": l.status
             })
@@ -5541,8 +5520,8 @@ def get_dashboard(role, user_id):
         current_status = "Not Marked"
 
         if today_log:
-            last_in = today_log.time_in if today_log.time_in else "--:--"
-            last_out = today_log.time_out if today_log.time_out else "--:--"
+            last_in = format_12h(today_log.time_in) if today_log.time_in else "--:--"
+            last_out = format_12h(today_log.time_out) if today_log.time_out else "--:--"
 
             if today_log.time_out:
                 current_status = f"Checked Out ({today_log.status})" if today_log.status else "Checked Out"
@@ -5814,8 +5793,8 @@ def download_excel():
                     "Name": u.name if u else "Unknown",
                     "Position": u.role if u else "-",
                     "Date": log.date,
-                    "Check In": log.time_in if log.time_in else "-",
-                    "Check Out": log.time_out if log.time_out else "-",
+                    "Check In": format_12h(log.time_in) if log.time_in else "-",
+                    "Check Out": format_12h(log.time_out) if log.time_out else "-",
                     "Check In Status": status_in,
                     "Check Out Status": status_out
                 })
@@ -6403,8 +6382,8 @@ def generate_detailed_report(logs, include_timestamps=True):
             'Evening Session': evening,
             'Day Status': day_status,
             'Exception': exception_name,
-            'Check-In': log.time_in or '-',
-            'Check-Out': log.time_out or '-'
+            'Check-In': format_12h(log.time_in) if log.time_in else '-',
+            'Check-Out': format_12h(log.time_out) if log.time_out else '-'
         }
         report_data.append(row)
 
@@ -6441,7 +6420,7 @@ def generate_violations_report(logs, include_timestamps=True):
             'Name': user.name if user else 'Unknown',
             'Date': log.date,
             'Violation Type': violation_type,
-            'Check-in': log.time_in or '-',
+            'Check-in': format_12h(log.time_in) if log.time_in else '-',
             'Severity': 'High' if violation_type == 'Absent' else 'Medium'
         }
         if include_timestamps:
