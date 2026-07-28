@@ -56,7 +56,13 @@ class PresenceEngine:
             return 'UNKNOWN'
             
         effective_radius_m = (ALLOWED_RADIUS_KM * 1000) - min(accuracy, GPS_ACCURACY_BUFFER_M)
-        in_bounds = (dist_km * 1000 <= effective_radius_m)
+        
+        # Desktop/Bad GPS Fallback: If accuracy is > 500m (typical for desktop IP geolocation),
+        # give the benefit of the doubt so they aren't penalized for being "outside" while physically inside.
+        if accuracy > 500:
+            in_bounds = True
+        else:
+            in_bounds = (dist_km * 1000 <= effective_radius_m)
         
         if in_bounds:
             return 'INSIDE_CAMPUS'

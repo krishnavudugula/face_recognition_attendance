@@ -457,7 +457,9 @@ function sendPresenceHeartbeat(adminId) {
                     user_id: adminId,
                     // FIXED: Do NOT send network_on/location_on — native service handles truth
                     device_status: {},
-                    location: { latitude: pos.coords.latitude, longitude: pos.coords.longitude }
+                    latitude: pos.coords.latitude,
+                    longitude: pos.coords.longitude,
+                    gps_accuracy: pos.coords.accuracy
                 })
             });
         } catch (err) {
