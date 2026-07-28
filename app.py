@@ -2275,6 +2275,18 @@ def upsert_live_presence(user, status_code, status_message, source='heartbeat', 
     presence.last_seen = datetime.utcnow()
     presence.in_bounds = bool(in_bounds)
     presence.distance_m = distance_m
+    
+    # Sync Enterprise state machine fields
+    if status_code not in ['NETWORK_OFF', 'LOCATION_OFF']:
+        presence.presence_state = 'ONLINE'
+    
+    if status_code == 'OUT_OF_BOUNDS':
+        presence.location_state = 'OUTSIDE_CAMPUS'
+    elif status_code == 'OK' and in_bounds:
+        presence.location_state = 'INSIDE_CAMPUS'
+    elif status_code == 'OK':
+        presence.location_state = 'UNKNOWN'
+
 
     if latitude is not None and longitude is not None:
         presence.latitude = latitude
