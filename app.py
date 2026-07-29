@@ -57,9 +57,9 @@ class PresenceEngine:
             
         effective_radius_m = (ALLOWED_RADIUS_KM * 1000) - min(accuracy, GPS_ACCURACY_BUFFER_M)
         
-        # Desktop/Bad GPS Fallback: If accuracy is > 500m (typical for desktop IP geolocation),
+        # Desktop/Bad GPS Fallback: If accuracy is > 50m (typical for desktop IP geolocation),
         # give the benefit of the doubt so they aren't penalized for being "outside" while physically inside.
-        if accuracy > 500:
+        if accuracy > 50:
             in_bounds = True
         else:
             in_bounds = (dist_km * 1000 <= effective_radius_m)
@@ -4230,9 +4230,9 @@ def faculty_location():
             dist_km = haversine(user_lat, user_lon, TARGET_LAT, TARGET_LON)
             effective_radius_m = (ALLOWED_RADIUS_KM * 1000) - GPS_ACCURACY_BUFFER_M
             
-            # Desktop/Bad GPS Fallback: If accuracy is > 500m (typical for desktop IP geolocation), 
+            # Desktop/Bad GPS Fallback: If accuracy is > 50m (typical for desktop IP geolocation), 
             # give the benefit of the doubt so they aren't penalized for being "outside" while physically inside.
-            if accuracy > 500:
+            if accuracy > 50:
                 in_bounds = True
             else:
                 in_bounds = (dist_km * 1000 <= effective_radius_m) if LOCATION_ENFORCEMENT_ENABLED else True
