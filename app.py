@@ -3849,6 +3849,20 @@ def recognize():
                 (approved_permission and approved_permission_type != 'full_day_absence')
             )
             if LOCATION_ENFORCEMENT_ENABLED and best_match_id and dist_m > effective_radius_m and not location_override_allowed:
+                 user = User.query.filter_by(user_id=best_match_id).first()
+                 if user:
+                     upsert_live_presence(
+                         user=user,
+                         status_code='OUT_OF_BOUNDS',
+                         status_message=f'Outside boundary (Scan: {dist_m:.0f}m away)',
+                         source='scanner',
+                         latitude=user_lat,
+                         longitude=user_lon,
+                         distance_m=dist_m,
+                         in_bounds=False,
+                         gps_accuracy=user_loc.get('accuracy')
+                     )
+                     
                  return jsonify({
                      "success": False,
                      "error_code": "OUT_OF_BOUNDS",
