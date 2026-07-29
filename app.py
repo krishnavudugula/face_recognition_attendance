@@ -335,6 +335,14 @@ GPS_ACCURACY_BUFFER_M = 50  # 🔴 CRITICAL: Account for GPS error (~5-20m devic
 # Effective boundary = ALLOWED_RADIUS_KM - GPS_ACCURACY_BUFFER_M
 # This prevents false IN BOUNDS when physically outside but GPS reports as inside
 
+from datetime import time
+TIME_WINDOWS = {
+    "MORNING_LATE": time(9, 35),
+    "LUNCH_START": time(13, 0),
+    "LUNCH_END": time(14, 0),
+    "EVENING_START": time(16, 0)
+}
+
 def haversine(lat1, lon1, lat2, lon2):
     # Radius of the Earth in km
     R = 6371.0
