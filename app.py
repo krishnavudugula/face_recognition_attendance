@@ -56,13 +56,7 @@ class PresenceEngine:
             return 'UNKNOWN'
             
         effective_radius_m = (ALLOWED_RADIUS_KM * 1000) - min(accuracy, GPS_ACCURACY_BUFFER_M)
-        
-        # Desktop/Bad GPS Fallback: If accuracy is > 50m (typical for desktop IP geolocation),
-        # give the benefit of the doubt so they aren't penalized for being "outside" while physically inside.
-        if accuracy > 50:
-            in_bounds = True
-        else:
-            in_bounds = (dist_km * 1000 <= effective_radius_m)
+        in_bounds = (dist_km * 1000 <= effective_radius_m)
         
         if in_bounds:
             return 'INSIDE_CAMPUS'
@@ -4283,13 +4277,7 @@ def faculty_location():
             # Normal GPS tracking
             dist_km = haversine(user_lat, user_lon, TARGET_LAT, TARGET_LON)
             effective_radius_m = (ALLOWED_RADIUS_KM * 1000) - GPS_ACCURACY_BUFFER_M
-            
-            # Desktop/Bad GPS Fallback: If accuracy is > 50m (typical for desktop IP geolocation), 
-            # give the benefit of the doubt so they aren't penalized for being "outside" while physically inside.
-            if accuracy > 50:
-                in_bounds = True
-            else:
-                in_bounds = (dist_km * 1000 <= effective_radius_m) if LOCATION_ENFORCEMENT_ENABLED else True
+            in_bounds = (dist_km * 1000 <= effective_radius_m) if LOCATION_ENFORCEMENT_ENABLED else True
                 
             status_code = 'OK' if in_bounds else 'OUT_OF_BOUNDS'
             status_message = 'In campus' if in_bounds else f'Outside boundary ({round(dist_km * 1000, 2)}m away)'
