@@ -72,24 +72,27 @@
             }
         };
 
-        webWatchId = navigator.geolocation.watchPosition(
-            (position) => sendLocation(position),
-            (error) => {
-                console.warn(TAG, 'Web Geolocation Error:', error);
-                // Report location disabled to backend
-                fetch('/api/faculty/location', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userId, location_on: false })
-                }).catch(e => {});
-            },
-            { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
-        );
-
-        // Ping every 30 seconds to ensure the admin sees live updates in web mode
-        webIntervalId = setInterval(() => {
-            navigator.geolocation.getCurrentPosition(sendLocation, () => {}, { enableHighAccuracy: true });
-        }, 30000);
+        // Ping every 10 seconds to ensure the admin sees live updates in web mode
+        // Note: watchPosition is notoriously unreliable on Windows Desktop browsers, 
+        // so we use a reliable setInterval with getCurrentPosition instead.
+        const pingLocation = () => {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.getCurrentPosition(
+                (position) => sendLocation(position),
+                (error) => {
+                    console.warn(TAG, 'Web Geolocation Error:', error);
+                    fetch('/api/faculty/location', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ user_id: userId, location_on: false })
+                    }).catch(e => {});
+                },
+                { enableHighAccuracy: true, maximumAge: 5000, timeout: 8000 }
+            );
+        };
+        
+        pingLocation(); // initial ping
+        webIntervalId = setInterval(pingLocation, 10000);
     }
 
     /**

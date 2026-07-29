@@ -2303,8 +2303,10 @@ def upsert_live_presence(user, status_code, status_message, source='heartbeat', 
 
 
     if latitude is not None and longitude is not None:
-        presence.latitude = latitude
-        presence.longitude = longitude
+        # Prevent wiping out a good location with 0.0 fallback coordinates
+        if latitude != 0.0 or longitude != 0.0:
+            presence.latitude = latitude
+            presence.longitude = longitude
 
     # Create alert if status is not OK (either new alert or state change)
     # OUT_OF_BOUNDS alerts are created every time to ensure admin always sees current violations
@@ -3980,6 +3982,19 @@ def recognize():
                 db.session.commit()
                 msg = get_first_mark_message(first.get("reason_code"))
                 log_type = 'IN'
+
+            # --- Update LivePresence with Scan Location ---
+            upsert_live_presence(
+                user=user,
+                status_code='OK',
+                status_message='In campus (Scan)',
+                source='scanner',
+                latitude=user_lat,
+                longitude=user_lon,
+                distance_m=dist_m,
+                in_bounds=True,
+                gps_accuracy=user_loc.get('accuracy')
+            )
 
             return jsonify({
                 "success": True,
