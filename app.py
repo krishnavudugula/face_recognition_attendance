@@ -3904,7 +3904,17 @@ def recognize():
                     # Has checked IN, now checking OUT (if cooldown passes)
                     min_gap = 10
 
-                    time_diff = (now_utc.replace(tzinfo=None) - today_log.timestamp_in).total_seconds()
+                    # Safe diff: handle None or timezone-aware timestamp_in
+                    try:
+                        ts_in = today_log.timestamp_in
+                        if ts_in is None:
+                            time_diff = min_gap + 1  # Force allow checkout if no timestamp
+                        elif ts_in.tzinfo is not None:
+                            time_diff = (now_utc - ts_in).total_seconds()
+                        else:
+                            time_diff = (now_utc.replace(tzinfo=None) - ts_in).total_seconds()
+                    except Exception:
+                        time_diff = min_gap + 1  # Default: allow checkout
 
                     if time_diff < min_gap:
                          msg = f"Wait {int(min_gap-time_diff)}s to Checkout"
@@ -4325,7 +4335,8 @@ def faculty_location():
             distance_m=round(dist_km * 1000, 2) if dist_km is not None else None,
             in_bounds=in_bounds,
             native_network_status=network_status,
-            native_location_enabled=bool(location_on)
+            native_location_enabled=bool(location_on),
+            gps_accuracy=accuracy if accuracy else None
         )
         db.session.commit()
 
@@ -6943,7 +6954,11 @@ def get_user_notifications():
         })
 
     # 3. Check Out of Bounds Status
-    if presence and presence.status_code == 'OUT_OF_BOUNDS' and not flags['is_lunch_window']:
+    # Only fire if the device has a precise GPS reading (accuracy < 150m).
+    # Desktop / IP-based geolocation has massive error and should never trigger this.
+    presence_accuracy = getattr(presence, 'gps_accuracy', None) if presence else None
+    is_precise_gps = (presence_accuracy is not None and presence_accuracy < 150) or (presence_accuracy is None)
+    if presence and presence.status_code == 'OUT_OF_BOUNDS' and not flags['is_lunch_window'] and is_precise_gps:
         distance_str = f"{presence.distance_m:.0f}m" if presence.distance_m else "unknown"
         notifications.append({
             'type': 'OUT_OF_BOUNDS',
