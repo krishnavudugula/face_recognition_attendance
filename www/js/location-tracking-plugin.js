@@ -41,7 +41,8 @@
         const plugin = getPlugin();
 
         if (!plugin) {
-            console.log(TAG, '⚠️ Not on native platform — skipping native tracking');
+            console.log(TAG, '⚠️ Not on native platform — using web geolocation fallback');
+            startWebFallback(userId);
             return;
         }
 
@@ -59,51 +60,126 @@
 
         // Get API base URL from config.js
         if (!apiBase) {
-            apiBase = window.API_BASE_URL || 'https://thymic-chu-pressuringly.ngrok-free.dev';
+            if (typeof window.buildApiUrl === 'function') {
+                apiBase = window.buildApiUrl('');
+            } else if (window.API_BASE_URL) {
+                apiBase = window.API_BASE_URL;
+            } else {
+                apiBase = window.location.origin;
+            }
         }
-
-        console.log(TAG, `🟢 Starting native tracking for ${userId} → ${apiBase}`);
 
         try {
             await plugin.startTracking({
                 userId: userId,
                 userName: userName || 'Faculty',
-                apiBase: apiBase
+                apiBase: apiBase,
+                intervalMs: 10000,
+                notificationTitle: 'Attendance Tracking Active',
+                notificationText: `Tracking ${userName || 'Faculty'}`
             });
-
             nativeTrackingActive = true;
             currentTrackingUserId = userId;
-
-            console.log(TAG, '✅ Native foreground service STARTED');
-            console.log(TAG, '📍 Persistent notification should now be visible');
-            console.log(TAG, '✅ Service will survive: app kill, cache clear, WebView crash');
+            console.log(TAG, '✅ Native foreground service started for:', userId);
         } catch (e) {
             console.error(TAG, '❌ Failed to start native tracking:', e);
+            // Fall back to web geolocation if native fails
+            console.log(TAG, '🔄 Falling back to web geolocation...');
+            startWebFallback(userId);
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // WEB GEOLOCATION FALLBACK (for desktop browsers)
+    // ═══════════════════════════════════════════════════════════
+    let webIntervalId = null;
+    let webFallbackActive = false;
+
+    function startWebFallback(userId) {
+        if (webFallbackActive) return;
+        if (!navigator.geolocation) {
+            console.warn(TAG, '❌ Geolocation API not available');
+            return;
+        }
+
+        if (!userId) {
+            const user = JSON.parse(localStorage.getItem('user') || 'null');
+            userId = user?.user_id || user?.id;
+        }
+        if (!userId) {
+            console.warn(TAG, '❌ No userId for web fallback');
+            return;
+        }
+
+        webFallbackActive = true;
+        nativeTrackingActive = true; // Mark as active so dashboard shows badge
+        currentTrackingUserId = userId;
+        console.log(TAG, '🌐 Web geolocation fallback started for:', userId);
+
+        const sendLocation = async (position) => {
+            try {
+                console.log(TAG, `📍 Sending location: ${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)} (acc: ${position.coords.accuracy.toFixed(0)}m)`);
+                await fetch('/api/faculty/location', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        location_on: true,
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        accuracy: position.coords.accuracy
+                    })
+                });
+            } catch (e) {
+                console.warn(TAG, 'Failed to send web location:', e);
+            }
+        };
+
+        const pingLocation = () => {
+            navigator.geolocation.getCurrentPosition(
+                (position) => sendLocation(position),
+                (error) => {
+                    console.warn(TAG, 'Web Geolocation Error:', error.message);
+                    fetch('/api/faculty/location', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ user_id: userId, location_on: false })
+                    }).catch(() => {});
+                },
+                { enableHighAccuracy: true, maximumAge: 5000, timeout: 8000 }
+            );
+        };
+
+        pingLocation(); // initial ping immediately
+        webIntervalId = setInterval(pingLocation, 10000); // then every 10 seconds
+    }
+
+    function stopWebFallback() {
+        if (webIntervalId !== null) {
+            clearInterval(webIntervalId);
+            webIntervalId = null;
+        }
+        webFallbackActive = false;
     }
 
     /**
      * Stop the native foreground location tracking service
-     * Only call this on EXPLICIT LOGOUT
      */
     async function stopNativeTracking() {
         const plugin = getPlugin();
 
-        if (!plugin) {
-            console.log(TAG, '⚠️ Not on native platform — nothing to stop');
-            return;
+        if (plugin) {
+            try {
+                await plugin.stopTracking({});
+                console.log(TAG, '✅ Native service stopped — notification removed');
+            } catch (e) {
+                console.error(TAG, '❌ Failed to stop native tracking:', e);
+            }
         }
 
-        console.log(TAG, '🔴 Stopping native tracking...');
-
-        try {
-            await plugin.stopTracking({});
-            nativeTrackingActive = false;
-            currentTrackingUserId = null;
-            console.log(TAG, '✅ Native service stopped — notification removed');
-        } catch (e) {
-            console.error(TAG, '❌ Failed to stop native tracking:', e);
-        }
+        stopWebFallback();
+        nativeTrackingActive = false;
+        currentTrackingUserId = null;
     }
 
     /**
@@ -114,6 +190,7 @@
             active: nativeTrackingActive,
             userId: currentTrackingUserId,
             isNative: !!getPlugin(),
+            isWebFallback: webFallbackActive,
             timestamp: new Date().toISOString()
         };
     }
@@ -127,15 +204,21 @@
             currentUserId: currentTrackingUserId,
             hasCapacitor: typeof window.Capacitor !== 'undefined',
             isNative: !!getPlugin(),
-            serviceType: 'Android Foreground Service (START_STICKY)',
-            survives: {
+            isWebFallback: webFallbackActive,
+            serviceType: getPlugin() ? 'Android Foreground Service (START_STICKY)' : 'Web Geolocation Fallback',
+            survives: getPlugin() ? {
                 appKillFromRecents: '✅ Yes (START_STICKY restarts service)',
                 cacheClear: '✅ Yes (native service, not WebView)',
                 webViewCrash: '✅ Yes (independent of WebView)',
                 deviceReboot: '⚠️ Restarts on next app login'
+            } : {
+                appKillFromRecents: '❌ No (web-based)',
+                cacheClear: '❌ No (web-based)',
+                tabClose: '❌ No (requires tab open)',
+                note: 'Web fallback only works while browser tab is open'
             }
         };
-        console.log(TAG, '📊 Native Tracking Persistence:', status);
+        console.log(TAG, '📊 Tracking Persistence:', status);
         return status;
     }
 
@@ -159,20 +242,15 @@
         const user = JSON.parse(localStorage.getItem('user') || 'null');
         if (!user || user.role !== 'faculty') return;
 
-        // Wait for Capacitor
-        let ready = false;
-        const start = Date.now();
-        while (!ready && (Date.now() - start) < 5000) {
-            if (getPlugin()) {
-                ready = true;
-                break;
-            }
-            await new Promise(r => setTimeout(r, 200));
-        }
-
-        if (ready) {
+        // Try native first
+        const plugin = getPlugin();
+        if (plugin) {
             console.log(TAG, '⚡ Auto-starting native tracking for faculty user');
             await startNativeTracking();
+        } else {
+            // Desktop browser — start web fallback immediately
+            console.log(TAG, '🌐 Auto-starting web geolocation fallback for faculty user');
+            startWebFallback(user.user_id || user.id);
         }
     })();
 
@@ -180,7 +258,7 @@
     window.addEventListener('sessionRestored', async (e) => {
         const user = e.detail?.user;
         if (user && user.role === 'faculty') {
-            console.log(TAG, '🔄 Session restored — restarting native tracking');
+            console.log(TAG, '🔄 Session restored — restarting tracking');
             await startNativeTracking(user.user_id || user.id, user.name);
         }
     });
@@ -188,9 +266,9 @@
     // Handle app resume
     document.addEventListener('resume', async () => {
         if (nativeTrackingActive && currentTrackingUserId) {
-            console.log(TAG, '📱 App resumed — native service should still be running');
+            console.log(TAG, '📱 App resumed — service should still be running');
         }
     });
 
-    console.log(TAG, '✅ Native tracking bridge loaded');
+    console.log(TAG, '✅ Tracking bridge loaded (native + web fallback)');
 })();

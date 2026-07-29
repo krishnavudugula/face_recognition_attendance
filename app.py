@@ -2298,8 +2298,11 @@ def upsert_live_presence(user, status_code, status_message, source='heartbeat', 
         presence.location_state = 'OUTSIDE_CAMPUS'
     elif status_code == 'OK' and in_bounds:
         presence.location_state = 'INSIDE_CAMPUS'
-    elif status_code == 'OK':
+    elif status_code == 'OK' and not in_bounds:
+        presence.location_state = 'OUTSIDE_CAMPUS'
+    elif status_code == 'LOCATION_OFF':
         presence.location_state = 'UNKNOWN'
+    # For ACQUIRING_GPS, keep the previous location_state (don't overwrite to UNKNOWN)
 
 
     if latitude is not None and longitude is not None:
