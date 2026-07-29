@@ -4003,12 +4003,16 @@ def recognize():
             }), 401
 
     except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
         print(f"Recognition Error: {e}")
+        print(f"Full Traceback:\n{tb}")
         return jsonify({
             "success": False,
             "error_code": "SERVER_ERROR",
             "message": "Server error while validating attendance. Please retry in a moment.",
-            "error": str(e)
+            "error": str(e),
+            "traceback": tb
         }), 500
 
 

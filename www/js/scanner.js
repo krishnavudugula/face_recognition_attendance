@@ -60,7 +60,7 @@ function resolveScanError(result, httpStatus) {
     if (code === 'INVALID_USER') return 'Unregistered user. Please contact administration.';
     if (code === 'NO_IMAGE') return 'Camera frame not captured. Please retry the scan.';
     if (code === 'FACE_MISMATCH') return 'Face does not match your account. You must scan YOUR OWN face. This has been reported.';
-    if (code === 'SERVER_ERROR') return 'Server error during validation. Please retry.';
+    if (code === 'SERVER_ERROR') return `Server error: ${result?.error || 'Unknown'}. Please retry.`;
 
     if (httpStatus === 401) return 'Invalid or unregistered user. Please contact admin.';
     if (httpStatus === 403) return result?.message || 'Out of campus boundary. Move within allowed range.';
@@ -344,7 +344,7 @@ async function processFrame() {
             // Failure feedback
             const userMessage = resolveScanError(result, response.status);
             showErrorMessage(userMessage);
-            
+            console.error('[Scanner] Server error details:', JSON.stringify(result, null, 2));
 
             if (window.logSystem) {
                 if (result.error_code === 'INVALID_USER') {
