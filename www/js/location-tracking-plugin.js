@@ -132,7 +132,7 @@
             if (navigator.connection && navigator.connection.effectiveType) {
                 return navigator.connection.effectiveType;
             }
-            return 'Web/Desktop';
+            return "Connected"; // Better fallback than Unknown
         };
 
         const sendLocation = async (position) => {
