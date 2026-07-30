@@ -1120,7 +1120,7 @@
             `;
 
             data.forEach((user, idx) => {
-                const lastSeen = user.last_seen ? convertUTCtoIST(user.last_seen) : 'N/A';
+                const lastSeen = user.last_seen ? convertUTCtoIST(user.last_seen) : '<span style="color:#94a3b8; font-style:italic;">No record</span>';
                 const bgColor = idx % 2 === 0 ? 'white' : '#f9fafb';
                 const physicalState = user.in_bounds === false ? 'OUT OF BOUNDS' : 'IN BOUNDS';
                 const policyRaw = user.policy_in_bounds;

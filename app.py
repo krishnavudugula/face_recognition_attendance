@@ -3028,10 +3028,16 @@ def cleanup_stale_presence():
     try:
         now_utc = datetime.utcnow()
 
-        # Remove records older than 1 hour (user likely logged out or phone died long ago)
-        stale_delete_cutoff = now_utc - timedelta(hours=1)
+        # Get the start of today in local time (IST), then convert to UTC
+        local_tz = pytz.timezone('Asia/Kolkata')
+        now_local = datetime.now(local_tz)
+        start_of_today_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        start_of_today_utc = start_of_today_local.astimezone(pytz.utc).replace(tzinfo=None)
+
+        # Remove records ONLY if they are from a previous day.
+        # This preserves today's 'last_seen' timestamp for users who went offline today.
         stale_records = LivePresence.query.filter(
-            LivePresence.last_seen < stale_delete_cutoff
+            LivePresence.last_seen < start_of_today_utc
         ).all()
 
         count = len(stale_records)
@@ -4411,14 +4417,18 @@ def force_offline():
         # 🔴 LOG FINAL DEVICE STATES: Transition to offline/inactive/out
         log_final_device_states(user_id)
 
-        # Clear LivePresence record
+        # Mark LivePresence record as OFFLINE instead of deleting, so we keep the last_seen time for today
         presence = LivePresence.query.filter_by(user_id=user_id).first()
         if presence:
-            db.session.delete(presence)
+            presence.presence_state = 'OFFLINE'
+            presence.device_state = 'GPS_OFF'
+            presence.tracking_status = 'STOPPED'
+            presence.network_status = 'offline'
+            presence.location_enabled = False
             db.session.commit()
-            print(f"🔴 Force-offline: {user_id} marked as OFFLINE and LivePresence cleared")
+            print(f"🔴 Force-offline: {user_id} marked as OFFLINE (record kept for today's last_seen)")
         else:
-            print(f"🔴 Force-offline: No LivePresence found for {user_id} (already cleaned up)")
+            print(f"🔴 Force-offline: No LivePresence found for {user_id}")
 
         return jsonify({"success": True, "message": f"User {user_id} forced offline"}), 200
 
@@ -4589,8 +4599,8 @@ def admin_live_locations():
 
     for user in all_users:
         if user.user_id not in active_user_ids:
-            # Get most recent log REGARDLESS of date to show last_seen historically
-            last_log = AttendanceLog.query.filter_by(user_id=user.user_id).order_by(AttendanceLog.timestamp_out.desc(), AttendanceLog.timestamp_in.desc()).first()
+            # Get most recent log ONLY FROM TODAY to show last_seen for today
+            last_log = AttendanceLog.query.filter_by(user_id=user.user_id, date=today_str).order_by(AttendanceLog.timestamp_out.desc(), AttendanceLog.timestamp_in.desc()).first()
             last_activity = None
             if last_log and last_log.status not in ['AB', 'HD'] and last_log.time_in != "00:00:00":
                 last_activity = (last_log.timestamp_out or last_log.timestamp_in).isoformat() + 'Z' if (last_log.timestamp_out or last_log.timestamp_in) else None
@@ -5825,16 +5835,17 @@ def get_analytics_data():
             except:
                 pass
 
-        # 9. Recent Check-ins (Limit 5)
-        # We need to re-query for sorted logs or sort the current list
-        # detailed logs are already in 'logs', but not sorted by time necessarily (db default?)
-        # Let's sort manually
-        sorted_logs = sorted(logs, key=lambda x: (x.date, x.time_in if x.time_in else ""), reverse=True)[:5]
+        # 9. Recent Check-ins (Limit 15, Today Only)
+        # Filter logs to only today's date so the feed resets at 12 AM
+        today_local_str = datetime.now(pytz.timezone('Asia/Kolkata')).strftime('%Y-%m-%d')
+        today_logs = [log for log in logs if log.date == today_local_str]
+        
+        sorted_logs = sorted(today_logs, key=lambda x: (x.date, x.time_in if x.time_in else ""), reverse=True)[:15]
         recent_activity = []
         for log in sorted_logs:
             recent_activity.append({
                 "name": user_name_map.get(log.user_id, log.user_id),
-                "time": f"{log.date} {log.time_in}" if log.time_in else f"{log.date} (No Time)",
+                "time": f"{log.time_in}" if log.time_in else "No Time",
                 "status": log.status
             })
 
