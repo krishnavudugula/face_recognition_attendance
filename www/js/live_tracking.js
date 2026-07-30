@@ -317,6 +317,9 @@ function updateDashboardMetrics(data) {
     let stopped = 0;
 
     const allUsers = [...(data.map_points || []), ...(data.inactive_users || [])];
+    
+    const onlineElements = [];
+    const offlineElements = [];
 
     allUsers.forEach(p => {
         // A user is "online" if their presence_state is ONLINE and network is active
@@ -406,14 +409,47 @@ function updateDashboardMetrics(data) {
             </div>
         `;
         
-        if (isFaulty) {
-            rosterContainer.prepend(row);
+        const isOffline = isStale || !hasNetwork || p.status === 'OFFLINE';
+        if (isOffline) {
+            offlineElements.push(row);
         } else {
-            rosterContainer.appendChild(row);
+            if (isFaulty) {
+                onlineElements.unshift(row);
+            } else {
+                onlineElements.push(row);
+            }
         }
     });
 
-    if ((data.map_points || []).length === 0) {
+    // Append Online Users
+    onlineElements.forEach(el => rosterContainer.appendChild(el));
+
+    // Append Offline Users with a header if any exist
+    if (offlineElements.length > 0) {
+        if (onlineElements.length > 0) {
+            const divider = document.createElement("div");
+            divider.style.height = "1px";
+            divider.style.background = "var(--border-subtle)";
+            divider.style.margin = "8px 0";
+            rosterContainer.appendChild(divider);
+        }
+        
+        const header = document.createElement("div");
+        header.style.padding = "8px 12px 12px";
+        header.style.fontSize = "0.75rem";
+        header.style.fontWeight = "700";
+        header.style.color = "var(--text-tertiary)";
+        header.style.textTransform = "uppercase";
+        header.style.letterSpacing = "0.05em";
+        header.style.display = "flex";
+        header.style.alignItems = "center";
+        header.innerHTML = `Offline Users <span style="background: var(--bg-subtle); padding: 2px 8px; border-radius: 12px; margin-left: 8px; color: var(--text-secondary);">${offlineElements.length}</span>`;
+        rosterContainer.appendChild(header);
+        
+        offlineElements.forEach(el => rosterContainer.appendChild(el));
+    }
+
+    if (allUsers.length === 0) {
         rosterContainer.innerHTML = `<div style="text-align: center; color: var(--text-tertiary); font-size: 0.85rem; padding: 20px;">No users currently being tracked</div>`;
     } else if (rosterContainer.childElementCount === 0) {
         rosterContainer.innerHTML = `<div style="text-align: center; color: var(--text-tertiary); font-size: 0.85rem; padding: 20px;">No users match the selected filter</div>`;
