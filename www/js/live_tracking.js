@@ -371,7 +371,7 @@ function updateDashboardMetrics(data) {
         let statusString = p.location_state || 'UNKNOWN';
         if (p.location_state === 'INSIDE_CAMPUS') statusString = "Inside Campus";
         else if (p.location_state === 'OUTSIDE_CAMPUS' || p.location_state === 'OUT_OF_GEOFENCE') statusString = "Out of Campus";
-        else if (p.location_state === 'UNKNOWN' || !p.location_state) statusString = "Offline (No Location)";
+        else if (p.location_state === 'UNKNOWN' || !p.location_state) statusString = "No Activity Record";
         
         if (p.activity_state === 'LUNCH_BREAK') statusString += " (Lunch Break)";
         
@@ -380,7 +380,11 @@ function updateDashboardMetrics(data) {
         else if (p.tracking_status === 'STOPPED') statusString += ` • Stopped`;
         
         if (!hasNetwork || p.presence_state === 'OFFLINE' || p.status === 'OFFLINE') {
-            statusString = `<span style="color:#94a3b8;">[OFFLINE]</span> ${statusString}`;
+            if (statusString === "No Activity Record") {
+                statusString = `<span style="color:#94a3b8;">Offline — No Activity Record</span>`;
+            } else {
+                statusString = `<span style="color:#94a3b8;">[Offline]</span> ${statusString}`;
+            }
         }
         
         row.innerHTML = `
@@ -459,20 +463,39 @@ function sendPresenceHeartbeat(adminId) {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(async (pos) => {
         try {
+            let battery_level = 100;
+            let battery_charging = false;
+            try {
+                if (navigator.getBattery) {
+                    const battery = await navigator.getBattery();
+                    battery_level = Math.round(battery.level * 100);
+                    battery_charging = battery.charging;
+                }
+            } catch(e) {}
+            
+            let network_type = 'WiFi';
+            try {
+                if (navigator.connection && navigator.connection.effectiveType) {
+                    network_type = navigator.connection.effectiveType;
+                }
+            } catch(e) {}
+
             await fetchJsonStrict(`/api/location_heartbeat`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     user_id: adminId,
-                    // FIXED: Do NOT send network_on/location_on — native service handles truth
-                    device_status: {},
+                    // Send actual extracted device status
+                    battery_level: battery_level,
+                    battery_charging: battery_charging,
+                    network_type: network_type,
                     latitude: pos.coords.latitude,
                     longitude: pos.coords.longitude,
                     gps_accuracy: pos.coords.accuracy
                 })
             });
         } catch (err) {
-            console.warn("[LiveTracking] Heartbeat failed (not critical):", err.message);
+            console.warn("[LiveTracking] Heartbeat failed:", err.message);
         }
     }, null, { enableHighAccuracy: false, timeout: 8000, maximumAge: 10000 });
 }
