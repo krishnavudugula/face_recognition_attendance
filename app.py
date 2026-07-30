@@ -208,8 +208,10 @@ class PresenceEngine:
         # 5. Update LivePresence fields
         presence.sequence_number = seq_num
         presence.heartbeat_version = payload.get('heartbeat_version', '1.0')
-        presence.battery_level = battery_level
-        presence.battery_charging = bool(payload.get('battery_charging', False))
+        if payload.get('battery_level') is not None:
+            presence.battery_level = payload.get('battery_level')
+        if payload.get('battery_charging') is not None:
+            presence.battery_charging = bool(payload.get('battery_charging', False))
         
         # Only overwrite location data if we have valid coordinates, 
         # so we don't wipe out their last known position when GPS turns off.
@@ -221,7 +223,9 @@ class PresenceEngine:
             presence.in_bounds = (new_location == 'INSIDE_CAMPUS')
         
         presence.mock_location = mock_loc
-        presence.network_type = payload.get('network_type')
+        if payload.get('network_type') is not None:
+            presence.network_type = payload.get('network_type')
+            
         presence.capacitor_version = payload.get('capacitor_version')
         presence.android_version = payload.get('android_version')
         presence.device_manufacturer = payload.get('device_manufacturer')

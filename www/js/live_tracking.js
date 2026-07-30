@@ -463,7 +463,7 @@ function sendPresenceHeartbeat(adminId) {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(async (pos) => {
         try {
-            let battery_level = 100;
+            let battery_level = null;
             let battery_charging = false;
             try {
                 if (navigator.getBattery) {
@@ -473,7 +473,7 @@ function sendPresenceHeartbeat(adminId) {
                 }
             } catch(e) {}
             
-            let network_type = 'WiFi';
+            let network_type = null;
             try {
                 if (navigator.connection && navigator.connection.effectiveType) {
                     network_type = navigator.connection.effectiveType;
