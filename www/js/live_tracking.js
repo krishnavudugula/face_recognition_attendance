@@ -261,11 +261,22 @@ function updateDashboardMap(data) {
             statusText = `<b>[OFFLINE]</b> ${statusText}`;
         }
         
+        let popupTimeStr = "Unknown";
+        if (p.last_seen) {
+            const dt = new Date(p.last_seen);
+            if (!isNaN(dt)) {
+                popupTimeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                if (dt.toDateString() !== new Date().toDateString()) {
+                    popupTimeStr = dt.toLocaleDateString([], { month: 'short', day: 'numeric' }) + " " + popupTimeStr;
+                }
+            }
+        }
+        
         const popupContent = `
             <div class="premium-popup">
                 <div class="p-name">${p.name || "Student"}</div>
                 <div class="p-badge ${badgeClass}"><i class="fa-solid ${badgeIcon}"></i> ${statusText}</div>
-                <div class="p-time">Last update: just now</div>
+                <div class="p-time">Last update: ${popupTimeStr}</div>
             </div>
         `;
 
