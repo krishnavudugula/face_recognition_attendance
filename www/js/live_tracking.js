@@ -7,6 +7,14 @@ const POLL_RATE = 3000;
 let lastBounds = null;
 let currentRosterFilter = 'all';
 
+function toggleRosterFilter() {
+    if (currentRosterFilter === 'online') {
+        filterRoster('all');
+    } else {
+        filterRoster('online');
+    }
+}
+
 function filterRoster(filterType) {
     currentRosterFilter = filterType;
     
@@ -26,6 +34,18 @@ function filterRoster(filterType) {
             rosterCount.style.background = 'var(--brand-light)';
             rosterCount.style.color = 'var(--brand-blue)';
         }
+    }
+    
+    const rosterTitle = document.getElementById('rosterTitle');
+    if (rosterTitle) {
+        if (filterType === 'all') rosterTitle.textContent = "All Users";
+        else if (filterType === 'online') rosterTitle.textContent = "Live Roster";
+        else if (filterType === 'offline') rosterTitle.textContent = "Offline Users";
+        else if (filterType === 'outside') rosterTitle.textContent = "Outside Campus";
+        else if (filterType === 'inside') rosterTitle.textContent = "Inside Campus";
+        else if (filterType === 'battery') rosterTitle.textContent = "Low Battery";
+        else if (filterType === 'gps_off') rosterTitle.textContent = "GPS Disabled";
+        else rosterTitle.textContent = "Filtered Roster";
     }
     
     // Render the cached data immediately if possible
@@ -347,6 +367,7 @@ function updateDashboardMetrics(data) {
         const isFaulty = p.location_state === 'OUTSIDE_CAMPUS' || p.device_state === 'MOCK_LOCATION' || p.device_state === 'GPS_OFF';
         
         // Apply filter
+        if (currentRosterFilter === 'online' && isStale) return;
         if (currentRosterFilter === 'outside' && p.location_state !== 'OUTSIDE_CAMPUS' && p.location_state !== 'OUT_OF_GEOFENCE') return;
         if (currentRosterFilter === 'inside' && p.location_state !== 'INSIDE_CAMPUS') return;
         if (currentRosterFilter === 'offline' && !isStale) return;

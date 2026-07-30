@@ -550,8 +550,8 @@
         </div>
 
         <div class="user-list-header">
-            <span class="user-list-title">Live Roster</span>
-            <span style="font-size: 0.75rem; color: var(--brand-blue); background: var(--brand-light); padding: 4px 8px; border-radius: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s;" id="rosterCount" onclick="filterRoster('all')" title="Click to show all users">0 Online</span>
+            <span class="user-list-title" id="rosterTitle">Live Roster</span>
+            <span style="font-size: 0.75rem; color: var(--brand-blue); background: var(--brand-light); padding: 4px 8px; border-radius: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s;" id="rosterCount" onclick="toggleRosterFilter()" title="Click to toggle filter">0 Online</span>
         </div>
         
         <div class="user-list" id="activeUserRoster">
