@@ -546,12 +546,6 @@
                     <span class="metric-label"><i class="fa-solid fa-person-walking-arrow-right" style="color: var(--warning);"></i> Outside</span>
                     <span class="metric-value" id="valOutside" style="color: var(--warning);">0</span>
                 </div>
-                
-                <!-- Row 2 -->
-                <div class="metric-card" id="cardGpsFilter" onclick="filterRoster('gps_off')" style="cursor: pointer;">
-                    <span class="metric-label"><i class="fa-solid fa-location-crosshairs" style="color: var(--danger);"></i> GPS OFF</span>
-                    <span class="metric-value" id="valGpsOff" style="color: var(--danger);">0</span>
-                </div>
             </div>
         </div>
 
@@ -619,6 +613,10 @@
                         <div class="data-card">
                             <span class="data-label">App Service</span>
                             <span class="data-value" id="profAppState">Running</span>
+                        </div>
+                        <div class="data-card" style="grid-column: span 2;">
+                            <span class="data-label">Last Seen (Heartbeat)</span>
+                            <span class="data-value" id="profLastSeen" style="color: #64748b; font-size: 0.9rem;">--</span>
                         </div>
                     </div>
                 </div>

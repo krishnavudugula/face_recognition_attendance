@@ -490,7 +490,11 @@ function openProfileOverlay(p) {
     
     // Network & Battery
     const hasNetwork = p.device_status && p.device_status.network_on !== false;
-    document.getElementById("profNetwork").textContent = hasNetwork ? (p.device_status.network_type || "Connected") : "Offline";
+    let netText = (p.device_status && p.device_status.network_type) ? p.device_status.network_type : (hasNetwork ? "Connected" : "Offline");
+    if (!hasNetwork && p.device_status && p.device_status.network_type) {
+        netText += " (Offline)";
+    }
+    document.getElementById("profNetwork").textContent = netText;
     document.getElementById("profNetwork").style.color = hasNetwork ? "#0f172a" : "#ef4444";
     
     if (p.device_status && p.device_status.battery_level !== undefined && p.device_status.battery_level !== null) {
@@ -500,8 +504,10 @@ function openProfileOverlay(p) {
     }
 
     // Location & App
-    if (p.device_status && p.device_status.gps_accuracy) {
-        document.getElementById("profGps").textContent = `Active (±${Math.round(p.device_status.gps_accuracy)}m)`;
+    if (p.device_status && p.device_status.gps_accuracy !== undefined && p.device_status.gps_accuracy !== null) {
+        let gpsText = `±${Math.round(p.device_status.gps_accuracy)}m`;
+        if (p.device_status.location_on === false) gpsText += " (Disabled)";
+        document.getElementById("profGps").textContent = gpsText;
     } else {
         document.getElementById("profGps").textContent = p.device_status && p.device_status.location_on === false ? "Disabled" : "N/A";
     }
@@ -510,6 +516,13 @@ function openProfileOverlay(p) {
         document.getElementById("profAppState").innerHTML = `<span style="color:#ef4444;font-weight:700;">STOPPED</span>`;
     } else {
         document.getElementById("profAppState").innerHTML = `<span style="color:#10b981;font-weight:700;">ACTIVE</span>`;
+    }
+    
+    // Last Seen
+    if (p.last_seen) {
+        document.getElementById("profLastSeen").textContent = convertUTCtoIST(p.last_seen);
+    } else {
+        document.getElementById("profLastSeen").textContent = "No record";
     }
 
     // Bounds Status
