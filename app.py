@@ -153,6 +153,8 @@ class PresenceEngine:
         # Determine New States
         new_presence = 'ONLINE'
         new_location = self.determine_location_state(dist_km, accuracy, time_flags.get('is_lunch_window', False))
+        if new_location == 'UNKNOWN':
+            new_location = prev_location
         
         if time_flags.get('is_lunch_window', False):
             new_activity = 'LUNCH_BREAK'
@@ -208,11 +210,16 @@ class PresenceEngine:
         presence.heartbeat_version = payload.get('heartbeat_version', '1.0')
         presence.battery_level = battery_level
         presence.battery_charging = bool(payload.get('battery_charging', False))
-        presence.gps_accuracy = accuracy
-        presence.latitude = lat
-        presence.longitude = lon
-        presence.distance_m = dist_km * 1000
-        presence.in_bounds = (new_location == 'INSIDE_CAMPUS')
+        
+        # Only overwrite location data if we have valid coordinates, 
+        # so we don't wipe out their last known position when GPS turns off.
+        if lat != 0.0 or lon != 0.0:
+            presence.latitude = lat
+            presence.longitude = lon
+            presence.gps_accuracy = accuracy
+            presence.distance_m = dist_km * 1000
+            presence.in_bounds = (new_location == 'INSIDE_CAMPUS')
+        
         presence.mock_location = mock_loc
         presence.network_type = payload.get('network_type')
         presence.capacitor_version = payload.get('capacitor_version')
@@ -4286,10 +4293,15 @@ def faculty_location():
             user_lat, user_lon, accuracy = 0.0, 0.0, 0.0
 
         # --- 2. DETERMINE TRUE STATUS ---
+        
+        # Get previous state
+        prev_presence = LivePresence.query.filter_by(user_id=user_id).first()
+        prev_in_bounds = prev_presence.in_bounds if prev_presence else False
+        
         if not location_on:
             status_code = 'LOCATION_OFF'
             status_message = 'GPS disabled on device'
-            in_bounds = False
+            in_bounds = prev_in_bounds
             user_lat = None  
             user_lon = None
             dist_km = None
@@ -4297,7 +4309,7 @@ def faculty_location():
         elif user_lat == 0.0 and user_lon == 0.0:
             status_code = 'ACQUIRING_GPS'
             status_message = 'Searching for GPS signal...'
-            in_bounds = False
+            in_bounds = prev_in_bounds
             user_lat = None
             user_lon = None
             dist_km = None
