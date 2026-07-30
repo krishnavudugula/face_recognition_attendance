@@ -3999,6 +3999,7 @@ def recognize():
             else:
                 first = classify_first_mark(now_local, approved_permission)
                 if not first["allowed"]:
+                    msg = get_first_mark_message(first.get("reason_code"))
                     return jsonify({
                         "success": True,
                         "user": {
@@ -4009,7 +4010,7 @@ def recognize():
                         },
                         "location": face_location,
                         "attendance": {
-                            "status": first["message"],
+                            "status": msg,
                             "type": "IGNORED"
                         }
                     })
@@ -5347,7 +5348,8 @@ def mark_attendance():
         # Check in using configured first-mark rules
         first = classify_first_mark(now_local, approved_permission)
         if not first["allowed"]:
-            return jsonify({"success": False, "message": first["message"]}), 400
+            msg = get_first_mark_message(first.get("reason_code"))
+            return jsonify({"success": False, "message": msg}), 400
 
         new_log = AttendanceLog(
             user_id=user_id,
