@@ -2230,7 +2230,7 @@ def get_time_policy_flags(local_dt):
     }
 
 
-def upsert_live_presence(user, status_code, status_message, source='heartbeat', latitude=None, longitude=None, distance_m=None, in_bounds=False, native_network_status=None, native_location_enabled=None, battery_level=None, gps_accuracy=None, tracking_active=None, app_version=None):
+def upsert_live_presence(user, status_code, status_message, source='heartbeat', latitude=None, longitude=None, distance_m=None, in_bounds=False, native_network_status=None, native_location_enabled=None, battery_level=None, gps_accuracy=None, tracking_active=None, app_version=None, network_type=None):
     """Create or update current live presence state for a user.
     
     native_network_status: 'online' or 'offline' — ONLY set by native Android service
@@ -2265,6 +2265,8 @@ def upsert_live_presence(user, status_code, status_message, source='heartbeat', 
         presence.tracking_active = bool(tracking_active)
     if app_version is not None:
         presence.app_version = app_version
+    if network_type is not None:
+        presence.network_type = network_type
 
     # PREVENT WEB APP FROM OVERWRITING NATIVE FAULTS
     if source != 'native_tracker' and previous_status in ['NETWORK_OFF', 'LOCATION_OFF']:
@@ -4359,6 +4361,9 @@ def faculty_location():
         # --- 4. SAVE TO LivePresence (with NATIVE TRUTH fields) ---
         battery_level = data.get('battery_level')
         network_type = data.get('network_type')
+        if network_type:
+            # Override network_status if provided
+            network_status = 'online'
         
         upsert_live_presence(
             user=user,
@@ -4468,9 +4473,12 @@ def admin_live_locations():
         if not is_heartbeat_fresh or p.tracking_status == 'STOPPED':
             effective_presence = 'OFFLINE'
             
-        # Policy allows being out of bounds IF it is lunch window, OR if they have an approved permission today.
         user_perm = today_perms.get(p.user_id)
-        policy_in_bounds = flags.get("is_lunch_window", False) or (user_perm is not None)
+        has_override_perm = bool(user_perm and user_perm.type != 'full_day_absence')
+        is_lunch = flags.get('is_lunch_window', False)
+        
+        # Policy is ALLOWED (True) if they are physically in bounds, OR it's lunch, OR they have a valid permission
+        policy_in_bounds = bool(p.in_bounds or is_lunch or has_override_perm)
 
         map_points.append({
             "user_id": p.user_id,
@@ -4586,9 +4594,14 @@ def admin_live_locations():
             last_activity = None
             if last_log and last_log.status not in ['AB', 'HD'] and last_log.time_in != "00:00:00":
                 last_activity = (last_log.timestamp_out or last_log.timestamp_in).isoformat() + 'Z' if (last_log.timestamp_out or last_log.timestamp_in) else None
+
+            user_perm = today_perms.get(user.user_id)
+            has_override_perm = bool(user_perm and user_perm.type != 'full_day_absence')
+            is_lunch = flags.get('is_lunch_window', False)
             
-            user_perm_inactive = today_perms.get(user.user_id)
-            policy_in_bounds_inactive = flags.get("is_lunch_window", False) or (user_perm_inactive is not None)
+            # For inactive users, they are offline. They are physically out of bounds (False).
+            # Policy is ALLOWED (True) if it's lunch or they have an override perm.
+            policy_in_bounds = bool(is_lunch or has_override_perm)
 
             inactive_users.append({
                 "user_id": user.user_id,
@@ -4600,10 +4613,17 @@ def admin_live_locations():
                 "last_seen": last_activity,  # NEW: Get from AttendanceLog
                 "status": "OFFLINE",
                 "in_bounds": False,
-                "policy_in_bounds": policy_in_bounds_inactive,
+                "policy_in_bounds": policy_in_bounds,
                 "device_status": {
                     "network_on": False,
-                    "location_on": False
+                    "location_on": False,
+                    "battery_level": None,
+                    "battery_charging": False,
+                    "gps_accuracy": None,
+                    "tracking_active": False,
+                    "app_version": None,
+                    "network_type": None,
+                    "mock_location": False
                 },
                 "today_attendance": {
                     "time_in": today_logs.get(user.user_id).time_in if today_logs.get(user.user_id) else None,

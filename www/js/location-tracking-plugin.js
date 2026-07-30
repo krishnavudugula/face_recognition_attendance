@@ -116,27 +116,31 @@
         currentTrackingUserId = userId;
         console.log(TAG, '🌐 Web geolocation fallback started for:', userId);
 
+        const getBatteryLevel = async () => {
+            if (navigator.getBattery) {
+                try {
+                    const battery = await navigator.getBattery();
+                    return Math.round(battery.level * 100);
+                } catch (e) {
+                    return null;
+                }
+            }
+            return null;
+        };
+
+        const getNetworkType = () => {
+            if (navigator.connection && navigator.connection.effectiveType) {
+                return navigator.connection.effectiveType;
+            }
+            return 'Web/Desktop';
+        };
+
         const sendLocation = async (position) => {
             try {
-                let batteryLevel = null;
-                let isCharging = false;
+                console.log(TAG, `📍 Sending location: ${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)} (acc: ${position.coords.accuracy.toFixed(0)}m)`);
+                const batteryLevel = await getBatteryLevel();
+                const networkType = getNetworkType();
                 
-                if ('getBattery' in navigator) {
-                    try {
-                        const battery = await navigator.getBattery();
-                        batteryLevel = Math.round(battery.level * 100);
-                        isCharging = battery.charging;
-                    } catch (e) {
-                        console.warn(TAG, 'Failed to read battery:', e);
-                    }
-                }
-                
-                let networkType = 'web-fallback';
-                if (navigator.connection && navigator.connection.effectiveType) {
-                    networkType = navigator.connection.effectiveType;
-                }
-
-                console.log(TAG, `📍 Sending location: ${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)} (acc: ${position.coords.accuracy.toFixed(0)}m, batt: ${batteryLevel}%, net: ${networkType})`);
                 await fetch('/api/faculty/location', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -147,7 +151,6 @@
                         longitude: position.coords.longitude,
                         accuracy: position.coords.accuracy,
                         battery_level: batteryLevel,
-                        battery_charging: isCharging,
                         network_type: networkType
                     })
                 });
@@ -159,12 +162,19 @@
         const pingLocation = () => {
             navigator.geolocation.getCurrentPosition(
                 (position) => sendLocation(position),
-                (error) => {
+                async (error) => {
                     console.warn(TAG, 'Web Geolocation Error:', error.message);
+                    const batteryLevel = await getBatteryLevel();
+                    const networkType = getNetworkType();
                     fetch('/api/faculty/location', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ user_id: userId, location_on: false })
+                        body: JSON.stringify({ 
+                            user_id: userId, 
+                            location_on: false,
+                            battery_level: batteryLevel,
+                            network_type: networkType
+                        })
                     }).catch(() => {});
                 },
                 { enableHighAccuracy: true, maximumAge: 5000, timeout: 8000 }
