@@ -4357,6 +4357,9 @@ def faculty_location():
             ))
 
         # --- 4. SAVE TO LivePresence (with NATIVE TRUTH fields) ---
+        battery_level = data.get('battery_level')
+        network_type = data.get('network_type')
+        
         upsert_live_presence(
             user=user,
             status_code=status_code,
@@ -4368,7 +4371,9 @@ def faculty_location():
             in_bounds=in_bounds,
             native_network_status=network_status,
             native_location_enabled=bool(location_on),
-            gps_accuracy=accuracy if accuracy else None
+            gps_accuracy=accuracy if accuracy else None,
+            battery_level=battery_level,
+            network_type=network_type
         )
         db.session.commit()
 
@@ -4463,6 +4468,10 @@ def admin_live_locations():
         if not is_heartbeat_fresh or p.tracking_status == 'STOPPED':
             effective_presence = 'OFFLINE'
             
+        # Policy allows being out of bounds IF it is lunch window, OR if they have an approved permission today.
+        user_perm = today_perms.get(p.user_id)
+        policy_in_bounds = flags.get("is_lunch_window", False) or (user_perm is not None)
+
         map_points.append({
             "user_id": p.user_id,
             "name": p.name,
@@ -4481,6 +4490,7 @@ def admin_live_locations():
             "tracking_status": p.tracking_status,
             "pause_reason": p.pause_reason,
             "in_bounds": p.in_bounds,
+            "policy_in_bounds": policy_in_bounds,
             "device_status": {
                 "network_on": is_heartbeat_fresh,
                 "location_on": effective_device != 'GPS_OFF',
@@ -4576,6 +4586,9 @@ def admin_live_locations():
             last_activity = None
             if last_log and last_log.status not in ['AB', 'HD'] and last_log.time_in != "00:00:00":
                 last_activity = (last_log.timestamp_out or last_log.timestamp_in).isoformat() + 'Z' if (last_log.timestamp_out or last_log.timestamp_in) else None
+            
+            user_perm_inactive = today_perms.get(user.user_id)
+            policy_in_bounds_inactive = flags.get("is_lunch_window", False) or (user_perm_inactive is not None)
 
             inactive_users.append({
                 "user_id": user.user_id,
@@ -4587,7 +4600,7 @@ def admin_live_locations():
                 "last_seen": last_activity,  # NEW: Get from AttendanceLog
                 "status": "OFFLINE",
                 "in_bounds": False,
-                "policy_in_bounds": False,
+                "policy_in_bounds": policy_in_bounds_inactive,
                 "device_status": {
                     "network_on": False,
                     "location_on": False

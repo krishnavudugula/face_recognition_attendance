@@ -118,7 +118,25 @@
 
         const sendLocation = async (position) => {
             try {
-                console.log(TAG, `📍 Sending location: ${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)} (acc: ${position.coords.accuracy.toFixed(0)}m)`);
+                let batteryLevel = null;
+                let isCharging = false;
+                
+                if ('getBattery' in navigator) {
+                    try {
+                        const battery = await navigator.getBattery();
+                        batteryLevel = Math.round(battery.level * 100);
+                        isCharging = battery.charging;
+                    } catch (e) {
+                        console.warn(TAG, 'Failed to read battery:', e);
+                    }
+                }
+                
+                let networkType = 'web-fallback';
+                if (navigator.connection && navigator.connection.effectiveType) {
+                    networkType = navigator.connection.effectiveType;
+                }
+
+                console.log(TAG, `📍 Sending location: ${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)} (acc: ${position.coords.accuracy.toFixed(0)}m, batt: ${batteryLevel}%, net: ${networkType})`);
                 await fetch('/api/faculty/location', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -127,7 +145,10 @@
                         location_on: true,
                         latitude: position.coords.latitude,
                         longitude: position.coords.longitude,
-                        accuracy: position.coords.accuracy
+                        accuracy: position.coords.accuracy,
+                        battery_level: batteryLevel,
+                        battery_charging: isCharging,
+                        network_type: networkType
                     })
                 });
             } catch (e) {
