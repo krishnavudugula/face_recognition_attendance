@@ -360,18 +360,16 @@ function updateDashboardMetrics(data) {
         let statusString = p.location_state || 'UNKNOWN';
         if (p.location_state === 'INSIDE_CAMPUS') statusString = "Inside Campus";
         else if (p.location_state === 'OUTSIDE_CAMPUS' || p.location_state === 'OUT_OF_GEOFENCE') statusString = "Out of Campus";
-        else if (p.location_state === 'UNKNOWN') statusString = "Locating...";
+        else if (p.location_state === 'UNKNOWN' || !p.location_state) statusString = "Offline (No Location)";
         
         if (p.activity_state === 'LUNCH_BREAK') statusString += " (Lunch Break)";
         
-        if (p.presence_state === 'OFFLINE') statusString = "Offline";
+        if (p.device_state === 'GPS_OFF') statusString += " • GPS Disabled";
+        else if (p.device_state === 'MOCK_LOCATION') statusString += " • Mock Location";
+        else if (p.tracking_status === 'STOPPED') statusString += ` • Stopped`;
         
-        if (p.device_state === 'GPS_OFF') statusString = "GPS Disabled";
-        else if (p.device_state === 'MOCK_LOCATION') statusString = "Mock Location";
-        else if (p.tracking_status === 'STOPPED') statusString = `Stopped (${p.pause_reason || 'Unknown'})`;
-        
-        if (!hasNetwork && p.presence_state !== 'OFFLINE') {
-            statusString = `<b>[STALE]</b> ${statusString}`;
+        if (!hasNetwork || p.presence_state === 'OFFLINE' || p.status === 'OFFLINE') {
+            statusString = `<span style="color:#94a3b8;">[OFFLINE]</span> ${statusString}`;
         }
         
         row.innerHTML = `
@@ -490,11 +488,7 @@ function openProfileOverlay(p) {
     
     // Network & Battery
     const hasNetwork = p.device_status && p.device_status.network_on !== false;
-    let netText = (p.device_status && p.device_status.network_type) ? p.device_status.network_type : (hasNetwork ? "Connected" : "Offline");
-    if (!hasNetwork && p.device_status && p.device_status.network_type) {
-        netText += " (Offline)";
-    }
-    document.getElementById("profNetwork").textContent = netText;
+    document.getElementById("profNetwork").textContent = hasNetwork ? (p.device_status.network_type || "Connected") : "Offline";
     document.getElementById("profNetwork").style.color = hasNetwork ? "#0f172a" : "#ef4444";
     
     if (p.device_status && p.device_status.battery_level !== undefined && p.device_status.battery_level !== null) {
@@ -504,10 +498,8 @@ function openProfileOverlay(p) {
     }
 
     // Location & App
-    if (p.device_status && p.device_status.gps_accuracy !== undefined && p.device_status.gps_accuracy !== null) {
-        let gpsText = `±${Math.round(p.device_status.gps_accuracy)}m`;
-        if (p.device_status.location_on === false) gpsText += " (Disabled)";
-        document.getElementById("profGps").textContent = gpsText;
+    if (p.device_status && p.device_status.gps_accuracy) {
+        document.getElementById("profGps").textContent = `Active (±${Math.round(p.device_status.gps_accuracy)}m)`;
     } else {
         document.getElementById("profGps").textContent = p.device_status && p.device_status.location_on === false ? "Disabled" : "N/A";
     }
@@ -516,13 +508,6 @@ function openProfileOverlay(p) {
         document.getElementById("profAppState").innerHTML = `<span style="color:#ef4444;font-weight:700;">STOPPED</span>`;
     } else {
         document.getElementById("profAppState").innerHTML = `<span style="color:#10b981;font-weight:700;">ACTIVE</span>`;
-    }
-    
-    // Last Seen
-    if (p.last_seen) {
-        document.getElementById("profLastSeen").textContent = convertUTCtoIST(p.last_seen);
-    } else {
-        document.getElementById("profLastSeen").textContent = "No record";
     }
 
     // Bounds Status
