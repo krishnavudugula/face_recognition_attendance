@@ -486,6 +486,20 @@ function openProfileOverlay(p) {
     const userInitial = (p.name || "U")[0].toUpperCase();
     document.getElementById("profAvatar").textContent = userInitial;
     
+    // Last Update Text
+    let timeStr = "Unknown";
+    if (p.last_seen) {
+        const dt = new Date(p.last_seen);
+        if (!isNaN(dt)) {
+            timeStr = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            // If it's not from today, show the date as well
+            if (dt.toDateString() !== new Date().toDateString()) {
+                timeStr = dt.toLocaleDateString([], { month: 'short', day: 'numeric' }) + " " + timeStr;
+            }
+        }
+    }
+    document.getElementById("profLastSeenText").textContent = `Last update: ${timeStr}`;
+    
     // Network & Battery
     const hasNetwork = p.device_status && p.device_status.network_on !== false;
     document.getElementById("profNetwork").textContent = hasNetwork ? (p.device_status.network_type || "Connected") : "Offline";

@@ -4620,30 +4620,41 @@ def admin_live_locations():
 
     for user in all_users:
         if user.user_id not in active_user_ids:
-            # Get most recent log ONLY FROM TODAY to show last_seen for today
+            # Try to get the absolute last known location and timestamp from LocationLog
+            last_loc = LocationLog.query.filter_by(user_id=user.user_id).order_by(LocationLog.timestamp.desc()).first()
+            
+            # Still get today's attendance to see if they marked in without app (e.g. scanner only)
             last_log = AttendanceLog.query.filter_by(user_id=user.user_id, date=today_str).order_by(AttendanceLog.timestamp_out.desc(), AttendanceLog.timestamp_in.desc()).first()
+            
             last_activity = None
+            if last_loc:
+                last_activity = last_loc.timestamp.isoformat() + 'Z'
+            
+            # If they scanned today after their last location ping, use the scan time
             if last_log and last_log.status not in ['AB', 'HD'] and last_log.time_in != "00:00:00":
-                last_activity = (last_log.timestamp_out or last_log.timestamp_in).isoformat() + 'Z' if (last_log.timestamp_out or last_log.timestamp_in) else None
+                scan_time = last_log.timestamp_out or last_log.timestamp_in
+                if scan_time and (not last_loc or scan_time > last_loc.timestamp):
+                    last_activity = scan_time.isoformat() + 'Z'
 
             user_perm = today_perms.get(user.user_id)
             has_override_perm = bool(user_perm and user_perm.type != 'full_day_absence')
             is_lunch = flags.get('is_lunch_window', False)
             
-            # For inactive users, they are offline. They are physically out of bounds (False).
-            # Policy is ALLOWED (True) if it's lunch or they have an override perm.
+            # For inactive users, policy is ALLOWED (True) if it's lunch or they have an override perm.
             policy_in_bounds = bool(is_lunch or has_override_perm)
 
             inactive_users.append({
                 "user_id": user.user_id,
                 "name": user.name,
                 "role": user.role,
-                "latitude": None,
-                "longitude": None,
-                "distance_m": None,
-                "last_seen": last_activity,  # NEW: Get from AttendanceLog
+                "latitude": last_loc.latitude if last_loc else None,
+                "longitude": last_loc.longitude if last_loc else None,
+                "distance_m": last_loc.distance_m if last_loc else None,
+                "last_seen": last_activity,
                 "status": "OFFLINE",
-                "in_bounds": False,
+                "presence_state": "OFFLINE",
+                "location_state": "INSIDE_CAMPUS" if last_loc and last_loc.in_bounds else ("OUTSIDE_CAMPUS" if last_loc else "UNKNOWN"),
+                "in_bounds": last_loc.in_bounds if last_loc else False,
                 "policy_in_bounds": policy_in_bounds,
                 "device_status": {
                     "network_on": False,
