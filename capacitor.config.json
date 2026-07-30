@@ -3,7 +3,8 @@
   "appName": "FaceAttend",
   "webDir": "www",
   "server": {
-    "url": "https://bitswattend.netlify.app/"
+    "url": "https://bitswattend.netlify.app/",
+    "errorPath": "error.html"
   },
   "android": {
     "allowMixedContent": true,
