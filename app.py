@@ -2092,10 +2092,13 @@ def classify_first_mark(scan_dt, permission=None):
         return {"allowed": True, "morning_status": "PRESENT", "evening_status": "PENDING", "modifier": modifier, "reason_code": "FLEXIBLE_TIME"}
 
     morning_deadline = time(9, 35)
+    morning_late = time(9, 45)
+    
     if rules.get("morning_deadline"):
         try:
             hh, mm = map(int, rules["morning_deadline"].split(':'))
             morning_deadline = time(hh, mm)
+            morning_late = time(hh, mm) # Permission extends both on-time and late windows
         except:
             pass
 
@@ -2103,17 +2106,23 @@ def classify_first_mark(scan_dt, permission=None):
         return {"allowed": False, "morning_status": None, "evening_status": None, "modifier": None, "reason_code": "TOO_EARLY"}
         
     if t <= morning_deadline:
-        return {"allowed": True, "morning_status": "PRESENT", "evening_status": "PENDING", "modifier": modifier, "reason_code": "ON_TIME"}
+        reason = "ALLOWED_BY_POLICY" if permission else "ON_TIME"
+        return {"allowed": True, "morning_status": "PRESENT", "evening_status": "PENDING", "modifier": modifier, "reason_code": reason}
         
-    if t <= TIME_WINDOWS["MORNING_LATE"]:
+    if t <= morning_late:
         return {"allowed": True, "morning_status": "PRESENT", "evening_status": "PENDING", "modifier": modifier or "LP", "reason_code": "LATE_ARRIVAL"}
         
-    if t <= TIME_WINDOWS["LUNCH_START"]:
-        return {"allowed": True, "morning_status": "ABSENT", "evening_status": "PENDING", "modifier": modifier, "reason_code": "MISSED_MORNING"}
+    # AFTER LATE WINDOW (e.g. 9:45 to 13:00)
+    if t < TIME_WINDOWS["LUNCH_START"]:
+        return {"allowed": False, "morning_status": None, "evening_status": None, "modifier": None, "reason_code": "WINDOW_CLOSED"}
         
+    # LUNCH START TO LUNCH END (e.g. 13:00 to 13:40) - Check-in for afternoon
     if t <= TIME_WINDOWS["LUNCH_END"]:
-        return {"allowed": True, "morning_status": "ABSENT", "evening_status": "PENDING", "modifier": modifier, "reason_code": "HALF_DAY_START"}
-        
+        if permission and permission.type == 'half_day':
+            return {"allowed": True, "morning_status": "WAIVED", "evening_status": "PENDING", "modifier": modifier, "reason_code": "HALF_DAY_START"}
+        else:
+            return {"allowed": True, "morning_status": "ABSENT", "evening_status": "PENDING", "modifier": modifier, "reason_code": "HALF_DAY_START"}
+            
     if permission:
         return {"allowed": True, "morning_status": "ABSENT", "evening_status": "PENDING", "modifier": modifier, "reason_code": "ALLOWED_BY_POLICY"}
         
@@ -2124,20 +2133,32 @@ def classify_second_mark(log, scan_dt, permission=None):
     t = scan_dt.time()
     
     rules = {}
-    modifier = None
+    modifier = log.modifier # Preserve morning modifier
     if permission:
-        modifier = permission.modifier or get_effective_policy(permission).get('modifier')
+        # If there's an evening permission, combine or override modifier
+        perm_mod = permission.modifier or get_effective_policy(permission).get('modifier')
+        if perm_mod and perm_mod not in (modifier or ""):
+            modifier = f"{modifier},{perm_mod}" if modifier else perm_mod
         rules = get_effective_policy(permission)
 
     if rules.get("allow_flexible_time"):
         return {"allowed": True, "evening_status": "PRESENT", "modifier": modifier, "reason_code": "FLEXIBLE_TIME"}
 
+    # EARLY LEAVE AT LUNCH (e.g. 13:00 to 13:40)
     if TIME_WINDOWS["LUNCH_START"] <= t < TIME_WINDOWS["LUNCH_END"]:
-        return {"allowed": True, "evening_status": "ABSENT", "modifier": modifier or "EP", "reason_code": "EARLY_LEAVE_LUNCH"}
+        if permission and permission.type in ['half_day', 'early_departure']:
+            return {"allowed": True, "evening_status": "WAIVED", "modifier": modifier or "EP", "reason_code": "EARLY_LEAVE_LUNCH"}
+        else:
+            return {"allowed": False, "evening_status": None, "modifier": None, "reason_code": "WINDOW_CLOSED"}
         
+    # EARLY LEAVE AFTERNOON (e.g. 13:40 to 16:10)
     if TIME_WINDOWS["LUNCH_END"] <= t < TIME_WINDOWS["EVENING_START"]:
-        return {"allowed": True, "evening_status": "ABSENT", "modifier": modifier or "EP", "reason_code": "EARLY_LEAVE"}
+        if permission and permission.type == 'early_departure':
+            return {"allowed": True, "evening_status": "WAIVED", "modifier": modifier or "EP", "reason_code": "EARLY_LEAVE"}
+        else:
+            return {"allowed": False, "evening_status": None, "modifier": None, "reason_code": "WINDOW_CLOSED"}
 
+    # REGULAR EVENING CHECKOUT (e.g. 16:10 onwards)
     if TIME_WINDOWS["EVENING_START"] <= t:
         return {"allowed": True, "evening_status": "PRESENT", "modifier": modifier, "reason_code": "ON_TIME"}
 
