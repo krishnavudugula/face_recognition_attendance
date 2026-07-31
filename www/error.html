@@ -3,249 +3,594 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Network Error</title>
+    <title>No Connection</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap');
-        
-        :root {
-            --bg-color: #0f172a;
-            --brand-blue: #3b82f6;
-            --brand-light: #60a5fa;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-        }
+        *{margin:0;padding:0;box-sizing:border-box}
 
         body {
-            margin: 0;
-            padding: 0;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f5f3f0;
+            color: #1c1917;
             height: 100vh;
+            height: 100dvh;
             display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
             overflow: hidden;
-            text-align: center;
+            -webkit-font-smoothing: antialiased;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        /* Arcade Game Canvas Container */
-        .game-container {
+        /* ── Interactive Network Canvas ── */
+        canvas#networkCanvas {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+        }
+
+        /* ── Main Card ── */
+        .card {
             position: relative;
-            width: 280px;
-            height: 280px;
-            margin-bottom: 2rem;
-            background: radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+            z-index: 2;
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(40px) saturate(1.6);
+            -webkit-backdrop-filter: blur(40px) saturate(1.6);
+            border: 1px solid rgba(255, 255, 255, 0.85);
+            border-radius: 28px;
+            padding: 2.8rem 2rem 2.2rem;
+            max-width: 380px;
+            width: calc(100% - 2.5rem);
+            text-align: center;
+            box-shadow:
+                0 0 0 0.5px rgba(0,0,0,0.03),
+                0 1px 2px rgba(0,0,0,0.02),
+                0 4px 12px rgba(0,0,0,0.04),
+                0 16px 40px rgba(0,0,0,0.06);
+            animation: cardIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+        }
+
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(30px) scale(0.96); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* ── Animated Signal Rings ── */
+        .signal-visual {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 2rem;
+            position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
+        }
+
+        .signal-ring {
+            position: absolute;
+            inset: 0;
             border-radius: 50%;
+            border: 2px solid transparent;
         }
 
-        /* UFO Animation */
-        .ufo {
-            width: 80px;
-            height: 40px;
-            background: linear-gradient(to bottom, #94a3b8, #475569);
-            border-radius: 50% 50% 20% 20%;
-            position: absolute;
-            top: 40px;
-            animation: float 3s ease-in-out infinite;
-            z-index: 10;
-            box-shadow: inset 0 4px 10px rgba(255,255,255,0.4), 0 5px 15px rgba(0,0,0,0.5);
+        .signal-ring:nth-child(1) {
+            inset: 0;
+            border-color: rgba(214, 93, 77, 0.08);
+            animation: ringPulse 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+        .signal-ring:nth-child(2) {
+            inset: 14px;
+            border-color: rgba(214, 93, 77, 0.12);
+            animation: ringPulse 3.5s cubic-bezier(0.4, 0, 0.2, 1) 0.35s infinite;
+        }
+        .signal-ring:nth-child(3) {
+            inset: 28px;
+            border-color: rgba(214, 93, 77, 0.18);
+            animation: ringPulse 3.5s cubic-bezier(0.4, 0, 0.2, 1) 0.7s infinite;
         }
 
-        .ufo::before {
-            content: '';
-            position: absolute;
-            top: -20px;
-            left: 20px;
-            width: 40px;
-            height: 30px;
-            background: rgba(96, 165, 250, 0.8);
-            border-radius: 50% 50% 10% 10%;
-            box-shadow: inset 0 2px 5px rgba(255,255,255,0.8);
+        @keyframes ringPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.08); opacity: 0.4; }
         }
 
-        /* Tractor Beam */
-        .beam {
-            position: absolute;
-            top: 70px;
-            width: 60px;
-            height: 120px;
-            background: linear-gradient(to bottom, rgba(59, 130, 246, 0.6), transparent);
-            clip-path: polygon(20% 0, 80% 0, 100% 100%, 0 100%);
-            animation: beamPulse 2s infinite alternate, float 3s ease-in-out infinite;
-            z-index: 1;
+        /* Center icon */
+        .signal-icon {
+            position: relative;
+            z-index: 2;
+            width: 52px;
+            height: 52px;
+            background: linear-gradient(145deg, #e8e4df, #ffffff);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow:
+                0 2px 8px rgba(0,0,0,0.04),
+                0 0 0 1px rgba(0,0,0,0.03),
+                inset 0 1px 0 rgba(255,255,255,0.9);
         }
 
-        /* Wi-Fi Signal getting abducted */
-        .wifi {
-            position: absolute;
-            bottom: 50px;
-            color: #ef4444;
-            animation: abduct 3s infinite;
-            filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.8));
+        .signal-icon svg {
+            width: 24px;
+            height: 24px;
+            color: #c0614f;
+            animation: iconBreath 3s ease-in-out infinite;
+        }
+
+        @keyframes iconBreath {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.92); }
+        }
+
+        /* ── Typography ── */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: #c0614f;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 0.75rem;
+            animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.45s both;
+        }
+
+        .badge-dot {
+            width: 5px;
+            height: 5px;
+            background: #c0614f;
+            border-radius: 50%;
+            animation: blink 1.8s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.2; }
         }
 
         h1 {
-            font-family: 'Press Start 2P', cursive;
-            font-size: 1.2rem;
-            color: #f8fafc;
-            margin: 0 0 16px 0;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            text-shadow: 2px 2px 0px #3b82f6;
-            line-height: 1.6;
-        }
-
-        p {
-            font-size: 1rem;
-            color: var(--text-muted);
-            margin: 0 0 32px 0;
-            max-width: 80%;
-            line-height: 1.5;
-        }
-
-        .btn-refresh {
-            background: linear-gradient(135deg, #2563eb, #4f46e5);
-            color: white;
-            border: none;
-            padding: 16px 32px;
-            font-size: 1.1rem;
+            font-size: 1.5rem;
             font-weight: 800;
-            border-radius: 50px;
-            cursor: pointer;
-            box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.5);
-            display: flex;
+            color: #1c1917;
+            letter-spacing: -0.6px;
+            line-height: 1.2;
+            margin-bottom: 0.5rem;
+            animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.55s both;
+        }
+
+        .subtitle {
+            font-size: 0.88rem;
+            color: #8c857d;
+            line-height: 1.55;
+            margin-bottom: 1.8rem;
+            animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.65s both;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Retry Button with Progress Ring ── */
+        .retry-wrap {
+            position: relative;
+            display: inline-flex;
+            animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.75s both;
+        }
+
+        .btn-retry {
+            display: inline-flex;
             align-items: center;
-            gap: 12px;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            gap: 10px;
+            background: #1c1917;
+            color: #fff;
+            border: none;
+            padding: 15px 34px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            border-radius: 16px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            letter-spacing: 0.2px;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow:
+                0 2px 4px rgba(28,25,23,0.06),
+                0 6px 20px rgba(28,25,23,0.12);
+            position: relative;
+            overflow: hidden;
         }
 
-        .btn-refresh:active {
-            transform: scale(0.95);
-            box-shadow: 0 5px 15px -5px rgba(37, 99, 235, 0.5);
+        .btn-retry::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.12), transparent);
+            pointer-events: none;
         }
 
-        .btn-refresh svg {
-            width: 24px;
-            height: 24px;
+        .btn-retry:active {
+            transform: scale(0.96);
+        }
+
+        .btn-retry svg.retry-icon {
+            width: 17px;
+            height: 17px;
             fill: none;
             stroke: currentColor;
             stroke-width: 2.5;
             stroke-linecap: round;
             stroke-linejoin: round;
+            transition: transform 0.4s ease;
         }
 
-        .btn-refresh.loading svg {
-            animation: spin 1s linear infinite;
+        .btn-retry.loading svg.retry-icon {
+            animation: spin 0.7s linear infinite;
         }
 
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-15px); }
+        .btn-retry.fail {
+            animation: btnShake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
         }
 
-        @keyframes beamPulse {
-            0% { opacity: 0.4; filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.8)); }
-            100% { opacity: 0.8; filter: drop-shadow(0 0 20px rgba(59, 130, 246, 1)); }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes btnShake {
+            10%, 90% { transform: translateX(-1.5px); }
+            20%, 80% { transform: translateX(2.5px); }
+            30%, 50%, 70% { transform: translateX(-3px); }
+            40%, 60% { transform: translateX(3px); }
         }
 
-        @keyframes abduct {
-            0% { transform: translateY(0) scale(1) rotate(-10deg); opacity: 1; }
-            50% { transform: translateY(-60px) scale(0.6) rotate(10deg); opacity: 0.5; color: #60a5fa;}
-            100% { transform: translateY(-80px) scale(0) rotate(-10deg); opacity: 0; }
+        /* ── Divider ── */
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(0,0,0,0.06), transparent);
+            margin: 1.6rem 0 1.2rem;
+            animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.85s both;
         }
 
-        @keyframes spin {
-            100% { transform: rotate(360deg); }
+        /* ── Checklist ── */
+        .checklist {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            text-align: left;
+            animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.9s both;
         }
 
-        /* Stars Background */
-        .stars {
+        .check-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #78716c;
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.015);
+            transition: background 0.2s;
+        }
+
+        .check-item:active {
+            background: rgba(0,0,0,0.04);
+        }
+
+        .check-icon {
+            width: 22px;
+            height: 22px;
+            border-radius: 7px;
+            background: #f5f3f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 0.7rem;
+        }
+
+        /* ── Auto-retry timer ── */
+        .auto-retry-bar {
             position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: -1;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: 0 0 28px 28px;
             overflow: hidden;
+            opacity: 0;
+            transition: opacity 0.4s;
         }
 
-        .star {
-            position: absolute;
-            background: white;
-            border-radius: 50%;
-            animation: twinkle var(--duration) infinite alternate;
+        .auto-retry-bar.active {
+            opacity: 1;
         }
 
-        @keyframes twinkle {
-            0% { opacity: 0.2; transform: scale(0.8); }
-            100% { opacity: 1; transform: scale(1.2); box-shadow: 0 0 8px white; }
+        .auto-retry-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #c0614f, #d4856e);
+            border-radius: 0 0 28px 28px;
+            transition: width 0.3s linear;
+        }
+
+        /* ── Footer ── */
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 16px;
+            text-align: center;
+            z-index: 2;
+        }
+
+        .footer span {
+            font-size: 0.68rem;
+            color: #bbb5ad;
+            font-weight: 600;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
         }
     </style>
 </head>
 <body>
 
-    <div class="stars" id="starsContainer"></div>
+    <canvas id="networkCanvas"></canvas>
 
-    <div class="game-container">
-        <div class="ufo"></div>
-        <div class="beam"></div>
-        <div class="wifi">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
-                <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
-                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
-                <line x1="12" y1="20" x2="12.01" y2="20"></line>
-            </svg>
+    <div class="card">
+        <div class="signal-visual">
+            <div class="signal-ring"></div>
+            <div class="signal-ring"></div>
+            <div class="signal-ring"></div>
+            <div class="signal-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                    <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path>
+                    <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path>
+                    <path d="M10.71 5.05A16 16 0 0 1 22.56 9"></path>
+                    <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path>
+                    <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                    <line x1="12" y1="20" x2="12.01" y2="20"></line>
+                </svg>
+            </div>
+        </div>
+
+        <div class="badge">
+            <span class="badge-dot"></span>
+            Offline
+        </div>
+
+        <h1>You're Disconnected</h1>
+        <p class="subtitle">Your device lost its connection to the network. Reconnect and tap below to pick up where you left off.</p>
+
+        <div class="retry-wrap">
+            <button class="btn-retry" id="retryBtn" onclick="retryConnection()">
+                <svg class="retry-icon" viewBox="0 0 24 24">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                </svg>
+                Retry Connection
+            </button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="checklist">
+            <div class="check-item">
+                <span class="check-icon">📶</span>
+                Enable Wi-Fi or Mobile Data
+            </div>
+            <div class="check-item">
+                <span class="check-icon">✈️</span>
+                Disable Airplane Mode
+            </div>
+            <div class="check-item">
+                <span class="check-icon">📡</span>
+                Move closer to your router
+            </div>
+        </div>
+
+        <div class="auto-retry-bar" id="autoRetryBar">
+            <div class="auto-retry-fill" id="autoRetryFill"></div>
         </div>
     </div>
 
-    <h1>CONNECTION<br>LOST</h1>
-    <p>The network signal has been abducted by aliens. Turn on your mobile data or Wi-Fi to rescue it!</p>
-
-    <button class="btn-refresh" id="refreshBtn" onclick="retryConnection()">
-        <svg viewBox="0 0 24 24">
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-        </svg>
-        <span>RETRY</span>
-    </button>
+    <div class="footer">
+        <span>FaceAttend</span>
+    </div>
 
     <script>
-        // Generate stars
-        const starsContainer = document.getElementById('starsContainer');
-        for (let i = 0; i < 50; i++) {
-            const star = document.createElement('div');
-            star.className = 'star';
-            star.style.width = Math.random() * 3 + 'px';
-            star.style.height = star.style.width;
-            star.style.left = Math.random() * 100 + '%';
-            star.style.top = Math.random() * 100 + '%';
-            star.style.setProperty('--duration', (Math.random() * 2 + 1) + 's');
-            star.style.animationDelay = (Math.random() * 2) + 's';
-            starsContainer.appendChild(star);
+    // ═══════════════════════════════════════════════════
+    //  INTERACTIVE NETWORK MESH — Canvas Animation
+    // ═══════════════════════════════════════════════════
+    (function() {
+        const canvas = document.getElementById('networkCanvas');
+        const ctx = canvas.getContext('2d');
+        let W, H, nodes = [], pointer = { x: -500, y: -500 };
+        const NODE_COUNT = 55;
+        const CONNECT_DIST = 140;
+        const POINTER_DIST = 160;
+
+        function resize() {
+            W = canvas.width = window.innerWidth;
+            H = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Create nodes
+        for (let i = 0; i < NODE_COUNT; i++) {
+            nodes.push({
+                x: Math.random() * W,
+                y: Math.random() * H,
+                vx: (Math.random() - 0.5) * 0.35,
+                vy: (Math.random() - 0.5) * 0.35,
+                r: Math.random() * 2 + 1.2,
+                baseAlpha: Math.random() * 0.3 + 0.12,
+                phase: Math.random() * Math.PI * 2,
+                alive: true,
+                flickerTimer: 0,
+                flickerDuration: 0
+            });
         }
 
-        function retryConnection() {
-            const btn = document.getElementById('refreshBtn');
-            btn.classList.add('loading');
-            
-            // Wait 600ms for animation, then try to load the main app URL
+        // Randomly "disconnect" nodes
+        function triggerFlicker() {
+            const idx = Math.floor(Math.random() * nodes.length);
+            nodes[idx].flickerTimer = 0;
+            nodes[idx].flickerDuration = Math.random() * 120 + 60;
+            nodes[idx].alive = false;
             setTimeout(() => {
-                // By navigating to the Netlify URL, Capacitor will try to load it again.
-                // If the internet is still down, it will just show this page again.
-                window.location.href = 'https://bitswattend.netlify.app/';
-            }, 600);
+                nodes[idx].alive = true;
+            }, nodes[idx].flickerDuration * 16);
         }
+        setInterval(triggerFlicker, 1800);
 
-        // Auto-retry when the browser detects going online
-        window.addEventListener('online', () => {
-            retryConnection();
-        });
+        // Pointer tracking
+        function onPointer(e) {
+            const t = e.touches ? e.touches[0] : e;
+            pointer.x = t.clientX;
+            pointer.y = t.clientY;
+        }
+        window.addEventListener('mousemove', onPointer);
+        window.addEventListener('touchmove', onPointer, { passive: true });
+        window.addEventListener('mouseleave', () => { pointer.x = -500; pointer.y = -500; });
+
+        function draw(time) {
+            ctx.clearRect(0, 0, W, H);
+            const t = time * 0.001;
+
+            // Update & draw nodes
+            for (let i = 0; i < nodes.length; i++) {
+                const n = nodes[i];
+                n.x += n.vx;
+                n.y += n.vy;
+
+                // Bounce
+                if (n.x < 0 || n.x > W) n.vx *= -1;
+                if (n.y < 0 || n.y > H) n.vy *= -1;
+
+                // Pointer repulsion
+                const pdx = n.x - pointer.x;
+                const pdy = n.y - pointer.y;
+                const pdist = Math.sqrt(pdx * pdx + pdy * pdy);
+                if (pdist < POINTER_DIST && pdist > 0) {
+                    const force = (1 - pdist / POINTER_DIST) * 0.8;
+                    n.x += (pdx / pdist) * force;
+                    n.y += (pdy / pdist) * force;
+                }
+
+                const alpha = n.alive
+                    ? n.baseAlpha * (0.7 + 0.3 * Math.sin(t * 1.5 + n.phase))
+                    : n.baseAlpha * 0.08;
+
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(180, 170, 155, ${alpha})`;
+                ctx.fill();
+            }
+
+            // Draw connections
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    const a = nodes[i], b = nodes[j];
+                    const dx = a.x - b.x, dy = a.y - b.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < CONNECT_DIST) {
+                        const bothAlive = a.alive && b.alive;
+                        const lineAlpha = (1 - dist / CONNECT_DIST) * (bothAlive ? 0.08 : 0.015);
+
+                        ctx.beginPath();
+                        ctx.moveTo(a.x, a.y);
+                        ctx.lineTo(b.x, b.y);
+                        ctx.strokeStyle = bothAlive
+                            ? `rgba(170, 160, 145, ${lineAlpha})`
+                            : `rgba(195, 95, 80, ${lineAlpha * 2.5})`;
+                        ctx.lineWidth = bothAlive ? 1 : 0.6;
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            requestAnimationFrame(draw);
+        }
+        requestAnimationFrame(draw);
+    })();
+
+    // ═══════════════════════════════════════════════════
+    //  RETRY LOGIC
+    // ═══════════════════════════════════════════════════
+    let autoRetryInterval = null;
+
+    function getReturnUrl() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('returnTo');
+    }
+
+    function navigateBack() {
+        const returnTo = getReturnUrl();
+        if (returnTo) {
+            window.location.replace(returnTo);
+        } else {
+            window.history.back();
+        }
+    }
+
+    function retryConnection() {
+        const btn = document.getElementById('retryBtn');
+        if (btn.classList.contains('loading')) return;
+        btn.classList.add('loading');
+
+        setTimeout(() => {
+            if (navigator.onLine) {
+                navigateBack();
+            } else {
+                btn.classList.remove('loading');
+                btn.classList.add('fail');
+                setTimeout(() => btn.classList.remove('fail'), 550);
+            }
+        }, 900);
+    }
+
+    // Auto-retry ONLY when browser detects connectivity restored
+    window.addEventListener('online', () => {
+        navigateBack();
+    });
+
+    // Periodic auto-retry every 15s — only if actually offline
+    function startAutoRetry() {
+        if (navigator.onLine) return; // Don't start if already online
+
+        const bar = document.getElementById('autoRetryBar');
+        const fill = document.getElementById('autoRetryFill');
+        bar.classList.add('active');
+
+        let progress = 0;
+        const DURATION = 15000;
+        const STEP = 200;
+
+        autoRetryInterval = setInterval(() => {
+            if (navigator.onLine) {
+                clearInterval(autoRetryInterval);
+                navigateBack();
+                return;
+            }
+            progress += STEP;
+            fill.style.width = (progress / DURATION * 100) + '%';
+
+            if (progress >= DURATION) {
+                progress = 0;
+                fill.style.width = '0%';
+                retryConnection();
+            }
+        }, STEP);
+    }
+
+    setTimeout(startAutoRetry, 2000);
     </script>
 </body>
 </html>

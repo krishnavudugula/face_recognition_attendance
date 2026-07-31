@@ -1966,6 +1966,7 @@ def submit_permission_request():
         end_time = (request.form.get('end_time') or '').strip()
         is_full_day = request.form.get('is_full_day', 'false').lower() == 'true'
         reason = (request.form.get('reason') or '').strip()
+        override_id = request.form.get('override_id')
 
         # Validate required fields
         if not user_id or not perm_type or not date_str or not reason:
@@ -2039,25 +2040,61 @@ def submit_permission_request():
                 file.save(file_path)
                 document_path = f"uploads/permissions/{filename}"
 
-        # Create permission request
-        permission = PermissionRequest(
-            user_id=user_id,
-            type=perm_type,
-            custom_type=custom_type if perm_type == 'custom' else None,
-            date=date_str,
-            start_time=start_time if not is_full_day else None,
-            end_time=end_time if not is_full_day else None,
-            is_full_day=is_full_day,
-            custom_days=custom_days if perm_type == 'custom' else None,
-            reason=reason,
-            document_path=document_path,
-            status='Pending'
-        )
+        # Handle existing permission override
+        permission = None
+        chat_message = None
+        
+        if override_id:
+            old_perm = PermissionRequest.query.get(override_id)
+            if old_perm and old_perm.user_id == user_id:
+                if old_perm.status == 'Pending':
+                    # Case 1: Update in place
+                    old_perm.type = perm_type
+                    old_perm.custom_type = custom_type if perm_type == 'custom' else None
+                    old_perm.date = date_str
+                    old_perm.start_time = start_time if not is_full_day else None
+                    old_perm.end_time = end_time if not is_full_day else None
+                    old_perm.is_full_day = is_full_day
+                    old_perm.custom_days = custom_days if perm_type == 'custom' else None
+                    old_perm.reason = reason
+                    if document_path:
+                        old_perm.document_path = document_path
+                        
+                    permission = old_perm
+                    # Update the associated chat message
+                    msg = Message.query.filter_by(type='permission_request').filter(Message.content.like(f'%[PermissionID: {override_id}]%')).first()
+                    if msg:
+                        msg.content = build_permission_summary(old_perm, status_label='Pending')
+                        chat_message = msg
+                else:
+                    # Case 2: Delete old and create new
+                    db.session.delete(old_perm)
+                    old_msgs = Message.query.filter(Message.content.like(f'%[PermissionID: {override_id}]%')).all()
+                    for old_msg in old_msgs:
+                        MessageRead.query.filter_by(message_id=old_msg.id).delete()
+                        db.session.delete(old_msg)
+                    # Create new one below
+        if not permission:
+            # Create completely new permission request
+            permission = PermissionRequest(
+                user_id=user_id,
+                type=perm_type,
+                custom_type=custom_type if perm_type == 'custom' else None,
+                date=date_str,
+                start_time=start_time if not is_full_day else None,
+                end_time=end_time if not is_full_day else None,
+                is_full_day=is_full_day,
+                custom_days=custom_days if perm_type == 'custom' else None,
+                reason=reason,
+                document_path=document_path,
+                status='Pending'
+            )
+            db.session.add(permission)
+            db.session.flush()
 
-        db.session.add(permission)
-        db.session.flush()
-
-        chat_message = create_permission_request_chat_message(permission, recipient_id)
+        if not chat_message:
+            chat_message = create_permission_request_chat_message(permission, recipient_id)
+            
         db.session.commit()
 
         return jsonify({
@@ -3644,6 +3681,58 @@ def register_face_multi_angle():
         print(f"Multi-Angle Face Registration Error: {e}")
         return jsonify({"success": False, "message": str(e)}), 500
 
+@app.route('/api/register_face_single', methods=['POST'])
+def register_face_single():
+    data = request.json
+    user_id = data.get('user_id')
+    base64_image = data.get('face_image')
+
+    try:
+        # Verify user exists
+        user = User.query.filter_by(user_id=user_id).first()
+        if not user:
+            return jsonify({"success": False, "message": "User not found"}), 404
+
+        if not base64_image:
+            return jsonify({"success": False, "message": "No image provided"}), 400
+
+        # Decode base64 image
+        image_data = base64_image.split(',')[1] if ',' in base64_image else base64_image
+        image_bytes = base64.b64decode(image_data)
+
+        # Get face encoding and bounds
+        encoding, location = face_system.get_face_encoding(io.BytesIO(image_bytes))
+
+        if encoding is None:
+            return jsonify({"success": False, "message": "Face not detected clearly. Ensure good lighting and look straight at the camera."}), 400
+
+        # We duplicate the single encoding 3 times to maintain compatibility 
+        # with legacy systems expecting the 3-angle multi-vector approach,
+        # but in reality it's the exact same high-quality vector.
+        encodings_list = [encoding, encoding, encoding]
+
+        user.face_encoding = pickle.dumps(encodings_list).hex()
+        user.face_registered_at = datetime.now(pytz.utc)
+        db.session.commit()
+
+        # Audit log
+        audit = AuditLog(
+            admin_id='SYSTEM',
+            action=f"User {user_id} registered face with Single High-Quality Capture",
+            timestamp=datetime.now(pytz.utc)
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Face verified and registered securely."
+        })
+
+    except Exception as e:
+        print(f"Single Face Registration Error: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
 # 3C. Faculty Self-Registration (Login Page)
 # 3C. Faculty Self-Registration (Login Page)
 @app.route('/api/faculty_self_register', methods=['POST'])
@@ -5065,6 +5154,16 @@ def admin_decide_permission(permission_id):
             description=f"Permission #{permission.id} ({permission.type}) marked {decision}."
         ))
         create_permission_decision_chat_message(permission, admin_id, decision, decision_reason or None)
+        
+        # Update the original permission request message to reflect the new status
+        original_msg = Message.query.filter(
+            Message.type == 'permission_request',
+            Message.content.like(f"%[PermissionID: {permission.id}]%")
+        ).first()
+        
+        if original_msg:
+            original_msg.content = build_permission_summary(permission, status_label=decision)
+            
         db.session.commit()
         
         if decision == 'Approved':
@@ -7423,13 +7522,15 @@ def get_user_messages(user_id):
         received_messages = Message.query.join(
             MessageRead, Message.id == MessageRead.message_id
         ).filter(
-            MessageRead.user_id == user_id
+            MessageRead.user_id == user_id,
+            Message.type != 'live_support_history'
         ).all()
 
         # Sent direct messages should also appear in sender's chat list.
         sent_messages = Message.query.filter(
             Message.sender_id == user_id,
-            Message.is_broadcast == False
+            Message.is_broadcast == False,
+            Message.type != 'live_support_history'
         ).all()
 
         combined_by_id = {}
@@ -7515,7 +7616,8 @@ def get_conversation(user_id, other_user_id):
                 db.and_(Message.sender_id == user_id, Message.recipient_id == other_user_id),
                 db.and_(Message.sender_id == other_user_id, Message.recipient_id == user_id)
             ),
-            Message.is_broadcast == False  # Only direct messages, not broadcasts
+            Message.is_broadcast == False,  # Only direct messages, not broadcasts
+            Message.type != 'live_support_history'
         ).order_by(Message.created_at.asc()).paginate(page=page, per_page=per_page)
 
         items = []
@@ -8245,7 +8347,36 @@ def assistant_disconnect():
             return jsonify({"success": False, "error": "connection_id or user_id required"}), 400
             
         if conn:
-            conn.status = 'disconnected'
+            if conn.status != 'disconnected':
+                conn.status = 'disconnected'
+                
+                # Migrate AssistantMessages to normal Message table so chat history is saved forever
+                assistant_messages = AssistantMessage.query.filter_by(connection_id=conn.id).all()
+                if assistant_messages:
+                    admin_id = conn.assistant_id or 'ADMIN01'
+                    faculty_id = conn.user_id
+                    
+                    for msg in assistant_messages:
+                        recipient = admin_id if msg.sender_id == faculty_id else faculty_id
+                        
+                        new_msg = Message(
+                            sender_id=msg.sender_id,
+                            recipient_id=recipient,
+                            content=msg.content,
+                            type='live_support_history',
+                            title=f"Session_{conn.id}",
+                            is_broadcast=False,
+                            created_at=msg.created_at
+                        )
+                        db.session.add(new_msg)
+                        db.session.flush()
+                        
+                        db.session.add(MessageRead(
+                            message_id=new_msg.id,
+                            user_id=recipient,
+                            is_read=True
+                        ))
+                        
             db.session.commit()
             
         return jsonify({"success": True}), 200
@@ -8431,6 +8562,78 @@ def get_assistant_unread_count():
             "connection_id": connection_id
         }), 200
     except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/assistant/history/<user_id>', methods=['GET'])
+def get_assistant_history(user_id):
+    try:
+        from sqlalchemy import func
+        # Find unique sessions for this user
+        sessions = db.session.query(
+            Message.title, 
+            func.max(Message.created_at).label('last_msg_time')
+        ).filter(
+            Message.type == 'live_support_history',
+            (Message.sender_id == user_id) | (Message.recipient_id == user_id)
+        ).group_by(Message.title).order_by(func.max(Message.created_at).desc()).all()
+        session_list = []
+        for s in sessions:
+            first_msg = Message.query.filter_by(type='live_support_history', title=s.title).first()
+            other_id = None
+            other_name = "Unknown"
+            
+            if first_msg:
+                other_id = first_msg.recipient_id if first_msg.sender_id == user_id else first_msg.sender_id
+                if other_id:
+                    other_user = User.query.filter_by(user_id=other_id).first()
+                    if other_user:
+                        other_name = other_user.name
+                        
+            session_list.append({
+                "session_id": s.title, 
+                "timestamp": s.last_msg_time.isoformat() + 'Z' if s.last_msg_time else None,
+                "other_user_id": other_id,
+                "other_user_name": other_name
+            })
+        return jsonify({"success": True, "sessions": session_list}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/assistant/history/session/<session_id>', methods=['GET'])
+def get_assistant_session_transcript(session_id):
+    try:
+        messages = Message.query.filter_by(
+            type='live_support_history',
+            title=session_id
+        ).order_by(Message.created_at.asc()).all()
+        
+        results = [{
+            "id": msg.id,
+            "sender_id": msg.sender_id,
+            "content": msg.content,
+            "created_at": msg.created_at.isoformat() + 'Z' if msg.created_at else None
+        } for msg in messages]
+        
+        return jsonify({"success": True, "messages": results}), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/assistant/history/session/<session_id>', methods=['DELETE'])
+def delete_assistant_session(session_id):
+    try:
+        messages = Message.query.filter_by(
+            type='live_support_history',
+            title=session_id
+        ).all()
+        
+        for msg in messages:
+            MessageRead.query.filter_by(message_id=msg.id).delete()
+            db.session.delete(msg)
+            
+        db.session.commit()
+        return jsonify({"success": True}), 200
+    except Exception as e:
+        db.session.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':

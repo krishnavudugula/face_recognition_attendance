@@ -728,6 +728,13 @@
                     <div class="input-relative">
                         <i class="fa-solid fa-lock input-icon"></i>
                         <input type="password" id="helpNewPwd" placeholder="••••••••">
+                        <i id="helpNewPwdToggle" class="fa-regular fa-eye password-toggle" title="Show password" aria-label="Toggle password visibility"></i>
+                    </div>
+                    <div class="password-strength" id="resetPasswordStrength" aria-live="polite">
+                        <div class="password-strength-bars" aria-hidden="true">
+                            <span></span><span></span><span></span><span></span>
+                        </div>
+                        <span class="password-strength-label">Strength: Not set</span>
                     </div>
                 </div>
                 <div class="input-group">
@@ -735,6 +742,8 @@
                     <div class="input-relative">
                         <i class="fa-solid fa-lock input-icon"></i>
                         <input type="password" id="helpConfirmPwd" placeholder="••••••••">
+                        <i class="fa-solid fa-circle-check" id="resetConfirmCheck" style="position: absolute; right: 2.5rem; top: 50%; transform: translateY(-50%); color: #10b981; display: none; font-size: 1.1rem; transition: opacity 0.2s;"></i>
+                        <i id="helpConfirmPwdToggle" class="fa-regular fa-eye password-toggle" title="Show password" aria-label="Toggle password visibility"></i>
                     </div>
                 </div>
                 <button type="button" class="btn-primary" id="btnSaveNewPwd" style="width: 100%; margin-top: 1rem;">Update Password</button>
@@ -1279,6 +1288,76 @@
                 btnProceedToLogin.addEventListener('click', () => {
                     const helpModal = document.getElementById('helpModal');
                     if (helpModal) helpModal.style.display = 'none';
+                });
+            }
+
+            const helpNewPwd = document.getElementById('helpNewPwd');
+            const helpConfirmPwd = document.getElementById('helpConfirmPwd');
+            const resetConfirmCheck = document.getElementById('resetConfirmCheck');
+
+            function updateResetPasswordStrength(password) {
+                const container = document.getElementById('resetPasswordStrength');
+                if (!container) return;
+                const bars = Array.from(container.querySelectorAll('.password-strength-bars span'));
+                const label = container.querySelector('.password-strength-label');
+                const result = scorePassword(password, '');
+                const palette = result.label === 'Strong'
+                    ? ['#86efac', '#4ade80', '#15803d']
+                    : result.label === 'Medium'
+                        ? ['#fde68a', '#f59e0b', '#b45309']
+                        : result.label === 'Weak'
+                            ? ['#fecaca', '#f87171', '#b91c1c']
+                            : ['#e5e7eb', '#e5e7eb', '#e5e7eb'];
+
+                bars.forEach((bar, index) => {
+                    const active = index < result.score;
+                    bar.classList.toggle('active', active);
+                    bar.style.background = active ? palette[index] : '#e5e7eb';
+                });
+
+                if (label) {
+                    label.textContent = `Strength: ${result.label}`;
+                    label.style.color = result.color;
+                }
+            }
+
+            function checkResetPasswordMatch() {
+                if (!helpNewPwd || !helpConfirmPwd || !resetConfirmCheck) return;
+                if (helpConfirmPwd.value && helpConfirmPwd.value === helpNewPwd.value) {
+                    resetConfirmCheck.style.display = 'block';
+                } else {
+                    resetConfirmCheck.style.display = 'none';
+                }
+            }
+
+            if (helpNewPwd) {
+                helpNewPwd.addEventListener('input', (e) => {
+                    updateResetPasswordStrength(e.target.value);
+                    checkResetPasswordMatch();
+                });
+            }
+
+            if (helpConfirmPwd) {
+                helpConfirmPwd.addEventListener('input', checkResetPasswordMatch);
+            }
+
+            const helpNewPwdToggle = document.getElementById('helpNewPwdToggle');
+            if (helpNewPwdToggle) {
+                helpNewPwdToggle.addEventListener('click', function() {
+                    const type = helpNewPwd.getAttribute('type') === 'password' ? 'text' : 'password';
+                    helpNewPwd.setAttribute('type', type);
+                    this.classList.toggle('fa-eye');
+                    this.classList.toggle('fa-eye-slash');
+                });
+            }
+
+            const helpConfirmPwdToggle = document.getElementById('helpConfirmPwdToggle');
+            if (helpConfirmPwdToggle) {
+                helpConfirmPwdToggle.addEventListener('click', function() {
+                    const type = helpConfirmPwd.getAttribute('type') === 'password' ? 'text' : 'password';
+                    helpConfirmPwd.setAttribute('type', type);
+                    this.classList.toggle('fa-eye');
+                    this.classList.toggle('fa-eye-slash');
                 });
             }
         });

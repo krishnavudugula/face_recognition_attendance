@@ -22,6 +22,33 @@
     <script src="../js/alert-preferences.js" defer></script>
     <script src="../js/profile_settings.js" defer></script>
     <style>
+        .password-strength {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-top: 0.6rem;
+        }
+        .password-strength-bars {
+            display: flex;
+            gap: 0.35rem;
+            flex: 0 0 auto;
+        }
+        .password-strength-bars span {
+            width: 34px;
+            height: 6px;
+            border-radius: 999px;
+            background: #e5e7eb;
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+        .password-strength-bars span.active {
+            transform: scaleY(1.05);
+        }
+        .password-strength-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #64748b;
+        }
+
         #permissionSection {
             border: 1px solid #d8e2ef !important;
             border-radius: 18px !important;
@@ -1230,8 +1257,8 @@
             e.preventDefault();
             const user_id = document.getElementById('facultyUserId').value.trim();
             const name = document.getElementById('facultyName').value.trim();
+            const email = document.getElementById('facultyEmail').value.trim();
             const password = document.getElementById('facultyPassword').value;
-            const confirmPassword = document.getElementById('facultyConfirmPassword').value;
             const userIdHelper = document.getElementById('facultyUserIdHelper');
 
             const validateUserIdPolicy = (value) => {
@@ -1263,11 +1290,6 @@
                 return;
             }
 
-            if (password !== confirmPassword) {
-                alert('Passwords do not match!');
-                return;
-            }
-
             const passwordError = validatePasswordPolicy(password);
             if (passwordError) {
                 alert(passwordError);
@@ -1283,6 +1305,7 @@
                         admin_id: adminUser.id,
                         user_id: user_id,
                         name: name,
+                        email: email,
                         password: password
                     })
                 });
@@ -1349,12 +1372,40 @@
             };
 
             const renderStrength = (pwd) => {
-                if (!facultyPwdStrength) return;
-                const score = scorePassword(String(pwd || ''));
-                const label = score >= 5 ? 'Strong' : score >= 3 ? 'Medium' : score > 0 ? 'Weak' : 'Not set';
-                const color = score >= 5 ? '#15803d' : score >= 3 ? '#b45309' : score > 0 ? '#b91c1c' : '#64748b';
-                facultyPwdStrength.textContent = `Strength: ${label}`;
-                facultyPwdStrength.style.color = color;
+                const container = document.getElementById('facultyPasswordStrengthUI');
+                if (!container) return;
+                const bars = Array.from(container.querySelectorAll('.password-strength-bars span'));
+                const labelElement = container.querySelector('.password-strength-label');
+                
+                let score = 0;
+                if (pwd.length >= 8) score += 1;
+                if (/[A-Z]/.test(pwd)) score += 1;
+                if (/[a-z]/.test(pwd)) score += 1;
+                if (/[0-9]/.test(pwd)) score += 1;
+                if (/[^A-Za-z0-9]/.test(pwd)) score += 1;
+                
+                // Cap score based on original logic (max 3 for visual)
+                let visualScore = score >= 5 ? 3 : score >= 3 ? 2 : score > 0 ? 1 : 0;
+                const label = visualScore === 3 ? 'Strong' : visualScore === 2 ? 'Medium' : visualScore === 1 ? 'Weak' : 'Not set';
+                const palette = visualScore === 3
+                    ? ['#86efac', '#4ade80', '#15803d']
+                    : visualScore === 2
+                        ? ['#fde68a', '#f59e0b', '#b45309']
+                        : visualScore === 1
+                            ? ['#fecaca', '#f87171', '#b91c1c']
+                            : ['#e5e7eb', '#e5e7eb', '#e5e7eb'];
+                const color = visualScore === 3 ? '#15803d' : visualScore === 2 ? '#b45309' : visualScore === 1 ? '#b91c1c' : '#64748b';
+
+                bars.forEach((bar, index) => {
+                    const active = index < visualScore;
+                    bar.classList.toggle('active', active);
+                    bar.style.background = active ? palette[index] : '#e5e7eb';
+                });
+
+                if (labelElement) {
+                    labelElement.textContent = `Strength: ${label}`;
+                    labelElement.style.color = color;
+                }
             };
 
             if (facultyUserId) {
@@ -1408,6 +1459,11 @@
                 </div>
 
                 <div style="margin-bottom: 1.25rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; color: #0f172a; font-weight: 600;">Email Address</label>
+                    <input type="email" id="facultyEmail" placeholder="e.g., john.smith@bits.edu" required style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
                     <label style="display: block; margin-bottom: 0.5rem; color: #0f172a; font-weight: 600;">Password</label>
                     <div style="display:flex; gap:0.5rem;">
                         <input type="password" id="facultyPassword" placeholder="••••••••" minlength="8" maxlength="64" required style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
@@ -1415,13 +1471,13 @@
                             <i class="fa-regular fa-eye"></i>
                         </button>
                     </div>
-                    <small id="facultyPasswordStrength" style="display:block; margin-top:0.35rem; color:#64748b; font-size:0.78rem;">Strength: Not set</small>
-                    <small style="display:block; margin-top:0.25rem; color:#64748b; font-size:0.78rem;">8-64 chars with uppercase, lowercase, number, and special symbol.</small>
-                </div>
-
-                <div style="margin-bottom: 1.5rem;">
-                    <label style="display: block; margin-bottom: 0.5rem; color: #0f172a; font-weight: 600;">Confirm Password</label>
-                    <input type="password" id="facultyConfirmPassword" placeholder="••••••••" required style="width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#e2e8f0'">
+                    <div class="password-strength" id="facultyPasswordStrengthUI" aria-live="polite">
+                        <div class="password-strength-bars" aria-hidden="true">
+                            <span></span><span></span><span></span><span></span>
+                        </div>
+                        <span class="password-strength-label">Strength: Not set</span>
+                    </div>
+                    <small style="display:block; margin-top:0.35rem; color:#64748b; font-size:0.78rem;">8-64 chars with uppercase, lowercase, number, and special symbol.</small>
                 </div>
 
                 <div style="display: flex; gap: 1rem;">

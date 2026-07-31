@@ -330,24 +330,14 @@ class LocationTrackingService : Service() {
         }
     }
     // ── NETWORK MONITORING ──
-    private var currentNetworkType = "Unknown"
-
     private fun setupNetworkCallback() {
         networkCallback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 currentNetworkStatus = "online"
-                
-                val capabilities = connectivityManager.getNetworkCapabilities(network)
-                currentNetworkType = when {
-                    capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "Wi-Fi"
-                    capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "Cellular"
-                    else -> "Unknown"
-                }
-                Log.d(TAG, "📡 Network AVAILABLE — status: online | type: $currentNetworkType")
+                Log.d(TAG, "📡 Network AVAILABLE — status: online")
             }
             override fun onLost(network: Network) {
                 currentNetworkStatus = "offline"
-                currentNetworkType = "N/A"
                 Log.d(TAG, "📡 Network LOST — status: offline")
             }
             override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
@@ -382,22 +372,11 @@ class LocationTrackingService : Service() {
 
             val isNetworkOnline = currentNetworkStatus == "online"
 
-            // 🔋 Get real battery level
-            val batteryStatus = applicationContext.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
-            val level = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
-            val scale = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: -1
-            val batteryPct = if (level != -1 && scale != -1) (level * 100 / scale.toFloat()).toInt() else 100
-            val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
-            val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
-
             val jsonParam = JSONObject().apply {
                 put("user_id", userId)
                 put("network_status", currentNetworkStatus)
                 put("network_on", isNetworkOnline)
-                put("network_type", currentNetworkType)
                 put("location_on", isGpsEnabled)
-                put("battery_level", batteryPct)
-                put("battery_charging", isCharging)
                 put("timestamp", df.format(Date()))
 
                 if (lat != null && lon != null && isGpsEnabled && !(lat == 0.0 && lon == 0.0)) {

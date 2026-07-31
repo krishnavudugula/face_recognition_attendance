@@ -1538,7 +1538,7 @@ class ChatInterface {
 
     const btnBackToList = document.getElementById('btnBackToList');
     if (btnBackToList) {
-      btnBackToList.addEventListener('click', () => this.exitChatView(true));
+      btnBackToList.addEventListener('click', () => this.exitChatView(false));
     }
 
     const btnClearChat = document.getElementById('btnClearChat');
@@ -1857,13 +1857,16 @@ class ChatInterface {
         this.updateHeaderSubtitle('Messages');
         this.renderConversations();
         if (searchContainer) searchContainer.style.display = 'flex';
-        if (!this.currentChat) this.exitChatView(true);
+        if (this.currentChat) {
+          this.openConversation(this.currentChat, this.currentChatUser);
+        } else {
+          this.exitChatView(true);
+        }
         break;
       case 'alerts':
         this.updateHeaderSubtitle('Alerts');
         this.loadAlerts();
         if (searchContainer) searchContainer.style.display = 'none';
-        this.exitChatView(true);
         break;
       case 'assistant':
         this.updateHeaderSubtitle('FaceAttend Assistant 🤖');
@@ -2393,6 +2396,9 @@ class ChatInterface {
               <button id="lsBtnCancel" class="ls-btn-cancel" style="display: none;" onclick="chatInterface.cancelLiveSupport()">
                 <i class="fas fa-xmark"></i> Cancel Request
               </button>
+              <button id="lsBtnHistory" class="ls-btn-tool" style="margin-top: 1rem; width: 100%; justify-content: center; background: #e5e7eb; color: #374151; padding: 0.75rem;" onclick="chatInterface.showPreviousSessions()">
+                <i class="fas fa-clock-rotate-left"></i> Previous Sessions
+              </button>
             </div>
             <div class="ls-splash-footer">
               <i class="fas fa-shield-halved"></i>
@@ -2407,12 +2413,38 @@ class ChatInterface {
               <span>Smart Bridge Connected</span>
             </div>
             <div class="ls-messages-scroll" id="lsUserMessages"></div>
-            <div class="ls-chat-input-area">
-              <textarea id="lsUserMsgInput" placeholder="Type your message..." rows="1" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); chatInterface.sendLiveMessage(); }"></textarea>
-              <button class="ls-btn-icon" id="lsBtnPermissionRequest" onclick="chatInterface.showPermissionRequestModal()" title="Raise Exception Proposal">
-                <i class="fas fa-file-shield"></i>
-              </button>
-              <button class="ls-btn-send" onclick="chatInterface.sendLiveMessage()"><i class="fas fa-paper-plane"></i></button>
+            <div class="ls-chat-input-wrapper">
+              <div class="ls-chat-input-container">
+                <textarea id="lsUserMsgInput" placeholder="Message Support Bridge..." rows="1" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); chatInterface.sendLiveMessage(); }"></textarea>
+                <div class="ls-chat-input-actions">
+                  <div class="ls-chat-input-tools">
+                    <button class="ls-btn-tool" id="lsBtnPermissionRequest" onclick="chatInterface.showPermissionRequestModal()" title="Raise Exception Proposal">
+                      <i class="fas fa-file-shield"></i> Raise Exception
+                    </button>
+                  </div>
+                  <button class="ls-btn-submit" onclick="chatInterface.sendLiveMessage()">Send <i class="fas fa-paper-plane"></i></button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="ls-chat-interface" id="lsHistoryInterface" style="display: none; background: #ffffff;">
+            <div class="ls-chat-header" style="background: #ffffff; padding: 1rem 1.5rem; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 1rem;">
+              <button class="ls-mobile-back" onclick="chatInterface.hidePreviousSessions()"><i class="fas fa-chevron-left"></i></button>
+              <h3 style="margin: 0; font-size: 1.1rem; color: #111827;">Previous Sessions</h3>
+            </div>
+            <div class="ls-messages-scroll" id="lsHistoryList" style="padding: 1rem;">
+              <!-- History List will be rendered here -->
+            </div>
+          </div>
+
+          <div class="ls-chat-interface" id="lsHistoryViewInterface" style="display: none; background: #f9fafb;">
+            <div class="ls-chat-header" style="background: #ffffff; padding: 1rem 1.5rem; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 1rem; z-index: 2;">
+              <button class="ls-mobile-back" onclick="chatInterface.showPreviousSessions()"><i class="fas fa-chevron-left"></i></button>
+              <h3 style="margin: 0; font-size: 1.1rem; color: #111827;">Archived Transcript</h3>
+            </div>
+            <div class="ls-messages-scroll" id="lsHistoryViewMessages">
+              <!-- Archived messages will be rendered here -->
             </div>
           </div>
         </div>
@@ -2516,6 +2548,245 @@ class ChatInterface {
     }
   }
 
+  async showPreviousSessions() {
+    document.getElementById('lsConnectSplash').style.display = 'none';
+    document.getElementById('lsChatInterface').style.display = 'none';
+    document.getElementById('lsHistoryViewInterface').style.display = 'none';
+    const historyUI = document.getElementById('lsHistoryInterface');
+    historyUI.style.display = 'flex';
+    
+    const listContainer = document.getElementById('lsHistoryList');
+    listContainer.innerHTML = '<div style="text-align: center; color: #6b7280; padding: 2rem;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    
+    try {
+      const res = await fetch(`${this.API}/assistant/history/${this.user.user_id}`);
+      const data = await res.json();
+      
+      if (!data.success || !data.sessions || data.sessions.length === 0) {
+        listContainer.innerHTML = '<div class="ls-empty-chat"><i class="fas fa-box-open" style="font-size: 2rem;"></i><p>No previous sessions found.</p></div>';
+        return;
+      }
+      
+      listContainer.innerHTML = data.sessions.map(s => {
+        const date = new Date(s.timestamp).toLocaleDateString();
+        const time = new Date(s.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `
+          <div style="background: #f9fafb; border: 1px solid #e5e7eb; padding: 1rem; border-radius: 12px; margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='#d1d5db'" onmouseout="this.style.borderColor='#e5e7eb'">
+            <div style="flex: 1;" onclick="chatInterface.viewPreviousSession('${s.session_id}', '${date} ${time}')">
+              <div style="font-weight: 600; color: #111827; margin-bottom: 0.25rem;">Live Support Session</div>
+              <div style="font-size: 0.85rem; color: #6b7280;"><i class="fas fa-calendar-alt"></i> ${date} at ${time}</div>
+            </div>
+            <button onclick="chatInterface.deletePreviousSession('${s.session_id}', event)" style="background: transparent; border: none; color: #ef4444; padding: 0.5rem; cursor: pointer; border-radius: 6px;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        `;
+      }).join('');
+      
+    } catch (e) {
+      listContainer.innerHTML = '<div class="ls-empty-chat">Failed to load sessions.</div>';
+    }
+  }
+
+  hidePreviousSessions() {
+    document.getElementById('lsHistoryInterface').style.display = 'none';
+    document.getElementById('lsHistoryViewInterface').style.display = 'none';
+    this.updateUserLiveSupportUI();
+  }
+
+  async viewPreviousSession(sessionId, datetime) {
+    document.getElementById('lsHistoryInterface').style.display = 'none';
+    const viewUI = document.getElementById('lsHistoryViewInterface');
+    viewUI.style.display = 'flex';
+    
+    const messagesContainer = document.getElementById('lsHistoryViewMessages');
+    messagesContainer.innerHTML = '<div style="text-align: center; color: #6b7280; padding: 2rem;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    
+    try {
+      const res = await fetch(`${this.API}/assistant/history/session/${sessionId}`);
+      const data = await res.json();
+      
+      if (!data.success || !data.messages || data.messages.length === 0) {
+        messagesContainer.innerHTML = '<div class="ls-empty-chat">Transcript empty or deleted.</div>';
+        return;
+      }
+      
+      messagesContainer.innerHTML = data.messages.map(msg => {
+        const isMe = String(msg.sender_id) === String(this.user.user_id);
+        const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const name = isMe ? 'You' : 'Support Agent';
+        
+        const avatarHtml = isMe ? '' : `
+            <div class="ls-msg-avatar">
+              <i class="fas fa-shield-halved"></i>
+            </div>`;
+
+        return `
+          <div class="ls-msg-row ${isMe ? 'me' : 'them'}">
+            ${avatarHtml}
+            <div class="ls-msg-content">
+              <div class="ls-msg-header">
+                <span class="ls-msg-name">${this.escapeHtml(name)}</span>
+                <span class="ls-msg-time">${time}</span>
+              </div>
+              <div class="ls-msg-body">
+                ${this.escapeHtml(msg.content).replace(/\n/g, '<br>')}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+    } catch (e) {
+      messagesContainer.innerHTML = '<div class="ls-empty-chat">Failed to load transcript.</div>';
+    }
+  }
+
+  async deletePreviousSession(sessionId, event) {
+    if (event) event.stopPropagation();
+    
+    if (!confirm('Are you sure you want to delete this session transcript?')) return;
+    
+    try {
+      const res = await fetch(`${this.API}/assistant/history/session/${sessionId}`, { method: 'DELETE' });
+      const data = await res.json();
+      
+      if (data.success) {
+        this.showToast('Session deleted', 'success');
+        this.showPreviousSessions(); // Refresh list
+      } else {
+        this.showToast('Failed to delete', 'error');
+      }
+    } catch (e) {
+      this.showToast('Failed to delete', 'error');
+    }
+  }
+
+  async showAdminPreviousSessions() {
+    const layout = document.querySelector('.ls-admin-layout');
+    if (layout) layout.classList.add('chat-active');
+    
+    document.getElementById('lsAdminChatArea').style.display = 'none';
+    document.getElementById('lsAdminHistoryViewArea').style.display = 'none';
+    const historyUI = document.getElementById('lsAdminHistoryArea');
+    historyUI.style.display = 'flex';
+    
+    const listContainer = document.getElementById('lsAdminHistoryList');
+    listContainer.innerHTML = '<div style="text-align: center; color: #6b7280; padding: 2rem;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    
+    try {
+      const res = await fetch(`${this.API}/assistant/history/${this.user.user_id}`);
+      const data = await res.json();
+      
+      if (!data.success || !data.sessions || data.sessions.length === 0) {
+        listContainer.innerHTML = '<div class="ls-empty-chat"><i class="fas fa-box-open" style="font-size: 2rem;"></i><p>No previous sessions found.</p></div>';
+        return;
+      }
+      
+      listContainer.innerHTML = data.sessions.map(s => {
+        const date = new Date(s.timestamp).toLocaleDateString();
+        const time = new Date(s.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `
+          <div style="background: #f9fafb; border: 1px solid #e5e7eb; padding: 1rem; border-radius: 12px; margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.borderColor='#d1d5db'" onmouseout="this.style.borderColor='#e5e7eb'">
+            <div style="flex: 1;" onclick="chatInterface.viewAdminPreviousSession('${s.session_id}', '${date} ${time}', '${s.other_user_name ? this.escapeHtml(s.other_user_name.replace(/'/g, "\\'")) : 'Unknown'}', '${s.other_user_id ? this.escapeHtml(s.other_user_id.replace(/'/g, "\\'")) : ''}')">
+              <div style="font-weight: 600; color: #111827; margin-bottom: 0.25rem;">${s.other_user_name ? this.escapeHtml(s.other_user_name) : 'Live Support Session'} ${s.other_user_id ? '<span style="font-size: 0.75rem; color: #6b7280; font-weight: normal; background: #e5e7eb; padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.4rem;">' + this.escapeHtml(s.other_user_id) + '</span>' : ''}</div>
+              <div style="font-size: 0.85rem; color: #6b7280;"><i class="fas fa-calendar-alt"></i> ${date} at ${time}</div>
+            </div>
+            <button onclick="chatInterface.deleteAdminPreviousSession('${s.session_id}', event)" style="background: transparent; border: none; color: #ef4444; padding: 0.5rem; cursor: pointer; border-radius: 6px;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='transparent'">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        `;
+      }).join('');
+      
+    } catch (e) {
+      listContainer.innerHTML = '<div class="ls-empty-chat">Failed to load sessions.</div>';
+    }
+  }
+
+  hideAdminPreviousSessions() {
+    const layout = document.querySelector('.ls-admin-layout');
+    if (layout) layout.classList.remove('chat-active');
+    
+    document.getElementById('lsAdminHistoryArea').style.display = 'none';
+    document.getElementById('lsAdminHistoryViewArea').style.display = 'none';
+    document.getElementById('lsAdminChatArea').style.display = 'flex';
+  }
+
+  async viewAdminPreviousSession(sessionId, datetime, otherName = 'Faculty', otherId = '') {
+    document.getElementById('lsAdminHistoryArea').style.display = 'none';
+    const viewUI = document.getElementById('lsAdminHistoryViewArea');
+    viewUI.style.display = 'flex';
+    
+    // Update header dynamically
+    const headerTitle = viewUI.querySelector('h3');
+    if (headerTitle) {
+      headerTitle.innerHTML = `Transcript: ${this.escapeHtml(otherName)} ${otherId ? '<span style="font-size: 0.8rem; font-weight: normal; color: #6b7280;">(' + this.escapeHtml(otherId) + ')</span>' : ''}`;
+    }
+    
+    const messagesContainer = document.getElementById('lsAdminHistoryViewMessages');
+    messagesContainer.innerHTML = '<div style="text-align: center; color: #6b7280; padding: 2rem;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+    
+    try {
+      const res = await fetch(`${this.API}/assistant/history/session/${sessionId}`);
+      const data = await res.json();
+      
+      if (!data.success || !data.messages || data.messages.length === 0) {
+        messagesContainer.innerHTML = '<div class="ls-empty-chat">Transcript empty or deleted.</div>';
+        return;
+      }
+      
+      messagesContainer.innerHTML = data.messages.map(msg => {
+        const isMe = String(msg.sender_id) === String(this.user.user_id);
+        const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const name = isMe ? 'You' : 'Faculty';
+        
+        const avatarHtml = isMe ? '' : `
+            <div class="ls-msg-avatar">
+              <i class="fas fa-user"></i>
+            </div>`;
+
+        return `
+          <div class="ls-msg-row ${isMe ? 'me' : 'them'}">
+            ${avatarHtml}
+            <div class="ls-msg-content">
+              <div class="ls-msg-header">
+                <span class="ls-msg-name">${this.escapeHtml(name)}</span>
+                <span class="ls-msg-time">${time}</span>
+              </div>
+              <div class="ls-msg-body">
+                ${this.escapeHtml(msg.content).replace(/\n/g, '<br>')}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+    } catch (e) {
+      messagesContainer.innerHTML = '<div class="ls-empty-chat">Failed to load transcript.</div>';
+    }
+  }
+
+  async deleteAdminPreviousSession(sessionId, event) {
+    if (event) event.stopPropagation();
+    
+    if (!confirm('Are you sure you want to delete this session transcript?')) return;
+    
+    try {
+      const res = await fetch(`${this.API}/assistant/history/session/${sessionId}`, { method: 'DELETE' });
+      const data = await res.json();
+      
+      if (data.success) {
+        this.showToast('Session deleted', 'success');
+        this.showAdminPreviousSessions(); // Refresh list
+      } else {
+        this.showToast('Failed to delete', 'error');
+      }
+    } catch (e) {
+      this.showToast('Failed to delete', 'error');
+    }
+  }
+
   // ==========================================
   // REAL ASSISTANT LIVE SUPPORT - ADMIN
   // ==========================================
@@ -2533,6 +2804,9 @@ class ChatInterface {
               <h2>Support Inbox</h2>
               <span class="ls-sidebar-subtitle" id="lsQueueCount">Loading...</span>
             </div>
+            <button class="ls-btn-back-icon" onclick="chatInterface.showAdminPreviousSessions()" title="Previous Sessions" style="margin-left: auto;">
+              <i class="fas fa-clock-rotate-left"></i>
+            </button>
           </div>
           <div class="ls-sidebar-list" id="lsAdminQueueList">
              <div class="ls-empty-sidebar"><i class="fas fa-spinner fa-spin"></i><span>Loading queue...</span></div>
@@ -2547,6 +2821,24 @@ class ChatInterface {
              <h3>Select a Conversation</h3>
              <p>Choose a user from the queue to begin providing support.</p>
            </div>
+        </div>
+        
+        <div class="ls-admin-main" id="lsAdminHistoryArea" style="display: none; background: #ffffff;">
+            <div class="ls-chat-header" style="background: #ffffff; padding: 1rem 1.5rem; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 1rem;">
+              <button class="ls-mobile-back" onclick="chatInterface.hideAdminPreviousSessions()"><i class="fas fa-chevron-left"></i></button>
+              <h3 style="margin: 0; font-size: 1.1rem; color: #111827;">Previous Sessions</h3>
+            </div>
+            <div class="ls-messages-scroll" id="lsAdminHistoryList" style="padding: 1rem;">
+            </div>
+        </div>
+
+        <div class="ls-admin-main" id="lsAdminHistoryViewArea" style="display: none; background: #f9fafb;">
+            <div class="ls-chat-header" style="background: #ffffff; padding: 1rem 1.5rem; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 1rem; z-index: 2;">
+              <button class="ls-mobile-back" onclick="chatInterface.showAdminPreviousSessions()"><i class="fas fa-chevron-left"></i></button>
+              <h3 style="margin: 0; font-size: 1.1rem; color: #111827;">Archived Transcript</h3>
+            </div>
+            <div class="ls-messages-scroll" id="lsAdminHistoryViewMessages">
+            </div>
         </div>
       </div>
     `;
@@ -2667,11 +2959,15 @@ class ChatInterface {
       </div>
       
       <div class="ls-chat-interface" style="display: ${isConnected ? 'flex' : 'none'};">
-        ${isConnected ? '<div class="ls-connected-banner"><div class="ls-connected-pulse"></div><i class="fas fa-link"></i><span>Bridge Active</span></div>' : ''}
+        ${isConnected ? '<div class="ls-connected-banner"><div class="ls-connected-pulse"></div><i class="fas fa-shield-check"></i><span>Secure Bridge Active</span></div>' : ''}
         <div class="ls-messages-scroll" id="lsAdminMessages"></div>
-        <div class="ls-chat-input-area">
-          <textarea id="lsAdminMsgInput" placeholder="Type your reply..." rows="1" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); chatInterface.sendLiveMessage(); }"></textarea>
-          <button class="ls-btn-send" onclick="chatInterface.sendLiveMessage()"><i class="fas fa-paper-plane"></i></button>
+        <div class="ls-chat-input-wrapper">
+          <div class="ls-chat-input-container">
+            <textarea id="lsAdminMsgInput" placeholder="Message User..." rows="1" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); chatInterface.sendLiveMessage(); }"></textarea>
+            <div class="ls-chat-input-actions" style="justify-content: flex-end;">
+              <button class="ls-btn-submit" onclick="chatInterface.sendLiveMessage()">Send <i class="fas fa-paper-plane"></i></button>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -2769,13 +3065,20 @@ class ChatInterface {
         }
       }
       
-      // Auto-connect if not in live support view but we have an active connection
+      // Keep track of session state for meta display even if we aren't in live support view
       if (this.assistantConnectionState !== 'live_support_view') {
         if (data.status === 'connected' || data.status === 'connecting') {
-           this.connectRealAssistant();
+           this.currentLiveSession = { id: data.connection_id, status: data.status };
+           if (this.activeTab === 'assistant') {
+             this.renderAssistant();
+           }
         } else {
-           return;
+           this.currentLiveSession = null;
+           if (this.activeTab === 'assistant') {
+             this.renderAssistant();
+           }
         }
+        return;
       }
       
       if (this.isAdmin) {
@@ -2828,13 +3131,27 @@ class ChatInterface {
       container.innerHTML = data.messages.map(msg => {
         const isMe = String(msg.sender_id) === String(this.user.user_id);
         const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const name = isMe ? 'You' : (this.isAdmin ? (this.currentLiveSession.user_name || 'User') : 'Support Agent');
+        
+        let avatarIcon;
+        if (isMe) {
+          avatarIcon = this.isAdmin ? '<i class="fas fa-shield-halved"></i>' : '<i class="fas fa-user"></i>';
+        } else {
+          avatarIcon = this.isAdmin ? '<i class="fas fa-user"></i>' : '<i class="fas fa-shield-halved"></i>';
+        }
+
         return `
-          <div class="ls-message ${isMe ? 'out' : 'in'}">
-            <div class="ls-message-bubble">
-              <p>${this.escapeHtml(msg.content)}</p>
-              <div class="ls-message-meta">
-                <span class="ls-message-time">${time}</span>
-                ${isMe ? '<i class="fas fa-check-double"></i>' : ''}
+          <div class="ls-msg-row ${isMe ? 'me' : 'them'}">
+            <div class="ls-msg-avatar">
+              ${avatarIcon}
+            </div>
+            <div class="ls-msg-content">
+              <div class="ls-msg-header">
+                <span class="ls-msg-name">${this.escapeHtml(name)}</span>
+                <span class="ls-msg-time">${time}</span>
+              </div>
+              <div class="ls-msg-body">
+                <p>${this.escapeHtml(msg.content)}</p>
               </div>
             </div>
           </div>
@@ -2905,7 +3222,7 @@ class ChatInterface {
     return {
       title: this.isAdmin ? 'Live Support Queue' : 'Local knowledge engine ready',
       description: this.isAdmin ? 'Answer real-time questions from faculty who request live support.' : 'This assistant already answers from the project itself: flows, screens, endpoints, and support topics are preloaded.',
-      buttonLabel: this.isAdmin ? 'Connect with the Users' : 'Connect with the Users',
+      buttonLabel: this.isAdmin ? 'Connect with the Users' : 'Connect with the Support Bridge',
       statusText: this.isAdmin ? 'Open the queue to accept incoming live support chats.' : 'Local knowledge is ready. Connect the live bridge when you want handoff support.'
     };
   }
@@ -3690,7 +4007,7 @@ class ChatInterface {
     return FACULTY_PERMISSION_PRESETS[type] || FACULTY_PERMISSION_PRESETS.custom;
   }
 
-  buildPermissionMessageContent({ permissionType, customType, customDaysCount, permissionDate, startTime, endTime, reason, fullDay, hasDocument, attachmentUrl }) {
+  buildPermissionMessageContent({ permissionType, customType, customDaysCount, permissionDate, startTime, endTime, reason, fullDay, hasDocument, attachmentUrl, permissionId }) {
     const preset = this.getPermissionPreset(permissionType);
     const title = permissionType === 'custom' && customType ? customType : preset.label;
     const lines = [
@@ -3715,6 +4032,9 @@ class ChatInterface {
       lines.push(`Attachment: ${attachmentUrl}`);
     }
     lines.push('Status: Pending');
+    if (permissionId) {
+      lines.push(`[PermissionID: ${permissionId}]`);
+    }
     return lines.join('\n');
   }
 
@@ -3749,12 +4069,23 @@ class ChatInterface {
     const data = this.parsePermissionMessageContent(msg.content);
     const status = data.status || 'Pending';
     const statusClass = this.getPermissionStatusClass(status);
+    
+    let isTrackingValid = false;
+    if (data.date && data.date !== '-') {
+      const pDate = new Date(data.date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      isTrackingValid = pDate >= today;
+    } else {
+      isTrackingValid = true;
+    }
+    
     const detailRows = [
-      ['Date', data.date || '-'],
-      ['Scope', data.scope || '-'],
-      ['Window', data.time || 'As requested'],
-      ['Proof', data.proof || 'Not specified']
+      ['Date', data.date || '-']
     ];
+    if (data.scope && data.scope !== '-') detailRows.push(['Scope', data.scope]);
+    detailRows.push(['Window', data.time || 'As requested']);
+    detailRows.push(['Proof', data.proof || 'Not specified']);
     const policyHint = data['policy hint'] || '';
     const reason = data.reason || '';
     const days = data.days || '';
@@ -3781,8 +4112,13 @@ class ChatInterface {
                 </div>
               `).join('')}
             </div>
+            ${reason ? `
+              <div class="permission-detail-card" style="margin-top: 0.5rem; background: #f8fafc; border: 1px solid #e2e8f0; width: 100%;">
+                <span>Reason</span>
+                <strong style="white-space: pre-wrap;">${this.escapeHtml(reason)}</strong>
+              </div>
+            ` : ''}
             ${days ? `<p class="permission-request-note"><strong>Days:</strong> ${this.escapeHtml(days)}</p>` : ''}
-            ${reason ? `<p class="permission-request-note"><strong>Reason:</strong> ${this.escapeHtml(reason)}</p>` : ''}
             ${attachment && attachment !== 'Not attached' ? `
               <p class="permission-request-note">
                 <strong>Proof:</strong>
@@ -3792,10 +4128,15 @@ class ChatInterface {
             ${data['admin notes'] ? `<p class="permission-request-note"><strong>Admin notes:</strong> ${this.escapeHtml(data['admin notes'])}</p>` : ''}
             
             <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-              ${data.permissionid ? `<button onclick="window.chatInterface.openPermissionTimeline(${data.permissionid})" style="flex: 1; padding: 0.5rem; background: #f1f5f9; color: #3b82f6; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s;"><i class="fas fa-route"></i> Track Status</button>` : ''}
+              ${(msg.sender_id === this.user.user_id && data.permissionid && isTrackingValid) ? `<button onclick="window.chatInterface.openPermissionTimeline(${data.permissionid})" style="flex: 1; padding: 0.5rem; background: #f1f5f9; color: #3b82f6; border: 1px solid #cbd5e1; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s;"><i class="fas fa-route"></i> Track Status</button>` : ''}
               
-              ${(this.user.role === 'admin' && status.toLowerCase() === 'pending' && data.permissionid) ? 
-                `<button onclick="window.chatInterface.approvePermissionFromChat('${data.permissionid}', '${this.escapeHtml(data.type || '')}')" style="flex: 1; padding: 0.5rem; background: #10b981; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s;"><i class="fas fa-check"></i> Approve</button>` : ''}
+              ${(this.user.role === 'admin' && data.permissionid) ? (
+                status.toLowerCase() === 'pending' ?
+                  `<button onclick="window.chatInterface.openReviewModalFromChat('${data.permissionid}', '${encodeURIComponent(JSON.stringify(data))}', this)" style="flex: 1; padding: 0.5rem; background: #10b981; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s;"><i class="fas fa-check"></i> Approve</button>` :
+                status.toLowerCase() === 'approved' ?
+                  `<button disabled style="flex: 1; padding: 0.5rem; background: #e2e8f0; color: #10b981; border: none; border-radius: 6px; font-weight: 600; cursor: not-allowed;"><i class="fas fa-check-double"></i> Approved</button>` :
+                  `<button disabled style="flex: 1; padding: 0.5rem; background: #e2e8f0; color: #dc2626; border: none; border-radius: 6px; font-weight: 600; cursor: not-allowed;"><i class="fas fa-times"></i> Rejected</button>`
+              ) : ''}
             </div>
             
           </div>
@@ -3841,7 +4182,14 @@ class ChatInterface {
       if (data.success) {
         const perm = data.permissions.find(p => p.id === permissionId);
         if (!perm) {
-          content.innerHTML = '<div style="color: red;">Permission not found.</div>';
+          content.innerHTML = `
+            <div style="position: relative; padding-left: 20px; border-left: 2px solid #e2e8f0; margin-left: 10px; display: flex; flex-direction: column; gap: 1.5rem;">
+              <div style="position: relative;">
+                <div style="position: absolute; left: -29px; top: 0; width: 16px; height: 16px; border-radius: 50%; background: #ef4444; border: 2px solid white;"></div>
+                <div style="color: #b91c1c; font-weight: 700; margin-bottom: 0.25rem; font-size: 0.95rem;"><i class="fas fa-times-circle" style="width: 20px;"></i> Rejected / Removed</div>
+                <div style="color: #64748b; font-size: 0.85rem;">Admin rejected or removed this request.</div>
+              </div>
+            </div>`;
           return;
         }
         
@@ -3950,8 +4298,28 @@ class ChatInterface {
       }
     }
 
+    // Check for existing permissions on the same day
+    if (!this._overridePermissionId) {
+      try {
+        const pRes = await fetch(`${this.API}/permissions/user/${this.user.user_id}`);
+        const pData = await pRes.json();
+        if (pData.success) {
+          const existingReq = pData.permissions.find(p => p.date === permissionDate);
+          if (existingReq) {
+            this.showDuplicatePermissionPrompt(existingReq);
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to check existing permissions', e);
+      }
+    }
+
     try {
       const formData = new FormData();
+      if (this._overridePermissionId) {
+        formData.append('override_id', this._overridePermissionId);
+      }
       formData.append('user_id', this.user.user_id);
       formData.append('type', permissionType === 'custom' ? 'custom' : permissionType);
       formData.append('custom_type', customType || '');
@@ -3962,7 +4330,7 @@ class ChatInterface {
       formData.append('is_full_day', fullDay ? 'true' : 'false');
       formData.append('reason', reason);
       const recipientId = this.assistantConnectionState === 'live_support_view' ? 'ADMIN01' : this.currentChat;
-      const recipientName = this.assistantConnectionState === 'live_support_view' ? 'Real Assistant' : this.currentChatUser;
+      const recipientName = this.assistantConnectionState === 'live_support_view' ? 'Admin' : this.currentChatUser;
 
       formData.append('recipient_id', recipientId);
 
@@ -4003,7 +4371,8 @@ class ChatInterface {
           reason,
           fullDay,
           hasDocument: Boolean(fileInput && fileInput.files.length > 0),
-          attachmentUrl
+          attachmentUrl,
+          permissionId: data.permission_id
         }),
         created_at: new Date().toISOString(),
         is_read: true,
@@ -4017,6 +4386,22 @@ class ChatInterface {
           container.innerHTML += this.renderPermissionRequestCard(permissionMessage, true);
           container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
         }
+        
+        // Notify the admin in the Live Support chat that a request was raised
+        if (this.currentLiveSession && this.currentLiveSession.id) {
+          const typeLabel = permissionType === 'custom' ? customType : (preset?.label || permissionType);
+          const liveMsg = `📌 *Exception Request Submitted*\nType: ${typeLabel}\nDate: ${permissionDate}\nReason: ${reason}\n\n(This request has been logged. Admin, please review in your Permissions dashboard.)`;
+          
+          fetch(`${this.API}/assistant/messages/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              connection_id: this.currentLiveSession.id,
+              sender_id: this.user.user_id,
+              content: liveMsg
+            })
+          }).catch(e => console.warn('Failed to send live notification', e));
+        }
       } else {
         if (!this.conversations[this.currentChat]) {
           this.conversations[this.currentChat] = {
@@ -4028,11 +4413,14 @@ class ChatInterface {
             lastTime: null
           };
         }
-
-        this.conversations[this.currentChat].messages.push(permissionMessage);
-        this.conversations[this.currentChat].role = this.currentChatUserRole || this.conversations[this.currentChat].role || null;
-        this.renderConversation();
-        this.renderConversations();
+        if (this._overridePermissionId) {
+          await this.loadConversationMessages(this.currentChat, this.currentChatUser);
+        } else {
+          this.conversations[this.currentChat].messages.push(permissionMessage);
+          this.conversations[this.currentChat].role = this.currentChatUserRole || this.conversations[this.currentChat].role || null;
+          this.renderConversation();
+          this.renderConversations();
+        }
       }
 
       this.hideAllModals();
@@ -4042,6 +4430,8 @@ class ChatInterface {
     } catch (err) {
       console.error('Failed to submit permission request:', err);
       this.showToast(err.message || 'Failed to submit request', 'error');
+    } finally {
+      this._overridePermissionId = null;
     }
   }
 
@@ -4095,7 +4485,7 @@ class ChatInterface {
 
   async clearConversationById(userId, userName, fromOpenChat = false, skipConfirm = false) {
     if (!skipConfirm) {
-      const ok = confirm(`Clear chat with ${userName || userId}?`);
+      const ok = confirm(`Are you sure you want to permanently delete the chat history with ${userName || userId}?`);
       if (!ok) return;
     }
 
@@ -4174,7 +4564,7 @@ class ChatInterface {
 
     if (isInChatView) {
       if (this.activeTab === 'messages') {
-        this.exitChatView(true);
+        this.exitChatView(false);
       } else {
         this.activeTab = 'messages';
         document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -4225,7 +4615,7 @@ class ChatInterface {
       const event = new CustomEvent('SupportBridgeStateChanged', {
           detail: {
               count: data.count,
-              status: data.current_status,
+              status: data.status,
               connection_id: data.connection_id
           }
       });
@@ -4236,8 +4626,202 @@ class ChatInterface {
   }
 
   // ==========================================
-  // INLINE CHAT PERMISSION APPROVAL
+  // INLINE CHAT PERMISSION APPROVAL (VIA MODAL)
   // ==========================================
+  
+  openReviewModalFromChat(permissionId, dataStr, btnElement) {
+      let data;
+      try {
+          data = JSON.parse(decodeURIComponent(dataStr));
+      } catch (e) {
+          console.error("Failed to parse permission data", e);
+          return;
+      }
+
+      if (String(data.type).toLowerCase() === 'custom') {
+          alert("Custom permission requests involve highly specific policy rules.\n\nPlease open the Admin Dashboard to review and approve Custom requests using the Policy Builder UI.");
+          return;
+      }
+
+      // 1. Inject Modal HTML if it doesn't exist
+      if (!document.getElementById('chatReviewModal')) {
+          const modalHtml = `
+          <div id="chatReviewModal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(4px); padding: 1rem;">
+              <div style="background: #ffffff; width: 100%; max-width: 500px; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15); display: flex; flex-direction: column; max-height: 90vh; overflow: hidden; border: 1px solid #e2e8f0; animation: modalIn 0.3s ease;">
+                  <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
+                      <div>
+                          <h2 style="margin: 0; font-size: 1.25rem; color: #0f172a; font-weight: 700;">Request Review</h2>
+                          <p style="margin: 0.25rem 0 0 0; color: #64748b; font-size: 0.85rem;">Review details and set time window.</p>
+                      </div>
+                      <button onclick="document.getElementById('chatReviewModal').style.display='none'" style="background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 1.5rem; transition: color 0.2s;">&times;</button>
+                  </div>
+                  <div style="padding: 1.5rem; overflow-y: auto; flex: 1; background: #ffffff;">
+                      <div style="margin-bottom: 1.5rem; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; background: #fafafa;">
+                          <h4 style="margin: 0 0 0.75rem 0; color: #334155; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Faculty Request</h4>
+                          <div style="display: grid; grid-template-columns: 80px 1fr; gap: 0.5rem; font-size: 0.9rem;">
+                              <div style="color: #64748b; font-weight: 600;">Faculty</div><div id="crmFaculty" style="color: #0f172a;">--</div>
+                              <div style="color: #64748b; font-weight: 600;">Date</div><div id="crmDate" style="color: #0f172a;">--</div>
+                              <div style="color: #64748b; font-weight: 600;">Scope</div><div id="crmScope" style="color: #0f172a;">--</div>
+                              <div style="color: #64748b; font-weight: 600;">Reason</div><div id="crmReason" style="color: #0f172a;">--</div>
+                              <div style="color: #64748b; font-weight: 600;">Proof</div><div id="crmProof" style="color: #0f172a;">--</div>
+                          </div>
+                      </div>
+                      <div style="margin-bottom: 1.5rem; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; background: #f8fafc;">
+                          <h4 style="margin: 0 0 0.75rem 0; color: #334155; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">System Behaviour</h4>
+                          <div id="crmRules" style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem; color: #475569; margin-bottom: 1.25rem;"></div>
+                          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 0.75rem; border-top: 1px dashed #cbd5e1;">
+                              <h4 style="margin: 0; color: #334155; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Attendance Type</h4>
+                              <div id="crmModifier" style="background: #eef2ff; color: #4f46e5; padding: 0.2rem 0.5rem; border-radius: 4px; border: 1px solid #c7d2fe; font-weight: 700; font-size: 0.9rem;">--</div>
+                          </div>
+                      </div>
+                      <div>
+                          <h4 style="margin: 0 0 0.75rem 0; color: #334155; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Admin Decision</h4>
+                          <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                              <div style="flex: 1;">
+                                  <label style="display: block; font-weight: 600; color: #334155; margin-bottom: 0.25rem; font-size: 0.85rem;">Valid From</label>
+                                  <input type="time" id="crmValidFrom" style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; outline: none;">
+                              </div>
+                              <div style="flex: 1;">
+                                  <label style="display: block; font-weight: 600; color: #334155; margin-bottom: 0.25rem; font-size: 0.85rem;">Allowed Until</label>
+                                  <input type="time" id="crmValidUntil" style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; outline: none;">
+                              </div>
+                          </div>
+                          <div>
+                              <label style="display: block; font-weight: 600; color: #334155; margin-bottom: 0.25rem; font-size: 0.85rem;">Remarks</label>
+                              <input type="text" id="crmRemarks" placeholder="Approved via chat..." style="width: 100%; padding: 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; outline: none;">
+                          </div>
+                      </div>
+                  </div>
+                  <div style="padding: 1.25rem 1.5rem; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; justify-content: flex-end; gap: 0.75rem;">
+                      <button onclick="document.getElementById('chatReviewModal').style.display='none'" style="padding: 0.6rem 1.25rem; background: #ffffff; border: 1px solid #dc2626; border-radius: 6px; color: #dc2626; font-weight: 600; cursor: pointer;">Cancel</button>
+                      <button id="crmSubmitBtn" style="padding: 0.6rem 1.5rem; background: #10b981; border: none; border-radius: 6px; color: white; font-weight: 600; cursor: pointer; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);">Approve</button>
+                  </div>
+              </div>
+          </div>`;
+          document.body.insertAdjacentHTML('beforeend', modalHtml);
+      }
+
+      // 2. Populate Modal Data
+      const CHAT_TEMPLATE_POLICIES = {
+          'late_arrival': { modifier: 'LP', priority: 20, policy: { attendance_status: 'FD', require_face: true, require_gps: true, require_geofence: true, require_morning: true, require_evening: true, morning_deadline: null, evening_deadline: null } },
+          'early_departure': { modifier: 'EP', priority: 20, policy: { attendance_status: 'FD', require_face: true, require_gps: true, require_geofence: true, require_morning: true, require_evening: true, morning_deadline: null, evening_deadline: null } },
+          'extended_campus_exit': { modifier: 'ECE', priority: 20, policy: { attendance_status: 'FD', require_face: true, require_gps: true, require_geofence: false, require_morning: true, require_evening: true, morning_deadline: null, evening_deadline: null } },
+          'half_day_morning': { modifier: 'HD-M', priority: 30, policy: { attendance_status: 'HD', require_face: true, require_gps: true, require_geofence: true, require_morning: false, require_evening: true, morning_deadline: null, evening_deadline: null } },
+          'half_day_afternoon': { modifier: 'HD-A', priority: 30, policy: { attendance_status: 'HD', require_face: true, require_gps: true, require_geofence: true, require_morning: true, require_evening: false, morning_deadline: null, evening_deadline: null } },
+          'work_from_home': { modifier: 'WFH', priority: 50, policy: { attendance_status: 'FD', require_face: true, require_gps: false, require_geofence: false, require_morning: true, require_evening: true, morning_deadline: null, evening_deadline: null } },
+          'on_duty': { modifier: 'OD', priority: 40, policy: { attendance_status: 'FD', require_face: false, require_gps: false, require_geofence: false, require_morning: false, require_evening: false, morning_deadline: null, evening_deadline: null } },
+          'outdoor_duty': { modifier: 'OUT', priority: 40, policy: { attendance_status: 'FD', require_face: true, require_gps: false, require_geofence: false, require_morning: true, require_evening: true, morning_deadline: null, evening_deadline: null } },
+          'medical_leave': { modifier: 'ML', priority: 90, policy: { attendance_status: 'LV', require_face: false, require_gps: false, require_geofence: false, require_morning: false, require_evening: false, morning_deadline: null, evening_deadline: null } },
+          'full_day_absence': { modifier: 'LV', priority: 80, policy: { attendance_status: 'LV', require_face: false, require_gps: false, require_geofence: false, require_morning: false, require_evening: false, morning_deadline: null, evening_deadline: null } },
+          'emergency': { modifier: 'EMG', priority: 100, policy: { attendance_status: 'LV', require_face: false, require_gps: false, require_geofence: false, require_morning: false, require_evening: false, morning_deadline: null, evening_deadline: null } }
+      };
+
+      document.getElementById('crmFaculty').textContent = data.faculty_id || '--';
+      document.getElementById('crmDate').textContent = data.date || '--';
+      document.getElementById('crmScope').textContent = data.scope || '--';
+      document.getElementById('crmReason').textContent = data.reason || '--';
+      
+      const proofStr = data.attachment || data['attachment url'] || data.proof;
+      if (proofStr && proofStr !== 'Not specified' && proofStr !== 'Not attached') {
+          document.getElementById('crmProof').innerHTML = `<a href="${proofStr}" target="_blank" style="color: #2563eb; text-decoration: underline;">View File</a>`;
+      } else {
+          document.getElementById('crmProof').textContent = 'None';
+      }
+
+      const templateType = String(data.type).toLowerCase().replace(/ /g, '_');
+      const template = CHAT_TEMPLATE_POLICIES[templateType] || CHAT_TEMPLATE_POLICIES['late_arrival'];
+      document.getElementById('crmModifier').textContent = `${data.type} (${template.modifier})`;
+
+      // Render Rules
+      let rulesHtml = '';
+      const p = template.policy;
+      if (p.require_face) rulesHtml += `<div><i class="fas fa-check" style="color: #10b981; margin-right: 6px;"></i> Face verification required</div>`;
+      else rulesHtml += `<div><i class="fas fa-times" style="color: #64748b; margin-right: 6px;"></i> Face verification waived</div>`;
+      
+      if (!p.require_gps || !p.require_geofence) rulesHtml += `<div><i class="fas fa-check" style="color: #10b981; margin-right: 6px;"></i> Attendance may be marked outside campus</div>`;
+      else rulesHtml += `<div><i class="fas fa-map-marker-alt" style="color: #64748b; margin-right: 6px;"></i> Must be on campus</div>`;
+
+      if (p.require_morning) rulesHtml += `<div style="margin-top: 4px;"><i class="fas fa-clock" style="color: #3b82f6; margin-right: 6px;"></i> Morning mark required</div>`;
+      else rulesHtml += `<div style="margin-top: 4px;"><i class="fas fa-clock" style="color: #64748b; margin-right: 6px;"></i> Morning mark waived</div>`;
+
+      if (p.require_evening) rulesHtml += `<div style="margin-top: 4px;"><i class="fas fa-clock" style="color: #3b82f6; margin-right: 6px;"></i> Evening checkout required</div>`;
+      else rulesHtml += `<div style="margin-top: 4px;"><i class="fas fa-clock" style="color: #64748b; margin-right: 6px;"></i> Evening checkout waived</div>`;
+
+      document.getElementById('crmRules').innerHTML = rulesHtml;
+
+      document.getElementById('crmValidFrom').value = '09:00';
+      document.getElementById('crmValidUntil').value = '18:00';
+      document.getElementById('crmRemarks').value = '';
+
+      // Bind submit function
+      const submitBtn = document.getElementById('crmSubmitBtn');
+      submitBtn.onclick = () => this.submitReviewFromChat(permissionId, template, data.date, btnElement);
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Approve';
+
+      // 3. Show Modal
+      document.getElementById('chatReviewModal').style.display = 'flex';
+  }
+
+  async submitReviewFromChat(permissionId, template, reqDateRaw, btnElement) {
+      const submitBtn = document.getElementById('crmSubmitBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Approving...';
+
+      const validFromTime = document.getElementById('crmValidFrom').value;
+      const validUntilTime = document.getElementById('crmValidUntil').value;
+      const remarks = document.getElementById('crmRemarks').value || 'Approved via chat review.';
+      
+      const reqDate = (reqDateRaw && reqDateRaw !== '--') ? reqDateRaw : new Date().toISOString().split('T')[0];
+      
+      const payload = {
+          admin_id: this.user.id || this.user.user_id,
+          decision: 'Approved',
+          decision_reason: remarks,
+          modifier: template.modifier,
+          priority: template.priority,
+          valid_from: `${reqDate}T${validFromTime}:00`,
+          valid_until: `${reqDate}T${validUntilTime}:00`,
+          internal_notes: '',
+          effective_policy: template.policy
+      };
+
+      try {
+          const response = await fetch(`${this.API}/admin/permissions/${permissionId}/decision`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+          });
+
+          const result = await response.json();
+          if (!response.ok || !result.success) throw new Error(result.message || 'Failed to approve');
+
+          this.showToast(`Request #${permissionId} approved successfully!`, 'success');
+          
+          // Close modal
+          document.getElementById('chatReviewModal').style.display = 'none';
+
+          // visually update the button inside the chat message to "Approved"
+          if (btnElement) {
+              btnElement.disabled = true;
+              btnElement.style.background = '#e2e8f0';
+              btnElement.style.color = '#10b981';
+              btnElement.innerHTML = '<i class="fas fa-check-double"></i> Approved';
+              btnElement.removeAttribute('onclick'); // prevent double clicks
+          }
+
+          // Sync Dashboard if loaded
+          if (typeof window.loadPendingDecisions === 'function') {
+              window.loadPendingDecisions();
+          }
+      } catch (error) {
+          console.error("Chat Appv Error", error);
+          alert(error.message);
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Approve';
+      }
+  }
+
   async approvePermissionFromChat(permissionId, type) {
     if (String(type).toLowerCase() === 'custom') {
       alert("Custom permission requests involve highly specific policy rules.\n\nPlease open the Admin Dashboard to review and approve Custom requests using the Policy Builder UI.");
@@ -4298,6 +4882,75 @@ class ChatInterface {
     } catch (e) {
         this.showToast(e.message, 'error');
     }
+  }
+  showDuplicatePermissionPrompt(existingReq) {
+    const timeString = existingReq.start_time && existingReq.end_time 
+      ? `<p style="margin: 0 0 0.5rem 0;"><strong>Time:</strong> ${this.escapeHtml(existingReq.start_time)} - ${this.escapeHtml(existingReq.end_time)}</p>` 
+      : (existingReq.is_full_day ? `<p style="margin: 0 0 0.5rem 0;"><strong>Time:</strong> Full Day</p>` : '');
+    const proofString = existingReq.document_url || existingReq.document_path 
+      ? `<p style="margin: 0;"><strong>Proof:</strong> Attached</p>` 
+      : `<p style="margin: 0;"><strong>Proof:</strong> None</p>`;
+
+    const detailsHtml = `
+      <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 1rem; margin-bottom: 1rem; border-radius: 4px;">
+        <p style="margin: 0; color: #92400e; font-weight: 500;">You have already raised a request for this day (${this.escapeHtml(existingReq.date)}).</p>
+      </div>
+      <div style="background: #f8fafc; padding: 1rem; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.9rem; margin-bottom: 1.5rem;">
+        <p style="margin: 0 0 0.5rem 0;"><strong>Current Status:</strong> <span class="status-badge status-${existingReq.status ? existingReq.status.toLowerCase() : 'pending'}">${this.escapeHtml(existingReq.status)}</span></p>
+        <p style="margin: 0 0 0.5rem 0;"><strong>Type:</strong> ${this.escapeHtml(existingReq.type)}</p>
+        <p style="margin: 0 0 0.5rem 0;"><strong>Date:</strong> ${this.escapeHtml(existingReq.date)}</p>
+        ${timeString}
+        <p style="margin: 0 0 0.5rem 0;"><strong>Reason:</strong> ${this.escapeHtml(existingReq.reason)}</p>
+        ${proofString}
+      </div>
+      <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+        <button class="btn-secondary" id="btnDupPermIgnore" style="flex: 1;">Let it be</button>
+        <button class="btn-primary" id="btnDupPermUpdate" style="flex: 1;">Update It</button>
+      </div>
+    `;
+
+    let modal = document.getElementById('duplicatePermissionModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'duplicatePermissionModal';
+      modal.className = 'modal';
+      modal.innerHTML = `
+        <div class="modal-content" style="max-width: 450px; max-height: 85vh; overflow-y: auto;">
+          <div class="modal-header">
+            <h2>Duplicate Request Found</h2>
+            <button class="modal-close" id="btnDupPermClose">&times;</button>
+          </div>
+          <div class="modal-body">
+            ${detailsHtml}
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      
+      document.getElementById('btnDupPermClose').addEventListener('click', () => modal.classList.remove('show'));
+      document.getElementById('btnDupPermIgnore').addEventListener('click', () => modal.classList.remove('show'));
+      document.getElementById('btnDupPermUpdate').addEventListener('click', () => {
+        modal.classList.remove('show');
+        this._overridePermissionId = existingReq.id;
+        this.submitPermissionRequest();
+      });
+    } else {
+        const bodyContent = modal.querySelector('.modal-body');
+        bodyContent.innerHTML = detailsHtml;
+        
+        document.getElementById('btnDupPermIgnore').addEventListener('click', () => modal.classList.remove('show'));
+        document.getElementById('btnDupPermUpdate').addEventListener('click', () => {
+          modal.classList.remove('show');
+          this._overridePermissionId = existingReq.id;
+          this.submitPermissionRequest();
+        });
+    }
+
+    modal.classList.add('show');
+    
+    // Also show the overlay
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) overlay.classList.add('show');
   }
 }
 

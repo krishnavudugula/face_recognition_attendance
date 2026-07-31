@@ -52,3 +52,17 @@ window.fetch = async function(resource, config = {}) {
     // 3. Send the upgraded request
     return originalFetch(resource, config);
 };
+
+// --- GLOBAL OFFLINE HANDLING ---
+window.addEventListener('offline', () => {
+    if (window.location.pathname.endsWith('error.html')) return; // Don't redirect if already on error page
+    
+    const returnTo = encodeURIComponent(window.location.href);
+    let errorPath = 'error.html';
+    if (window.location.pathname.includes('/pages/')) {
+        errorPath = '../error.html';
+    }
+    
+    // Redirect to error.html preserving the return location
+    window.location.replace(`${errorPath}?returnTo=${returnTo}`);
+});

@@ -831,9 +831,10 @@ class MessagingSystem {
         }, this.POLL_INTERVAL);
         
         // Polling loop specifically for Notification Manager (Live Support)
+        // Reduced from 1.5s to 6.0s to prevent spamming PythonAnywhere workers
         this.supportPollInterval = setInterval(() => {
             this.checkSupportQueue();
-        }, 1500);
+        }, 6000);
         
         // Initial check
         this.checkSupportQueue();
@@ -842,7 +843,7 @@ class MessagingSystem {
     async checkSupportQueue() {
         if (!this.currentUser) return;
         try {
-            const res = await fetch(`${this.API_URL}/assistant/unread_count?user_id=${this.currentUser.user_id}`);
+            const res = await fetch(`${this.API_URL}/assistant/unread_count?user_id=${this.currentUser.user_id}&_t=${Date.now()}`, { cache: 'no-store' });
             const data = await res.json();
             this.assistantUnreadCount = data.count || 0;
             this.updateTotalBadge();
