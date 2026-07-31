@@ -2350,7 +2350,7 @@ class ChatInterface {
   // ==========================================
   
   async renderUserLiveSupport(container) {
-    this.updateHeaderSubtitle('Live Support Chat');
+    this.updateHeaderSubtitle('Smart Bridge');
     container.innerHTML = `
       <div class="ls-user-layout">
         <div class="ls-user-header">
@@ -2358,28 +2358,58 @@ class ChatInterface {
             <i class="fas fa-arrow-left"></i> Back to Assistant
           </button>
           <div class="ls-agent-info">
-            <div class="ls-avatar"><i class="fas fa-headset"></i></div>
+            <div class="ls-avatar-premium">
+              <div class="ls-avatar-ring"><i class="fas fa-headset"></i></div>
+            </div>
             <div class="ls-agent-details">
-              <h3>Real Assistant</h3>
-              <span id="lsUserStatusText">Waiting to connect...</span>
+              <h3>Smart Bridge</h3>
+              <span id="lsUserStatusText" class="ls-status-badge">Initializing...</span>
             </div>
           </div>
         </div>
         
         <div id="lsUserBody" class="ls-user-body">
           <div class="ls-connect-splash" id="lsConnectSplash">
-            <div class="ls-splash-icon"><i class="fas fa-life-ring"></i></div>
-            <h2>Live Support Bridge</h2>
-            <p>Get real-time guidance directly from the support team.</p>
-            <button id="lsBtnConnect" class="ls-btn-connect" onclick="chatInterface.requestLiveSupport()">CONNECT</button>
-            <button id="lsBtnCancel" class="ls-btn-cancel" style="display: none;" onclick="chatInterface.cancelLiveSupport()">Cancel Request</button>
+            <div class="ls-splash-visual">
+              <div class="ls-orb-container">
+                <div class="ls-orb"></div>
+                <div class="ls-orb-ring"></div>
+                <div class="ls-orb-ring ls-orb-ring-2"></div>
+              </div>
+              <div class="ls-splash-icon-wrap"><i class="fas fa-satellite-dish"></i></div>
+            </div>
+            <div class="ls-splash-content">
+              <span class="ls-splash-kicker">LIVE SUPPORT</span>
+              <h2>Smart Bridge</h2>
+              <p>Connect directly with admin support for real-time guidance, issue resolution, and exception approvals.</p>
+            </div>
+            <div class="ls-splash-actions">
+              <button id="lsBtnConnect" class="ls-btn-connect" onclick="chatInterface.requestLiveSupport()">
+                <span class="ls-btn-connect-content">
+                  <i class="fas fa-bolt"></i>
+                  <span>Establish Connection</span>
+                </span>
+              </button>
+              <button id="lsBtnCancel" class="ls-btn-cancel" style="display: none;" onclick="chatInterface.cancelLiveSupport()">
+                <i class="fas fa-xmark"></i> Cancel Request
+              </button>
+            </div>
+            <div class="ls-splash-footer">
+              <i class="fas fa-shield-halved"></i>
+              <span>End-to-end encrypted · Admin-verified responses</span>
+            </div>
           </div>
           
           <div class="ls-chat-interface" id="lsChatInterface" style="display: none;">
+            <div class="ls-connected-banner" id="lsConnectedBanner">
+              <div class="ls-connected-pulse"></div>
+              <i class="fas fa-link"></i>
+              <span>Smart Bridge Connected</span>
+            </div>
             <div class="ls-messages-scroll" id="lsUserMessages"></div>
             <div class="ls-chat-input-area">
-              <textarea id="lsUserMsgInput" placeholder="Type your message..." rows="1"></textarea>
-              <button class="ls-btn-icon" id="lsBtnPermissionRequest" onclick="chatInterface.showPermissionRequestModal()" title="Raise Exception Proposal" style="color: #6366f1;">
+              <textarea id="lsUserMsgInput" placeholder="Type your message..." rows="1" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); chatInterface.sendLiveMessage(); }"></textarea>
+              <button class="ls-btn-icon" id="lsBtnPermissionRequest" onclick="chatInterface.showPermissionRequestModal()" title="Raise Exception Proposal">
                 <i class="fas fa-file-shield"></i>
               </button>
               <button class="ls-btn-send" onclick="chatInterface.sendLiveMessage()"><i class="fas fa-paper-plane"></i></button>
@@ -2394,7 +2424,7 @@ class ChatInterface {
   async refreshUserLiveSupportStatus() {
     // This is now purely event-driven. We only do this once on initial load.
     try {
-      const res = await fetch(`${this.API}/assistant/status/${this.user.user_id}`);
+      const res = await fetch(`${this.API}/assistant/status/${this.user.user_id}?_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       if (data.success && data.status !== 'disconnected') {
         this.currentLiveSession = { id: data.connection_id, status: data.status };
@@ -2418,29 +2448,38 @@ class ChatInterface {
     if (!this.currentLiveSession || this.currentLiveSession.status === 'disconnected') {
       splash.style.display = 'flex';
       chatUI.style.display = 'none';
-      btnConnect.textContent = 'CONNECT';
+      splash.classList.remove('is-connecting');
+      btnConnect.innerHTML = '<span class="ls-btn-connect-content"><i class="fas fa-bolt"></i><span>Establish Connection</span></span>';
       btnConnect.className = 'ls-btn-connect';
       btnConnect.disabled = false;
       btnCancel.style.display = 'none';
-      statusText.textContent = 'Available to connect';
+      statusText.innerHTML = '<span class="ls-dot available"></span> Available';
+      statusText.className = 'ls-status-badge available';
     } else if (this.currentLiveSession.status === 'connecting') {
       splash.style.display = 'flex';
       chatUI.style.display = 'none';
-      btnConnect.textContent = 'CONNECTING...';
+      splash.classList.add('is-connecting');
+      btnConnect.innerHTML = '<span class="ls-btn-connect-content"><i class="fas fa-spinner fa-spin"></i><span>Connecting...</span></span>';
       btnConnect.className = 'ls-btn-connect connecting';
       btnConnect.disabled = true;
-      btnCancel.style.display = 'block';
-      statusText.textContent = 'Request sent...';
+      btnCancel.style.display = 'flex';
+      statusText.innerHTML = '<span class="ls-dot connecting"></span> Requesting...';
+      statusText.className = 'ls-status-badge connecting';
     } else if (this.currentLiveSession.status === 'connected') {
       splash.style.display = 'none';
       chatUI.style.display = 'flex';
       statusText.innerHTML = '<span class="ls-dot green"></span> Connected';
+      statusText.className = 'ls-status-badge connected';
       this.loadLiveMessages('lsUserMessages');
     }
   }
 
   async requestLiveSupport() {
     try {
+      // Optimistic UI update
+      this.currentLiveSession = { id: 'temp', status: 'connecting' };
+      this.updateUserLiveSupportUI();
+      
       const res = await fetch(`${this.API}/assistant/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2448,21 +2487,30 @@ class ChatInterface {
       });
       const data = await res.json();
       if (data.success) {
-        // UI will update automatically when the backend state changes
+        this.currentLiveSession = { id: data.connection.id, status: data.connection.status };
+      } else {
+        this.currentLiveSession = null;
+        this.showToast('Failed to connect', 'error');
       }
+      this.updateUserLiveSupportUI();
     } catch (e) {
+      this.currentLiveSession = null;
+      this.updateUserLiveSupportUI();
       this.showToast('Failed to connect', 'error');
     }
   }
 
   async cancelLiveSupport() {
     try {
+      // Optimistic UI update
+      this.currentLiveSession = null;
+      this.updateUserLiveSupportUI();
+      
       await fetch(`${this.API}/assistant/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: this.user.user_id })
       });
-      // UI will update automatically when backend reflects cancellation
     } catch (e) {
       // ignore
     }
@@ -2473,25 +2521,31 @@ class ChatInterface {
   // ==========================================
   
   renderAdminLiveSupport(container) {
-    this.updateHeaderSubtitle('Live Support Queue');
+    this.updateHeaderSubtitle('Support Command Center');
     container.innerHTML = `
       <div class="ls-admin-layout">
         <div class="ls-admin-sidebar">
           <div class="ls-sidebar-header">
-            <button class="ls-btn-back-icon" onclick="chatInterface.closeLiveSupport()" title="Back to Messages">
+            <button class="ls-btn-back-icon" onclick="chatInterface.closeLiveSupport()" title="Back">
               <i class="fas fa-arrow-left"></i>
             </button>
-            <h2>Support Inbox</h2>
+            <div class="ls-sidebar-title">
+              <h2>Support Inbox</h2>
+              <span class="ls-sidebar-subtitle" id="lsQueueCount">Loading...</span>
+            </div>
           </div>
           <div class="ls-sidebar-list" id="lsAdminQueueList">
-             <div class="ls-empty-sidebar">Loading queue...</div>
+             <div class="ls-empty-sidebar"><i class="fas fa-spinner fa-spin"></i><span>Loading queue...</span></div>
           </div>
         </div>
         
         <div class="ls-admin-main" id="lsAdminChatArea">
            <div class="ls-chat-placeholder">
-             <i class="fas fa-inbox"></i>
-             <p>Select a user from the queue to assist them.</p>
+             <div class="ls-placeholder-visual">
+               <div class="ls-placeholder-icon"><i class="fas fa-inbox"></i></div>
+             </div>
+             <h3>Select a Conversation</h3>
+             <p>Choose a user from the queue to begin providing support.</p>
            </div>
         </div>
       </div>
@@ -2502,35 +2556,47 @@ class ChatInterface {
 
   async refreshAdminLiveQueue() {
     try {
-      const res = await fetch(`${this.API}/assistant/connections?admin_id=${this.user.user_id}`);
+      const res = await fetch(`${this.API}/assistant/connections?admin_id=${this.user.user_id}&_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       const list = document.getElementById('lsAdminQueueList');
+      const countEl = document.getElementById('lsQueueCount');
       if (!list) return;
 
       if (!data.connections || data.connections.length === 0) {
-        list.innerHTML = `<div class="ls-empty-sidebar">No active or pending requests.</div>`;
+        list.innerHTML = `<div class="ls-empty-sidebar"><i class="fas fa-check-circle"></i><span>No active requests</span></div>`;
+        if (countEl) countEl.textContent = '0 sessions';
         return;
       }
 
-      list.innerHTML = data.connections.map(conn => `
-        <div class="ls-queue-item ${this.currentLiveSession?.id === conn.id ? 'active' : ''}" onclick="chatInterface.selectAdminLiveSession(${conn.id})">
-          <div class="ls-queue-avatar"><i class="fas fa-user"></i></div>
-          <div class="ls-queue-info">
-            <div class="ls-queue-head" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-              <div>
-                <span class="ls-queue-name">${this.escapeHtml(conn.user_name || 'Unknown User')} <span style="font-size: 0.85em; opacity: 0.7;">(${this.escapeHtml(conn.user_id)})</span></span>
+      if (countEl) countEl.textContent = `${data.connections.length} session${data.connections.length !== 1 ? 's' : ''}`;
+
+      list.innerHTML = data.connections.map(conn => {
+        const isActive = this.currentLiveSession?.id === conn.id;
+        const isPending = conn.status === 'connecting';
+        const initials = (conn.user_name || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+        const timeAgo = conn.created_at ? this.getRelativeTime(new Date(conn.created_at)) : '';
+        return `
+          <div class="ls-queue-item ${isActive ? 'active' : ''} ${isPending ? 'is-pending' : ''}" onclick="chatInterface.selectAdminLiveSession(${conn.id})">
+            <div class="ls-queue-avatar-wrap">
+              <div class="ls-queue-avatar-circle">${initials}</div>
+              <span class="ls-queue-presence ${isPending ? 'pending' : 'active'}"></span>
+            </div>
+            <div class="ls-queue-info">
+              <div class="ls-queue-top-row">
+                <span class="ls-queue-name">${this.escapeHtml(conn.user_name || 'Unknown User')}</span>
+                ${timeAgo ? `<span class="ls-queue-time">${timeAgo}</span>` : ''}
               </div>
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <span class="ls-queue-status ${conn.status === 'connecting' ? 'yellow' : 'green'}"></span>
-                <button class="ls-delete-btn" onclick="chatInterface.handleDeleteSession(event, ${conn.id})" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; opacity: 0.6; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'" title="Remove Session">
-                  <i class="fas fa-trash-alt"></i>
-                </button>
+              <div class="ls-queue-bottom-row">
+                <span class="ls-queue-id">${this.escapeHtml(conn.user_id)}</span>
+                <span class="ls-queue-status-tag ${isPending ? 'pending' : 'connected'}">${isPending ? 'Pending' : 'Active'}</span>
               </div>
             </div>
-            <p class="ls-queue-preview">${conn.status === 'connecting' ? 'Requested support' : 'Active session'}</p>
+            <button class="ls-queue-delete-btn" onclick="chatInterface.handleDeleteSession(event, ${conn.id})" title="Remove Session">
+              <i class="fas fa-trash-alt"></i>
+            </button>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     } catch (e) {
       console.error('Failed to refresh queue', e);
     }
@@ -2548,7 +2614,7 @@ class ChatInterface {
 
   async selectAdminLiveSession(connectionId) {
     try {
-      const res = await fetch(`${this.API}/assistant/connections?admin_id=${this.user.user_id}`);
+      const res = await fetch(`${this.API}/assistant/connections?admin_id=${this.user.user_id}&_t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       this.currentLiveSession = data.connections.find(c => c.id === connectionId);
       this.refreshAdminLiveQueue();
@@ -2570,28 +2636,38 @@ class ChatInterface {
     const chatArea = document.getElementById('lsAdminChatArea');
     if (!chatArea || !this.currentLiveSession) return;
     
+    const isPending = this.currentLiveSession.status === 'connecting';
+    const isConnected = this.currentLiveSession.status === 'connected';
+    const initials = (this.currentLiveSession.user_name || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+    
     chatArea.innerHTML = `
       <div class="ls-chat-header">
         <div class="ls-agent-info">
           <button class="ls-mobile-back" style="display: none;" onclick="chatInterface.closeAdminChatMobile()">
             <i class="fas fa-chevron-left"></i>
           </button>
-          <div class="ls-avatar"><i class="fas fa-user"></i></div>
+          <div class="ls-queue-avatar-wrap">
+            <div class="ls-queue-avatar-circle">${initials}</div>
+            <span class="ls-queue-presence ${isPending ? 'pending' : 'active'}"></span>
+          </div>
           <div class="ls-agent-details">
-            <h3>${this.escapeHtml(this.currentLiveSession.user_name || 'Unknown User')} <span style="font-size: 0.85em; font-weight: 500; opacity: 0.7;">(${this.escapeHtml(this.currentLiveSession.user_id)})</span></h3>
-            <span><span class="ls-dot ${this.currentLiveSession.status === 'connected' ? 'green' : 'yellow'}"></span> ${this.currentLiveSession.status}</span>
+            <h3>${this.escapeHtml(this.currentLiveSession.user_name || 'Unknown User')} <span class="ls-user-id-tag">${this.escapeHtml(this.currentLiveSession.user_id)}</span></h3>
+            <span class="ls-status-badge ${isPending ? 'connecting' : 'connected'}">
+              <span class="ls-dot ${isPending ? 'connecting' : 'green'}"></span> ${isPending ? 'Waiting for acceptance' : 'Connected'}
+            </span>
           </div>
         </div>
         <div class="ls-header-actions">
-           ${this.currentLiveSession.status === 'connecting' ? 
-             `<button class="ls-btn-accept" onclick="chatInterface.acceptLiveSupport(${this.currentLiveSession.id})">Accept</button>
-              <button class="ls-btn-end" onclick="chatInterface.declineLiveSupport(${this.currentLiveSession.id})">Decline</button>` : ''}
-           ${this.currentLiveSession.status === 'connected' ? 
-             `<button class="ls-btn-end" onclick="chatInterface.endLiveSupport(${this.currentLiveSession.id})">End Chat</button>` : ''}
+           ${isPending ? 
+             `<button class="ls-btn-accept" onclick="chatInterface.acceptLiveSupport(${this.currentLiveSession.id})"><i class="fas fa-check"></i> Accept</button>
+              <button class="ls-btn-decline" onclick="chatInterface.declineLiveSupport(${this.currentLiveSession.id})"><i class="fas fa-xmark"></i> Decline</button>` : ''}
+           ${isConnected ? 
+             `<button class="ls-btn-end" onclick="chatInterface.endLiveSupport(${this.currentLiveSession.id})"><i class="fas fa-phone-slash"></i> End Chat</button>` : ''}
         </div>
       </div>
       
-      <div class="ls-chat-interface" style="display: ${this.currentLiveSession.status === 'connected' ? 'flex' : 'none'};">
+      <div class="ls-chat-interface" style="display: ${isConnected ? 'flex' : 'none'};">
+        ${isConnected ? '<div class="ls-connected-banner"><div class="ls-connected-pulse"></div><i class="fas fa-link"></i><span>Bridge Active</span></div>' : ''}
         <div class="ls-messages-scroll" id="lsAdminMessages"></div>
         <div class="ls-chat-input-area">
           <textarea id="lsAdminMsgInput" placeholder="Type your reply..." rows="1" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); chatInterface.sendLiveMessage(); }"></textarea>
@@ -2599,20 +2675,39 @@ class ChatInterface {
         </div>
       </div>
       
-      ${this.currentLiveSession.status === 'connecting' ? `
+      ${isPending ? `
         <div class="ls-chat-placeholder">
-          <p>This user is waiting for you to accept their request.</p>
+          <div class="ls-placeholder-visual">
+            <div class="ls-placeholder-icon pending"><i class="fas fa-hourglass-half"></i></div>
+          </div>
+          <h3>Awaiting Response</h3>
+          <p>This user is waiting for you to accept their support request.</p>
         </div>
       ` : ''}
     `;
 
-    if (this.currentLiveSession.status === 'connected') {
+    if (isConnected) {
       this.loadLiveMessages('lsAdminMessages');
     }
   }
 
+  getRelativeTime(date) {
+    if (!date || isNaN(date)) return '';
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  }
+
   async declineLiveSupport(connectionId) {
     try {
+      if (this.currentLiveSession && this.currentLiveSession.id === connectionId) {
+        this.currentLiveSession.status = 'disconnected';
+        this.renderAdminChatArea();
+      }
       await fetch(`${this.API}/assistant/disconnect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2626,6 +2721,10 @@ class ChatInterface {
 
   async acceptLiveSupport(connectionId) {
     try {
+      if (this.currentLiveSession && this.currentLiveSession.id === connectionId) {
+        this.currentLiveSession.status = 'connected';
+        this.renderAdminChatArea();
+      }
       await fetch(`${this.API}/assistant/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2639,6 +2738,10 @@ class ChatInterface {
 
   async endLiveSupport(connectionId) {
     try {
+      if (this.currentLiveSession && this.currentLiveSession.id === connectionId) {
+        this.currentLiveSession.status = 'disconnected';
+        this.renderAdminChatArea();
+      }
       await fetch(`${this.API}/assistant/disconnect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2681,6 +2784,17 @@ class ChatInterface {
       } else {
         // Faculty UI reactive update
         const newStatus = data.status || 'disconnected';
+        
+        if (!this.currentLiveSession && (!newStatus || newStatus === 'disconnected')) {
+            return; // No session and no new session — nothing to update
+        }
+
+        // Anti-Jitter: Ignore 'disconnected' from polling if we are currently 'connecting' optimistically.
+        // This prevents the UI from flashing back to 'CONNECT' if a background poll races the POST request.
+        if (this.currentLiveSession?.status === 'connecting' && newStatus === 'disconnected') {
+            return;
+        }
+
         if (this.currentLiveSession?.status !== newStatus || this.currentLiveSession?.id !== data.connection_id) {
             if (newStatus !== 'disconnected') {
                 this.currentLiveSession = { id: data.connection_id, status: newStatus };
@@ -2718,7 +2832,10 @@ class ChatInterface {
           <div class="ls-message ${isMe ? 'out' : 'in'}">
             <div class="ls-message-bubble">
               <p>${this.escapeHtml(msg.content)}</p>
-              <div class="ls-message-time">${time}</div>
+              <div class="ls-message-meta">
+                <span class="ls-message-time">${time}</span>
+                ${isMe ? '<i class="fas fa-check-double"></i>' : ''}
+              </div>
             </div>
           </div>
         `;
